@@ -57,6 +57,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.IconToggleButton
 import androidx.compose.material.TextField
+import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Edit
@@ -88,6 +89,7 @@ interface Actions {
     fun toggleEditCharacter(characterKey: String)
     fun moveCharacterUp(characterKey: String)
     fun moveCharacterDown(characterKey: String)
+    fun addCharacter()
 }
 
 @Composable
@@ -193,12 +195,30 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, edi
 fun InitOrder(innerPadding: PaddingValues, characters: List<Character>, active: String, actions: Actions, listState: LazyListState, editMode: Boolean) {
     LazyColumn(contentPadding = innerPadding, state = listState) {
         items(
-            characters,
-            key = { it.key }
+            characters + null,
+            key = { it?.key ?: "" }
         ) { character ->
-            @Suppress("EXPERIMENTAL_FOUNDATION_API_USAGE")
-            Box(modifier = Modifier.animateItemPlacement()) {
-                ShowCharacter(character, isActive = character.key == active, actions, editMode)
+            if (character != null) {
+                @Suppress("EXPERIMENTAL_FOUNDATION_API_USAGE")
+                Box(modifier = Modifier.animateItemPlacement()) {
+                    ShowCharacter(character, isActive = character.key == active, actions, editMode)
+                }
+            } else {
+                if (editMode) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        IconButton(onClick = { actions.addCharacter() }) {
+                            Icon(
+                                imageVector = Icons.Default.AddCircle,
+                                //tint = Color.Green,
+                                modifier = Modifier.size(40.dp),
+                                contentDescription = "Add character"
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -293,6 +313,13 @@ fun App() {
                     }
                 }
             }
+
+            override fun addCharacter() {
+                val key = nextKey()
+                val next = Character.Edit(key, null, null, false, FocusRequester());
+                characterList = characterList + next
+                editCharacter = key
+            }
         }
 
         //LaunchedEffect(key1 = currentlySelectedCharacter) {
@@ -345,14 +372,6 @@ fun App() {
                                 }
                             }, enabled = characterList.isNotEmpty() && characterList.all { it is Character.Finished }) {
                                 Text("Sort")
-                            }
-                            IconButton(onClick = {
-                                val key = nextKey()
-                                val next = Character.Edit(key, null, null, false, FocusRequester());
-                                characterList = characterList + next
-                                editCharacter = key
-                            }) {
-                                Icon(Icons.Default.Add, contentDescription = "Add")
                             }
                         } else {
 
