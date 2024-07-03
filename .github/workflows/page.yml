@@ -29,6 +29,11 @@ jobs:
 
       - name: Build and Deploy
         run: ./gradlew wasmJsBrowserDistribution
+      - name: Check build files
+        run:
+          ls composeApp/build/dist/wasmJs/productionExecutable/*
+          ls composeApp/build/dist/*
+          ls composeApp/build/*
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
         with:
