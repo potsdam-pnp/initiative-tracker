@@ -1,4 +1,4 @@
-package org.example.project
+package io.github.potsdam_pnp.initiative_tracker
 
 import App
 import android.os.Bundle

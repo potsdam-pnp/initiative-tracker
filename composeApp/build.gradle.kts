@@ -71,7 +71,7 @@ kotlin {
 }
 
 android {
-    namespace = "org.example.project"
+    namespace = "io.github.potsdam_pnp.initiative_tracker"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     sourceSets["main"].manifest.srcFile("src/androidMain/AndroidManifest.xml")
@@ -79,7 +79,7 @@ android {
     sourceSets["main"].resources.srcDirs("src/commonMain/resources")
 
     defaultConfig {
-        applicationId = "org.example.project"
+        applicationId = "io.github.potsdam_pnp.initiative_tracker"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
@@ -113,7 +113,7 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "org.example.project"
+            packageName = "io.github.potsdam_pnp.initiative_tracker"
             packageVersion = "1.0.0"
         }
     }
