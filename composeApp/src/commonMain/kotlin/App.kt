@@ -79,7 +79,8 @@ sealed class Character {
     abstract val key: String
 
     data class Finished(override val key: String, val name: String, val initiative: Int, val playerCharacter: Boolean): Character()
-    data class Edit(override val key: String, val name: String?, val initiative: Int?, val playerCharacter: Boolean, val focusRequester: FocusRequester = FocusRequester()): Character()
+    data class NoInitiativeYet(override val key: String, val name: String, val playerCharacter: Boolean): Character()
+    data class Edit(override val key: String, val name: String?, val initiative: Int?, val playerCharacter: Boolean, val focusRequester: FocusRequester = FocusRequester(), val focusInitiative: Boolean): Character()
 }
 
 interface Actions {
@@ -121,9 +122,10 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, edi
         Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
             when (character) {
                 is Character.Finished -> Text(character.name)
+                is Character.NoInitiativeYet -> Text(character.name)
                 is Character.Edit -> {
                     TextField(
-                        modifier = Modifier.focusRequester(character.focusRequester),
+                        modifier = if (character.focusInitiative) Modifier else Modifier.focusRequester(character.focusRequester),
                         singleLine = true,
                         value = character.name ?: "",
                         onValueChange = { actions.editCharacter(character.key, it) },
@@ -145,7 +147,7 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, edi
             }
         }
         val toggleEditIcon = when (character) {
-            is Character.Finished -> Icons.Default.Edit
+            is Character.Finished, is Character.NoInitiativeYet -> Icons.Default.Edit
             is Character.Edit -> Icons.Default.Check
         }
         Column() {
@@ -153,9 +155,10 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, edi
                 when (character) {
                     is Character.Finished ->
                         Text(modifier = Modifier.padding(horizontal = 5.dp), text = character.initiative.toString())
+                    is Character.NoInitiativeYet -> {}
                     is Character.Edit ->
                     TextField(
-                        modifier = Modifier.width(70.dp).padding(horizontal = 5.dp),
+                        modifier = Modifier.width(70.dp).padding(horizontal = 5.dp).then(if (!character.focusInitiative) Modifier else Modifier.focusRequester(character.focusRequester)),
                         singleLine = true,
                         value = character.initiative?.toString() ?: "",
                         onValueChange = { actions.editInitiative(character.key, it) },
@@ -279,8 +282,14 @@ fun App(data: String? = null) {
                 characterList = characterList.map {
                     if (it.key == characterKey) {
                         when (it) {
-                            is Character.Edit -> Character.Finished(it.key, it.name ?: "", it.initiative ?: 0, it.playerCharacter)
-                            is Character.Finished -> Character.Edit(it.key, it.name, it.initiative, it.playerCharacter)
+                            is Character.Edit ->
+                                if (it.initiative != null) {
+                                    Character.Finished(it.key, it.name ?: "", it.initiative, it.playerCharacter)
+                                } else {
+                                    Character.NoInitiativeYet(it.key, it.name ?: "", it.playerCharacter)
+                                }
+                            is Character.Finished -> Character.Edit(it.key, it.name, it.initiative, it.playerCharacter, focusInitiative = false)
+                            is Character.NoInitiativeYet -> Character.Edit(it.key, it.name, null, it.playerCharacter, focusInitiative = true)
                         }
                     } else {
                         it
@@ -322,7 +331,7 @@ fun App(data: String? = null) {
 
             override fun addCharacter() {
                 val key = nextKey()
-                val next = Character.Edit(key, null, null, false, FocusRequester());
+                val next = Character.Edit(key, null, null, false, FocusRequester(), focusInitiative = false);
                 characterList = characterList + next
                 editCharacter = key
             }
@@ -373,7 +382,7 @@ fun App(data: String? = null) {
                                 characterList = characterList.sortedBy { c ->
                                     when (c) {
                                         is Character.Finished -> -c.initiative
-                                        is Character.Edit -> 1
+                                        is Character.NoInitiativeYet, is Character.Edit -> 1
                                     }
                                 }
                             }, enabled = characterList.isNotEmpty() && characterList.all { it is Character.Finished }) {
