@@ -232,12 +232,18 @@ fun nextKey(): String {
     return lastKey.toString();
 }
 
+fun charactersFromData(data: String?): List<Character> {
+    val characterNames = data?.split(",") ?: emptyList()
+    return characterNames.map {
+        Character.Finished(nextKey(), it, 0, true)
+    }
+}
 
 @Composable
 @Preview
-fun App() {
+fun App(data: String? = null) {
     MaterialTheme {
-        var characterList by remember { mutableStateOf(listOf<Character>()) }
+        var characterList by remember { mutableStateOf(charactersFromData(data)) }
         var currentlySelectedCharacter by remember { mutableStateOf("") };
         val listState = rememberLazyListState()
         var editCharacter by remember { mutableStateOf("") }
