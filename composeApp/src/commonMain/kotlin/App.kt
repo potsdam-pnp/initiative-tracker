@@ -381,7 +381,7 @@ fun App(data: String? = null) {
                             Button(onClick = {
                                 characterList = characterList.sortedBy { c ->
                                     when (c) {
-                                        is Character.Finished -> -c.initiative
+                                        is Character.Finished -> -c.initiative*2- (if (c.playerCharacter) 0 else 1)
                                         is Character.NoInitiativeYet, is Character.Edit -> 1
                                     }
                                 }
