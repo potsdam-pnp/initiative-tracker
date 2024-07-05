@@ -238,7 +238,7 @@ fun nextKey(): String {
 fun charactersFromData(data: String?): List<Character> {
     val characterNames = data?.split(",") ?: emptyList()
     return characterNames.map {
-        Character.Finished(nextKey(), it, 0, true)
+        Character.NoInitiativeYet(nextKey(), it, playerCharacter = true)
     }
 }
 
