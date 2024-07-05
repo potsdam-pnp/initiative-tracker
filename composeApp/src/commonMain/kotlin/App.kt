@@ -250,7 +250,7 @@ fun App(data: String? = null) {
         var currentlySelectedCharacter by remember { mutableStateOf("") };
         val listState = rememberLazyListState()
         var editCharacter by remember { mutableStateOf("") }
-        var editMode by remember { mutableStateOf(false) }
+        var editMode by remember { mutableStateOf(data != null) }
 
         val actions = object : Actions {
             override fun deleteCharacter(characterKey: String) {
