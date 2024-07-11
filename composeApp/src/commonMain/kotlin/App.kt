@@ -63,9 +63,12 @@ import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.materialIcon
+import androidx.compose.material.icons.materialPath
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -91,6 +94,7 @@ interface Actions {
     fun moveCharacterUp(characterKey: String)
     fun moveCharacterDown(characterKey: String)
     fun addCharacter()
+    fun die(characterKey: String)
 }
 
 @Composable
@@ -185,6 +189,12 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, edi
                             contentDescription = "Delete"
                         )
                     }
+                } else {
+                    IconButton(onClick = { actions.die(character.key) }) {
+                        Icon(imageVector = deathIcon,
+                            tint = Color.Black,
+                            contentDescription = "Get dying condition")
+                    }
                 }
             }
         }
@@ -239,6 +249,25 @@ fun charactersFromData(data: String?): List<Character> {
     val characterNames = data?.split(",") ?: emptyList()
     return characterNames.map {
         Character.NoInitiativeYet(nextKey(), it, playerCharacter = true)
+    }
+}
+
+val deathIcon: ImageVector =
+materialIcon(name = "death") {
+    materialPath {
+        moveTo(11.0f, 2.0f)
+        verticalLineTo(7.0f)
+        horizontalLineTo(6.0f)
+        verticalLineToRelative(2.0f)
+        horizontalLineTo(11.0f)
+        verticalLineTo(22.0f)
+        horizontalLineToRelative(2.0f)
+        verticalLineTo(9.0f)
+        horizontalLineTo(18.0f)
+        verticalLineToRelative(-2.0f)
+        horizontalLineTo(13.0f)
+        verticalLineTo(2.0f)
+        close()
     }
 }
 
@@ -334,6 +363,21 @@ fun App(data: String? = null) {
                 val next = Character.Edit(key, null, null, false, FocusRequester(), focusInitiative = false);
                 characterList = characterList + next
                 editCharacter = key
+            }
+
+            override fun die(characterKey: String) {
+                if (characterKey == currentlySelectedCharacter) return
+
+                characterList = characterList.toMutableList().also {
+                    val index = it.indexOfFirst { it.key == characterKey }
+                    val character = it.removeAt(index)
+                    val selectedIndex = it.indexOfFirst { it.key == currentlySelectedCharacter }
+                    if (selectedIndex < 0) {
+                        it.add(index, character);
+                    } else {
+                        it.add(selectedIndex, character);
+                    }
+                }
             }
         }
 
