@@ -55,6 +55,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.DropdownMenu
 import androidx.compose.material.IconToggleButton
 import androidx.compose.material.TextField
 import androidx.compose.material.icons.filled.AddCircle
@@ -62,6 +63,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.materialIcon
 import androidx.compose.material.icons.materialPath
@@ -272,6 +274,28 @@ materialIcon(name = "death") {
 }
 
 @Composable
+fun SettingsMenu(characterList: List<Character>) {
+    var showMenu by remember { mutableStateOf(false) }
+    IconButton(onClick = { showMenu = !showMenu }) {
+        Icon(Icons.Filled.MoreVert, contentDescription = "More")
+    }
+    DropdownMenu(
+        expanded = showMenu,
+        onDismissRequest = { showMenu = false }
+    ) {
+        getPlatform().DropdownMenuItemPlayerShortcut(enabled = characterList.isNotEmpty()) {
+            characterList.mapNotNull {
+                when (it) {
+                    is Character.Finished -> it.name
+                    is Character.NoInitiativeYet -> it.name
+                    is Character.Edit -> it.name
+                }
+            }
+        }
+    }
+}
+
+@Composable
 @Preview
 fun App(data: String? = null) {
     MaterialTheme {
@@ -410,6 +434,7 @@ fun App(data: String? = null) {
                                 Icon(Icons.Default.Edit, contentDescription = "Edit")
                             }
                         }
+                        SettingsMenu(characterList)
                     }
                 )
             },
