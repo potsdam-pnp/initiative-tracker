@@ -12,23 +12,25 @@ import kotlinx.coroutines.flow.update
 
 sealed class Character {
     abstract val key: String
+    abstract val name: String
+    abstract val playerCharacter: Boolean
 
     data class Finished(
         override val key: String,
-        val name: String,
+        override val name: String,
         val initiative: Int,
-        val playerCharacter: Boolean): Character()
+        override val playerCharacter: Boolean): Character()
 
     data class NoInitiativeYet(
         override val key: String,
-        val name: String,
-        val playerCharacter: Boolean): Character()
+        override val name: String,
+        override val playerCharacter: Boolean): Character()
 
     data class Edit(
         override val key: String,
-        val name: String,
+        override val name: String,
         val initiative: Int?,
-        val playerCharacter: Boolean,
+        override val playerCharacter: Boolean,
         val focusRequester: FocusRequester = FocusRequester(),
         val focusInitiative: Boolean): Character()
 }

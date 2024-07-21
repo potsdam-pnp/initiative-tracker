@@ -181,10 +181,18 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, edi
                         )
                     }
                 } else {
-                    IconButton(onClick = { actions.die(character.key) }) {
-                        Icon(imageVector = deathIcon,
-                            tint = Color.Black,
-                            contentDescription = "Get dying condition")
+                    if (character.playerCharacter) {
+                        IconButton(onClick = { actions.die(character.key) }) {
+                            Icon(
+                                imageVector = deathIcon,
+                                tint = Color.Black,
+                                contentDescription = "Get dying condition"
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = { actions.deleteCharacter(character.key) }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete")
+                        }
                     }
                 }
             }
