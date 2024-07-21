@@ -74,30 +74,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.compose_multiplatform
 import kotlin.math.roundToInt
-
-
-sealed class Character {
-    abstract val key: String
-
-    data class Finished(override val key: String, val name: String, val initiative: Int, val playerCharacter: Boolean): Character()
-    data class NoInitiativeYet(override val key: String, val name: String, val playerCharacter: Boolean): Character()
-    data class Edit(override val key: String, val name: String?, val initiative: Int?, val playerCharacter: Boolean, val focusRequester: FocusRequester = FocusRequester(), val focusInitiative: Boolean): Character()
-}
-
-interface Actions {
-    fun deleteCharacter(characterKey: String)
-    fun editCharacter(characterKey: String, name: String?)
-    fun editInitiative(characterKey: String, initiative: String)
-    fun toggleEditCharacter(characterKey: String)
-    fun moveCharacterUp(characterKey: String)
-    fun moveCharacterDown(characterKey: String)
-    fun addCharacter()
-    fun die(characterKey: String)
-}
 
 @Composable
 fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, editMode: Boolean) {
@@ -207,7 +188,7 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, edi
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-fun InitOrder(innerPadding: PaddingValues, characters: List<Character>, active: String, actions: Actions, listState: LazyListState, editMode: Boolean) {
+fun InitOrder(innerPadding: PaddingValues, characters: List<Character>, active: String?, actions: Actions, listState: LazyListState, editMode: Boolean) {
     LazyColumn(contentPadding = innerPadding, state = listState) {
         items(
             characters + null,
@@ -236,21 +217,6 @@ fun InitOrder(innerPadding: PaddingValues, characters: List<Character>, active: 
                 }
             }
         }
-    }
-}
-
-
-var lastKey = 0;
-
-fun nextKey(): String {
-    lastKey += 1;
-    return lastKey.toString();
-}
-
-fun charactersFromData(data: String?): List<Character> {
-    val characterNames = data?.split(",") ?: emptyList()
-    return characterNames.map {
-        Character.NoInitiativeYet(nextKey(), it, playerCharacter = true)
     }
 }
 
@@ -284,7 +250,7 @@ fun SettingsMenu(characterList: List<Character>) {
         onDismissRequest = { showMenu = false }
     ) {
         getPlatform().DropdownMenuItemPlayerShortcut(enabled = characterList.isNotEmpty()) {
-            characterList.mapNotNull {
+            characterList.map {
                 when (it) {
                     is Character.Finished -> it.name
                     is Character.NoInitiativeYet -> it.name
@@ -298,126 +264,12 @@ fun SettingsMenu(characterList: List<Character>) {
 @Composable
 @Preview
 fun App(data: String? = null) {
+    val model = viewModel { Model(data) }
+    val state by model.state.collectAsState()
+    val actions: Actions = model
+
     MaterialTheme {
-        var characterList by remember { mutableStateOf(charactersFromData(data)) }
-        var currentlySelectedCharacter by remember { mutableStateOf("") };
         val listState = rememberLazyListState()
-        var editCharacter by remember { mutableStateOf("") }
-        var editMode by remember { mutableStateOf(data != null) }
-
-        val actions = object : Actions {
-            override fun deleteCharacter(characterKey: String) {
-                characterList = characterList.filter { it.key != characterKey }
-            }
-
-            override fun editCharacter(characterKey: String, name: String?) {
-                characterList = characterList.map {
-                    if (it.key == characterKey && it is Character.Edit) {
-                        it.copy(name = name)
-                    } else {
-                        it
-                    }
-                }
-            }
-
-            override fun editInitiative(characterKey: String, initiative: String) {
-                if (initiative.toIntOrNull() == null && initiative != "") return
-                characterList = characterList.map {
-                    if (it.key == characterKey && it is Character.Edit) {
-                        it.copy(initiative = initiative.toIntOrNull())
-                    } else {
-                        it
-                    }
-                }
-            }
-
-            override fun toggleEditCharacter(characterKey: String) {
-                characterList = characterList.map {
-                    if (it.key == characterKey) {
-                        when (it) {
-                            is Character.Edit ->
-                                if (it.initiative != null) {
-                                    Character.Finished(it.key, it.name ?: "", it.initiative, it.playerCharacter)
-                                } else {
-                                    Character.NoInitiativeYet(it.key, it.name ?: "", it.playerCharacter)
-                                }
-                            is Character.Finished -> Character.Edit(it.key, it.name, it.initiative, it.playerCharacter, focusInitiative = false)
-                            is Character.NoInitiativeYet -> Character.Edit(it.key, it.name, null, it.playerCharacter, focusInitiative = true)
-                        }
-                    } else {
-                        it
-                    }
-                }
-            }
-
-            override fun moveCharacterUp(characterKey: String) {
-                characterList = characterList.toMutableList().also {
-                    val currentIndex = it.indexOfFirst { it.key == characterKey }
-                    if (currentIndex >= 1) {
-                        val currentCharacter = it[currentIndex]
-                        val previousCharacter = it[currentIndex - 1]
-                        it[currentIndex] = previousCharacter
-                        it[currentIndex - 1] = currentCharacter
-                    } else if (currentIndex == 0) {
-                        val currentCharacter = it[currentIndex]
-                        it.removeAt(0)
-                        it.add(currentCharacter)
-                    }
-                }
-            }
-
-            override fun moveCharacterDown(characterKey: String) {
-                characterList = characterList.toMutableList().also {
-                    val currentIndex = it.indexOfFirst { it.key == characterKey }
-                    if (currentIndex < it.size - 1 && currentIndex >= 0) {
-                        val currentCharacter = it[currentIndex]
-                        val nextCharacter = it[currentIndex + 1]
-                        it[currentIndex] = nextCharacter
-                        it[currentIndex + 1] = currentCharacter
-                    } else if (currentIndex == it.size - 1) {
-                        val currentCharacter = it[currentIndex]
-                        it.removeAt(currentIndex)
-                        it.add(0, currentCharacter)
-                    }
-                }
-            }
-
-            override fun addCharacter() {
-                val key = nextKey()
-                val next = Character.Edit(key, null, null, false, FocusRequester(), focusInitiative = false);
-                characterList = characterList + next
-                editCharacter = key
-            }
-
-            override fun die(characterKey: String) {
-                if (characterKey == currentlySelectedCharacter) return
-
-                characterList = characterList.toMutableList().also {
-                    val index = it.indexOfFirst { it.key == characterKey }
-                    val character = it.removeAt(index)
-                    val selectedIndex = it.indexOfFirst { it.key == currentlySelectedCharacter }
-                    if (selectedIndex < 0) {
-                        it.add(index, character);
-                    } else {
-                        it.add(selectedIndex, character);
-                    }
-                }
-            }
-        }
-
-        //LaunchedEffect(key1 = currentlySelectedCharacter) {
-        //    val offset = characterList.indexOfFirst { it.key == currentlySelectedCharacter }
-        //    if (offset >= 0) {
-        //        listState.animateScrollToItem(offset)
-        //    }
-        //}
-
-        //LaunchedEffect(key1 = editCharacter) {
-        //    val offset = characterList.indexOfFirst { it.key == editCharacter }
-        //    if (offset >= 0) {
-        //        listState.animateScrollToItem(offset)
-        //    }
-        // }
 
         Scaffold(
             topBar = {
@@ -425,16 +277,16 @@ fun App(data: String? = null) {
                     windowInsets = AppBarDefaults.topAppBarWindowInsets,
                     title = { Text("Initiative Tracker") },
                     actions = {
-                        IconToggleButton(checked = editMode, enabled = characterList.all { it is Character.Finished }, onCheckedChange = {
-                            editMode = it
+                        IconToggleButton(checked = state.inEditMode, enabled = state.characters.all { it is Character.Finished }, onCheckedChange = {
+                            actions.toggleEditMode()
                         }) {
-                            if (editMode) {
+                            if (state.inEditMode) {
                                 Icon(Icons.Default.Done, contentDescription = "Done")
                             } else {
                                 Icon(Icons.Default.Edit, contentDescription = "Edit")
                             }
                         }
-                        SettingsMenu(characterList)
+                        SettingsMenu(state.characters)
                     }
                 )
             },
@@ -446,57 +298,21 @@ fun App(data: String? = null) {
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceAround
                     ) {
-                        if (editMode) {
+                        if (state.inEditMode) {
                             Button(onClick = {
-                                characterList = characterList.sortedBy { c ->
-                                    when (c) {
-                                        is Character.Finished -> -c.initiative*2- (if (c.playerCharacter) 0 else 1)
-                                        is Character.NoInitiativeYet, is Character.Edit -> 1
-                                    }
-                                }
-                            }, enabled = characterList.isNotEmpty() && characterList.all { it is Character.Finished }) {
+                                model.sort()
+                            }, enabled = state.characters.isNotEmpty() && state.characters.all { it is Character.Finished }) {
                                 Text("Sort")
                             }
                         } else {
-
                             Button(onClick = {
-                                val currentIndex =
-                                    characterList.indexOfFirst { it.key == currentlySelectedCharacter }
-                                if (currentIndex >= 0) {
-                                    var nextIndex = currentIndex + 1
-
-                                    if (nextIndex >= characterList.size) {
-                                        nextIndex = 0
-                                    }
-                                    currentlySelectedCharacter = characterList[nextIndex].key
-
-                                    characterList = characterList.toMutableList().also {
-                                        val currentCharacter = it[currentIndex]
-                                        val nextCharacter = it[nextIndex]
-                                        it[currentIndex] = nextCharacter
-                                        it[nextIndex] = currentCharacter
-
-                                        if (nextIndex == 0) {
-                                            // It's better to keep the character at the top instead of moving it to the end
-                                            it.removeAt(currentIndex)
-                                            it.add(0, nextCharacter)
-                                        }
-                                    }
-                                }
+                                model.delay()
                             }) {
                                 Text("Delay")
                             }
 
                             Button(onClick = {
-                                if (characterList.isNotEmpty()) {
-                                    val currentIndex =
-                                        characterList.indexOfFirst { it.key == currentlySelectedCharacter }
-                                    var nextIndex = currentIndex + 1
-                                    if (nextIndex >= characterList.size) {
-                                        nextIndex = 0;
-                                    }
-                                    currentlySelectedCharacter = characterList[nextIndex].key
-                                }
+                                model.next()
                             }) {
                                 Text("Next")
                             }
@@ -504,24 +320,8 @@ fun App(data: String? = null) {
                     }
                 }
             },
-            //floatingActionButton = {
-            //    FloatingActionButton(onClick = {
-            //        if (characterList.isNotEmpty()) {
-            //            val currentIndex =
-            //                characterList.indexOfFirst { it.key == currentlySelectedCharacter }
-            //            var nextIndex = currentIndex + 1
-            //            if (nextIndex >= characterList.size) {
-            //                nextIndex = 0;
-            //            }
-            //            currentlySelectedCharacter = characterList[nextIndex].key
-            //        }
-            //    }) {
-            //        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Next")
-            //    }
-            //}
-
         ) { innerPadding ->
-                InitOrder(innerPadding, characterList, currentlySelectedCharacter, actions, listState, editMode)
+                InitOrder(innerPadding, state.characters, state.currentlySelectedCharacter, actions, listState, state.inEditMode)
 
         }
     }
