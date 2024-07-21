@@ -52,6 +52,7 @@ interface Actions {
     fun sort()
     fun delay()
     fun next()
+    fun togglePlayerCharacter(key: String)
 }
 
 
@@ -272,6 +273,22 @@ class Model private constructor(s: State) : ViewModel(), Actions {
                     }
                     val nextSelectedCharacter = it.characters[nextIndex].key
                     it.copy(currentlySelectedCharacter = nextSelectedCharacter)
+                } else {
+                    it
+                }
+            }
+        }
+    }
+
+    override fun togglePlayerCharacter(characterKey: String) {
+        updateCharacterList {
+            it.map {
+                if (it.key == characterKey) {
+                    when (it) {
+                        is Character.Finished -> it.copy(playerCharacter = !it.playerCharacter)
+                        is Character.Edit -> it.copy(playerCharacter = !it.playerCharacter)
+                        is Character.NoInitiativeYet -> it.copy(playerCharacter = !it.playerCharacter)
+                    }
                 } else {
                     it
                 }

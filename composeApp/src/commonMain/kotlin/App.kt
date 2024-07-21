@@ -108,8 +108,16 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, edi
         }
         Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
             when (character) {
-                is Character.Finished -> Text(character.name)
-                is Character.NoInitiativeYet -> Text(character.name)
+                is Character.Finished ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(character.name)
+                        ShowPlayerVsNonPlayerCharacter(editMode, character, actions)
+                    }
+                is Character.NoInitiativeYet ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(character.name)
+                        ShowPlayerVsNonPlayerCharacter(editMode, character, actions)
+                    }
                 is Character.Edit -> {
                     TextField(
                         modifier = if (character.focusInitiative) Modifier else Modifier.focusRequester(character.focusRequester),
@@ -184,6 +192,19 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, edi
     }
 }
 
+@Composable
+fun ShowPlayerVsNonPlayerCharacter(editMode: Boolean, character: Character, actions: Actions) {
+    val isPlayerCharacter = when (character) {
+        is Character.Finished -> character.playerCharacter
+        is Character.NoInitiativeYet -> character.playerCharacter
+        is Character.Edit ->  character.playerCharacter
+    }
+    if (editMode) {
+        Button(modifier = Modifier.padding(start = 10.dp), onClick = { actions.togglePlayerCharacter(character.key) }) {
+            Text(text = if (isPlayerCharacter) "PC" else "NPC")
+        }
+    }
+}
 
 
 @Composable
