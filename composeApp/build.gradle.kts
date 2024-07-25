@@ -56,6 +56,7 @@ kotlin {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
         }
+
         commonMain.dependencies {
             implementation(compose.runtime)
             implementation(compose.foundation)
@@ -65,6 +66,11 @@ kotlin {
             implementation(compose.components.uiToolingPreview)
             implementation(libs.lifecycle.viewmodel.compose)
         }
+
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+        }
+
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
         }

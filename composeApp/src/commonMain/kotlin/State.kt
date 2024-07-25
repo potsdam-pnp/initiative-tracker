@@ -65,7 +65,7 @@ data class State2(
     val history: List<Event> = listOf(),
 ) {
     /** predict character key who should do something next */
-    fun predictNextTurn(): String {
+    fun predictNextTurn(): String? {
         // find characters that didn't act yet
         val charactersThatDidntActYet = characters.keys.filter { key ->
             !history.any { event ->
@@ -77,7 +77,10 @@ data class State2(
             return charactersThatDidntActYet[0]
         }
 
-        return "doof"
+        // TODO find characters that didn't act for the longest time
+
+        // return null if nobody can act next
+        return null
     }
 }
 
