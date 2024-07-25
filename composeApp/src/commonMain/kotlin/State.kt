@@ -10,8 +10,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 
+// character state as displayed in the UX
 sealed class Character {
+    /** Immutable technical key for this character */
     abstract val key: String
+
     abstract val name: String
     abstract val playerCharacter: Boolean
 
@@ -35,11 +38,61 @@ sealed class Character {
         val focusInitiative: Boolean): Character()
 }
 
+/** One thing that happened and is relevant for initiative */
+sealed class Event {
+    abstract val characterKey: String
+}
+
+data class StartTurnEvent(
+    override val characterKey: String
+): Event()
+
+data class EndTurnEvent(
+    override val characterKey: String
+): Event()
+
+data class DelayEvent(
+    override val characterKey: String
+): Event()
+
+data class CharacterData(
+    val initiative: Int?
+)
+
+/** Internal state unrelated to UX */
+data class State2(
+    val characters: Map<String, CharacterData> = mapOf(),
+    val history: List<Event> = listOf(),
+) {
+    /** predict character key who should do something next */
+    fun predictNextTurn(): String {
+        // find characters that didn't act yet
+        val charactersThatDidntActYet = characters.keys.filter { key ->
+            !history.any { event ->
+                event.characterKey == key
+            }
+        }
+
+        if (charactersThatDidntActYet.isNotEmpty()) {
+            return charactersThatDidntActYet[0]
+        }
+
+        return "doof"
+    }
+}
+
+/** Overall state of the UX of the application */
 data class State(
     val inEditMode: Boolean,
     val characters: List<Character> = listOf(),
     val currentlySelectedCharacter: String? = null,
-)
+) {
+    fun deleteCharacter(characterKey: String): State {
+        return copy(
+            characters = characters.filter { it.key != characterKey }
+        )
+    }
+}
 
 interface Actions {
     fun deleteCharacter(characterKey: String)
@@ -82,7 +135,7 @@ class Model private constructor(s: State) : ViewModel(), Actions {
     }
 
     override fun deleteCharacter(characterKey: String) {
-        updateCharacterList { it.filter { it.key != characterKey } }
+        _state.update { it.deleteCharacter(characterKey) }
     }
 
     override fun editCharacter(characterKey: String, name: String) {
