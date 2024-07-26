@@ -1,6 +1,9 @@
 { pkgs ? import <nixpkgs> {} }:
 
 let
+  # needed for headless browser testing
+  chrome-bin = "${pkgs.chromium}/bin/chromium";
+
   bin-path = pkgs.lib.makeBinPath [
     # used in ./gradlew script
     pkgs.coreutils
@@ -24,6 +27,7 @@ let
         exit 1
       fi
 
+      CHROME_BIN=${chrome-bin} \
       PATH=${bin-path} \
       LD_LIBRARY_PATH=${ld-library-path} \
       JAVA_HOME=${pkgs.jre} \
