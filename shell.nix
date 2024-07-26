@@ -4,23 +4,19 @@ let
   # needed for headless browser testing
   chrome-bin = "${pkgs.chromium}/bin/chromium";
 
-  # used in ./gradlew script
   bin-path = pkgs.lib.makeBinPath [
+    # used in ./gradlew script
     pkgs.coreutils
     pkgs.findutils
     pkgs.gnused
+
+    # used by some gradle tasks
+    pkgs.nodejs
   ];
 
   # needed for desktop target (via downloaded skiko)
   ld-library-path = pkgs.lib.makeLibraryPath [
     pkgs.libGL
-  ];
-
-  # needed for wasm target (via downloaded node)
-  # (requires https://github.com/Mic92/nix-ld)
-  nix-ld = "${pkgs.stdenv.cc}/nix-support/dynamic-linker";
-  nix-ld-library-path = pkgs.lib.makeLibraryPath [
-    pkgs.stdenv.cc.cc.lib
   ];
 
   gradle = pkgs.writeShellApplication {
@@ -34,10 +30,8 @@ let
       CHROME_BIN=${chrome-bin} \
       PATH=${bin-path} \
       LD_LIBRARY_PATH=${ld-library-path} \
-      NIX_LD_LIBRARY_PATH=${nix-ld-library-path} \
-      NIX_LD=$(cat "${nix-ld}") \
       JAVA_HOME=${pkgs.jre} \
-      exec "./gradlew" "$@"
+      exec "./gradlew" -PnixManaged=true "$@"
     '';
   };
 in
