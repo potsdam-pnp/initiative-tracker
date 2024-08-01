@@ -48,18 +48,27 @@ data class State2(
                     characters.getOrPut(action.id) { Character(action.id) }
                 }
                 is ChangeName -> {
-                    characters[action.id] =
-                        characters.getOrPut(action.id) { Character(action.id) }.copy(name = action.name)
+                    if (characters[action.id]?.name == null) {
+                        characters[action.id] =
+                            characters.getOrPut(action.id) { Character(action.id) }
+                                .copy(name = action.name)
+                    }
                 }
 
                 is ChangeInitiative -> {
-                    characters[action.id] =
-                        characters.getOrPut(action.id) { Character(action.id) }.copy(initiative = action.initiative)
+                    if (characters[action.id]?.initiative == null) {
+                        characters[action.id] =
+                            characters.getOrPut(action.id) { Character(action.id) }
+                                .copy(initiative = action.initiative)
+                    }
                 }
 
                 is ChangePlayerCharacter -> {
-                    characters[action.id] = characters.getOrPut(action.id) { Character(action.id) }
-                        .copy(playerCharacter = action.playerCharacter)
+                    if (characters[action.id]?.playerCharacter == null) {
+                        characters[action.id] =
+                            characters.getOrPut(action.id) { Character(action.id) }
+                                .copy(playerCharacter = action.playerCharacter)
+                    }
                 }
 
                 is DeleteCharacter -> {
