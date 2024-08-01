@@ -79,7 +79,7 @@ data class State2(
         }
 
         val notYetPlayed = characters.filterKeys { !alreadyPlayedCharactersSet.contains(it) }.values.sortedBy {
-            (it.initiative ?: -100) * 2 + (if (it.playerCharacter == true) 0 else 1)
+            -((it.initiative ?: -100) * 2 + (if (it.playerCharacter == true) 0 else 1))
         }
 
         return (notYetPlayed.map { it.key } + alreadyPlayedCharacters.reversed()).mapNotNull {
