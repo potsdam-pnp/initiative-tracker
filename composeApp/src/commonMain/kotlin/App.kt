@@ -367,7 +367,7 @@ fun App(data: String? = null) {
                         Text("Characters")
                     }
                     Tab(selected = viewState.shownView == ShownView.TURNS, onClick = {
-                        viewState = viewState.copy(shownView = ShownView.TURNS)
+                        viewState = viewState.copy(shownView = ShownView.TURNS, currentlyEditedCharacter = null)
                     }) {
                         Text("Turns")
                     }
