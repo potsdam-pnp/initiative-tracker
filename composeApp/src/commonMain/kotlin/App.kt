@@ -316,17 +316,6 @@ fun App(data: String? = null) {
                     windowInsets = AppBarDefaults.topAppBarWindowInsets,
                     title = { Text("Initiative Tracker") },
                     actions = {
-                        IconToggleButton(
-                            checked = state.inEditMode,
-                            onCheckedChange = {
-                                actions.toggleEditMode()
-                            }) {
-                            if (state.inEditMode) {
-                                Icon(Icons.Default.Done, contentDescription = "Done")
-                            } else {
-                                Icon(Icons.Default.Edit, contentDescription = "Edit")
-                            }
-                        }
                         SettingsMenu(state.characters)
                     }
                 )

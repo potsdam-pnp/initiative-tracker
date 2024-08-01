@@ -34,7 +34,6 @@ interface Actions {
     fun moveCharacterDown(characterKey: String)
     fun addCharacter()
     fun die(characterKey: String)
-    fun toggleEditMode()
     fun sort()
     fun delay()
     fun next()
@@ -107,10 +106,6 @@ class Model private constructor(s: State2) : ViewModel(), Actions {
 
     override fun die(characterKey: String) {
         addActions(Die(characterKey))
-    }
-
-    override fun toggleEditMode() {
-        // TODO
     }
 
     override fun sort() {
