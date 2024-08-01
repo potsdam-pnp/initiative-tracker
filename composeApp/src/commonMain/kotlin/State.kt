@@ -58,9 +58,9 @@ interface Actions {
 }
 
 
-class Model private constructor(s: State) : ViewModel(), Actions {
+class Model private constructor(s: State2) : ViewModel(), Actions {
     private val _state = MutableStateFlow(s)
-    val state = _state.asStateFlow()
+    val state = _state.map { it.toState() }
 
     private var lastKey: Int = 0
     private fun nextKey(): String {
@@ -68,233 +68,86 @@ class Model private constructor(s: State) : ViewModel(), Actions {
         return lastKey.toString()
     }
 
-    constructor(data: String?) : this(State(inEditMode = data != null)) {
+    constructor(data: String?) : this(State2(listOf())) {
         val characterNames = data?.split(",") ?: emptyList()
-        updateCharacterList {
-            characterNames.map {
-                Character.NoInitiativeYet(nextKey(), it, playerCharacter = true)
-            }
-        }
+        addActions(
+            *characterNames.flatMap {
+                val key = nextKey()
+                listOf(
+                    AddCharacter(key),
+                    ChangeName(key, it),
+                    ChangePlayerCharacter(key, true)
+                )
+            }.toTypedArray()
+        )
     }
 
-    private fun updateCharacterList(f: (List<Character>) -> List<Character>) {
-        _state.update { it.copy(characters = f(it.characters)) }
+    private fun addActions(vararg actions: ActionState) {
+        _state.update {
+            it.copy(
+                actions = it.actions + actions
+            )
+        }
     }
 
     override fun deleteCharacter(characterKey: String) {
-        updateCharacterList { it.filter { it.key != characterKey } }
+        addActions(DeleteCharacter(characterKey))
     }
 
     override fun editCharacter(characterKey: String, name: String) {
-        updateCharacterList {
-            it.map {
-                if (it.key == characterKey && it is Character.Edit) {
-                    it.copy(name = name)
-                } else {
-                    it
-                }
-            }
-        }
+        addActions(ChangeName(characterKey, name))
     }
 
     override fun editInitiative(characterKey: String, initiative: String) {
-        if (initiative.toIntOrNull() == null && initiative != "") return
-        updateCharacterList {
-            it.map {
-                if (it.key == characterKey && it is Character.Edit) {
-                    it.copy(initiative = initiative.toIntOrNull())
-                } else {
-                    it
-                }
-            }
+        val initiativeNumber = initiative.toIntOrNull()
+        if (initiativeNumber != null) {
+            addActions(ChangeInitiative(characterKey, initiativeNumber))
         }
     }
 
     override fun toggleEditCharacter(characterKey: String) {
-        updateCharacterList {
-            it.map {
-                if (it.key == characterKey) {
-                    when (it) {
-                        is Character.Edit ->
-                            if (it.initiative != null) {
-                                Character.Finished(
-                                    it.key,
-                                    it.name,
-                                    it.initiative,
-                                    it.playerCharacter
-                                )
-                            } else {
-                                Character.NoInitiativeYet(it.key, it.name, it.playerCharacter)
-                            }
-
-                        is Character.Finished -> Character.Edit(
-                            it.key,
-                            it.name,
-                            it.initiative,
-                            it.playerCharacter,
-                            focusInitiative = false
-                        )
-
-                        is Character.NoInitiativeYet -> Character.Edit(
-                            it.key,
-                            it.name,
-                            null,
-                            it.playerCharacter,
-                            focusInitiative = true
-                        )
-                    }
-                } else {
-                    it
-                }
-            }
-        }
+        // TODO
     }
 
     override fun moveCharacterUp(characterKey: String) {
-        updateCharacterList {
-            it.toMutableList().also {
-                val currentIndex = it.indexOfFirst { it.key == characterKey }
-                if (currentIndex >= 1) {
-                    val currentCharacter = it[currentIndex]
-                    val previousCharacter = it[currentIndex - 1]
-                    it[currentIndex] = previousCharacter
-                    it[currentIndex - 1] = currentCharacter
-                } else if (currentIndex == 0) {
-                    val currentCharacter = it[currentIndex]
-                    it.removeAt(0)
-                    it.add(currentCharacter)
-                }
-            }
-        }
+        // TODO
     }
 
     override fun moveCharacterDown(characterKey: String) {
-        updateCharacterList {
-            it.toMutableList().also {
-                val currentIndex = it.indexOfFirst { it.key == characterKey }
-                if (currentIndex < it.size - 1 && currentIndex >= 0) {
-                    val currentCharacter = it[currentIndex]
-                    val nextCharacter = it[currentIndex + 1]
-                    it[currentIndex] = nextCharacter
-                    it[currentIndex + 1] = currentCharacter
-                } else if (currentIndex == it.size - 1) {
-                    val currentCharacter = it[currentIndex]
-                    it.removeAt(currentIndex)
-                    it.add(0, currentCharacter)
-                }
-            }
-        }
+        // TODO
     }
 
     override fun addCharacter() {
-        val key = nextKey()
-        val next = Character.Edit(key,"", null, false, FocusRequester(), focusInitiative = false);
-        updateCharacterList { it + next }
+        addActions(AddCharacter(nextKey()))
     }
 
     override fun die(characterKey: String) {
-        val currentlySelectedCharacter = state.value.currentlySelectedCharacter
-        if (characterKey == currentlySelectedCharacter) return
-
-        updateCharacterList {
-            it.toMutableList().also {
-                val index = it.indexOfFirst { it.key == characterKey }
-                val character = it.removeAt(index)
-                val selectedIndex = it.indexOfFirst { it.key == currentlySelectedCharacter }
-                if (selectedIndex < 0) {
-                    it.add(index, character);
-                } else {
-                    it.add(selectedIndex, character);
-                }
-            }
-        }
+        addActions(Die(characterKey))
     }
 
     override fun toggleEditMode() {
-        _state.update { it.copy(inEditMode = !it.inEditMode)}
-
+        // TODO
     }
 
     override fun sort() {
-        updateCharacterList {
-            it.sortedBy { c ->
-                when (c) {
-                    is Character.Finished -> -c.initiative*2- (if (c.playerCharacter) 0 else 1)
-                    is Character.NoInitiativeYet, is Character.Edit -> 1
-                }
-            }
-        }
+       // TODO
     }
 
     override fun delay() {
-        _state.update {
-            val currentlySelectedCharacter = it.currentlySelectedCharacter
-            val currentIndex =
-                it.characters.indexOfFirst { it.key == currentlySelectedCharacter }
-            if (currentIndex >= 0) {
-                var nextIndex = currentIndex + 1
-
-                if (nextIndex >= it.characters.size) {
-                    nextIndex = 0
-                }
-                val nextSelectedCharacter = it.characters[nextIndex].key
-
-                val characters = it.characters.toMutableList().also {
-                    val currentCharacter = it[currentIndex]
-                    val nextCharacter = it[nextIndex]
-                    it[currentIndex] = nextCharacter
-                    it[nextIndex] = currentCharacter
-
-                    if (nextIndex == 0) {
-                        // It's better to keep the character at the top instead of moving it to the end
-                        it.removeAt(currentIndex)
-                        it.add(0, nextCharacter)
-                    }
-                }
-
-                it.copy(
-                    characters = characters,
-                    currentlySelectedCharacter = nextSelectedCharacter
-                )
-            } else {
-                it
-            }
+        val current = _state.value.currentTurn()
+        if (current != null) {
+            addActions(Delay(current))
         }
     }
 
     override fun next() {
-        if (state.value.characters.isNotEmpty()) {
-            _state.update {
-                val currentlySelectedCharacter = it.currentlySelectedCharacter
-                if (it.characters.isNotEmpty()) {
-                    val currentIndex =
-                        it.characters.indexOfFirst { it.key == currentlySelectedCharacter }
-                    var nextIndex = currentIndex + 1
-                    if (nextIndex >= it.characters.size) {
-                        nextIndex = 0;
-                    }
-                    val nextSelectedCharacter = it.characters[nextIndex].key
-                    it.copy(currentlySelectedCharacter = nextSelectedCharacter)
-                } else {
-                    it
-                }
-            }
+        val next = _state.value.predictNextTurns().firstOrNull()
+        if (next != null) {
+            addActions(StartTurn(next.id))
         }
     }
 
     override fun togglePlayerCharacter(characterKey: String) {
-        updateCharacterList {
-            it.map {
-                if (it.key == characterKey) {
-                    when (it) {
-                        is Character.Finished -> it.copy(playerCharacter = !it.playerCharacter)
-                        is Character.Edit -> it.copy(playerCharacter = !it.playerCharacter)
-                        is Character.NoInitiativeYet -> it.copy(playerCharacter = !it.playerCharacter)
-                    }
-                } else {
-                    it
-                }
-            }
-        }
+        addActions(ChangePlayerCharacter(characterKey, true)) // TODO Toggle instead of set to false
     }
 }

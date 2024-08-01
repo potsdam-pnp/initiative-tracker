@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -55,8 +56,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.BottomNavigation
 import androidx.compose.material.DropdownMenu
 import androidx.compose.material.IconToggleButton
+import androidx.compose.material.Tab
+import androidx.compose.material.TabRow
 import androidx.compose.material.TextField
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Check
@@ -86,7 +90,8 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, edi
     if (isActive) {
         modifier = modifier.then(Modifier.background(color = Color.Yellow))
     }
-    modifier = modifier.then(Modifier.padding(vertical = 10.dp, horizontal = 20.dp).heightIn(min = 60.dp))
+    modifier =
+        modifier.then(Modifier.padding(vertical = 10.dp, horizontal = 20.dp).heightIn(min = 60.dp))
 
     val focusManager = LocalFocusManager.current
 
@@ -107,67 +112,76 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, edi
             }
         }
         Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
-            when (character) {
-                is Character.Finished ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(character.name)
-                        ShowPlayerVsNonPlayerCharacter(editMode, character, actions)
+            //when (character) {
+            //    is Character.Finished ->
+            //        Row(verticalAlignment = Alignment.CenterVertically) {
+            //            Text(character.name)
+            //            ShowPlayerVsNonPlayerCharacter(editMode, character, actions)
+            //        }
+            //    is Character.NoInitiativeYet ->
+            //        Row(verticalAlignment = Alignment.CenterVertically) {
+            //            Text(character.name)
+            //            ShowPlayerVsNonPlayerCharacter(editMode, character, actions)
+            //        }
+            //    is Character.Edit -> {
+            TextField(
+                //modifier = if (character.focusInitiative) Modifier else Modifier.focusRequester(character.focusRequester),
+                singleLine = true,
+                value = character.name ?: "",
+                onValueChange = { actions.editCharacter(character.key, it) },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        actions.toggleEditCharacter(character.key)
+                    },
+                    onNext = {
+                        focusManager.moveFocus(FocusDirection.Next)
                     }
-                is Character.NoInitiativeYet ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(character.name)
-                        ShowPlayerVsNonPlayerCharacter(editMode, character, actions)
-                    }
-                is Character.Edit -> {
-                    TextField(
-                        modifier = if (character.focusInitiative) Modifier else Modifier.focusRequester(character.focusRequester),
-                        singleLine = true,
-                        value = character.name ?: "",
-                        onValueChange = { actions.editCharacter(character.key, it) },
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                        keyboardActions = KeyboardActions(
-                            onDone = {
-                                actions.toggleEditCharacter(character.key)
-                            },
-                            onNext = {
-                                focusManager.moveFocus(FocusDirection.Next)
-                            }
-                        ),
-                        label = { Text("Name") })
-                    DisposableEffect(Unit) {
-                        character.focusRequester.requestFocus()
-                        onDispose { } // Optional cleanup if needed
-                    }
-                }
-            }
+                ),
+                label = { Text("Name") })
+            //DisposableEffect(Unit) {
+            //    character.focusRequester.requestFocus()
+            //    onDispose { } // Optional cleanup if needed
+            //}
         }
+        //}
+        //}
         val toggleEditIcon = when (character) {
             is Character.Finished, is Character.NoInitiativeYet -> Icons.Default.Edit
             is Character.Edit -> Icons.Default.Check
         }
         Column() {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                when (character) {
-                    is Character.Finished ->
-                        Text(modifier = Modifier.padding(horizontal = 5.dp), text = character.initiative.toString())
-                    is Character.NoInitiativeYet -> {}
-                    is Character.Edit ->
-                    TextField(
-                        modifier = Modifier.width(70.dp).padding(horizontal = 5.dp).then(if (!character.focusInitiative) Modifier else Modifier.focusRequester(character.focusRequester)),
-                        singleLine = true,
-                        value = character.initiative?.toString() ?: "",
-                        onValueChange = { actions.editInitiative(character.key, it) },
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done, keyboardType = KeyboardType.Decimal),
-                        keyboardActions = KeyboardActions(
-                            onDone = {
-                                actions.toggleEditCharacter(character.key)
-                            },
-                            onPrevious = {
-                                focusManager.moveFocus(FocusDirection.Previous)
-                            }
-                        ),
-                        label = { Text("In") })
+                //when (character) {
+                //    is Character.Finished ->
+                //        Text(modifier = Modifier.padding(horizontal = 5.dp), text = character.initiative.toString())
+                //    is Character.NoInitiativeYet -> {}
+                //    is Character.Edit ->
+                val initiative = when (character) {
+                    is Character.Finished -> character.initiative
+                    is Character.Edit -> character.initiative
+                    is Character.NoInitiativeYet -> null
                 }
+                TextField(
+                    modifier = Modifier.width(70.dp)
+                        .padding(horizontal = 5.dp),//.then(if (!character.focusInitiative) Modifier else Modifier.focusRequester(character.focusRequester)),
+                    singleLine = true,
+                    value = initiative?.toString() ?: "",
+                    onValueChange = { actions.editInitiative(character.key, it) },
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = ImeAction.Done,
+                        keyboardType = KeyboardType.Decimal
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            actions.toggleEditCharacter(character.key)
+                        },
+                        onPrevious = {
+                            focusManager.moveFocus(FocusDirection.Previous)
+                        }
+                    ),
+                    label = { Text("In") })
+                //}
                 if (editMode) {
                     IconButton(onClick = { actions.toggleEditCharacter(character.key) }) {
                         AnimatedContent(targetState = toggleEditIcon) {
@@ -199,6 +213,7 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, edi
         }
     }
 }
+
 
 @Composable
 fun ShowPlayerVsNonPlayerCharacter(editMode: Boolean, character: Character, actions: Actions) {
@@ -294,7 +309,7 @@ fun SettingsMenu(characterList: List<Character>) {
 @Preview
 fun App(data: String? = null) {
     val model = viewModel { Model(data) }
-    val state by model.state.collectAsState()
+    val state by model.state.collectAsState(State(inEditMode = false))
     val actions: Actions = model
 
     MaterialTheme {
@@ -306,9 +321,12 @@ fun App(data: String? = null) {
                     windowInsets = AppBarDefaults.topAppBarWindowInsets,
                     title = { Text("Initiative Tracker") },
                     actions = {
-                        IconToggleButton(checked = state.inEditMode, enabled = state.characters.all { it is Character.Finished }, onCheckedChange = {
-                            actions.toggleEditMode()
-                        }) {
+                        IconToggleButton(
+                            checked = state.inEditMode,
+                            enabled = state.characters.all { it is Character.Finished },
+                            onCheckedChange = {
+                                actions.toggleEditMode()
+                            }) {
                             if (state.inEditMode) {
                                 Icon(Icons.Default.Done, contentDescription = "Done")
                             } else {
@@ -320,6 +338,9 @@ fun App(data: String? = null) {
                 )
             },
             bottomBar = {
+                BottomNavigation(windowInsets = AppBarDefaults.bottomAppBarWindowInsets) {
+                    Button(onClick = {}) { Text("Hello") }
+                }
                 BottomAppBar(
                     windowInsets = AppBarDefaults.bottomAppBarWindowInsets,
                 ) {
@@ -328,9 +349,11 @@ fun App(data: String? = null) {
                         horizontalArrangement = Arrangement.SpaceAround
                     ) {
                         if (state.inEditMode) {
-                            Button(onClick = {
-                                model.sort()
-                            }, enabled = state.characters.isNotEmpty() && state.characters.all { it is Character.Finished }) {
+                            Button(
+                                onClick = {
+                                    model.sort()
+                                },
+                                enabled = state.characters.isNotEmpty() && state.characters.all { it is Character.Finished }) {
                                 Text("Sort")
                             }
                         } else {
@@ -350,8 +373,31 @@ fun App(data: String? = null) {
                 }
             },
         ) { innerPadding ->
-                InitOrder(innerPadding, state.characters, state.currentlySelectedCharacter, actions, listState, state.inEditMode)
-
+            var inEditMode by remember { mutableStateOf(false) }
+            Column() {
+                TabRow(
+                    selectedTabIndex = if (inEditMode) {
+                        0
+                    } else {
+                        1
+                    }
+                ) {
+                    Tab(selected = inEditMode, onClick = { inEditMode = true }) {
+                        Text("Characters")
+                    }
+                    Tab(selected = !inEditMode, onClick = { inEditMode = false }) {
+                        Text("Turns")
+                    }
+                }
+                InitOrder(
+                    innerPadding,
+                    state.characters,
+                    state.currentlySelectedCharacter,
+                    actions,
+                    listState,
+                    inEditMode
+                )
+            }
         }
     }
 }
