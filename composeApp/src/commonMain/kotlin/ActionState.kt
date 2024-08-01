@@ -13,12 +13,12 @@ data class Die(val id: String): ActionState()
 data class State2(
     val actions: List<ActionState>
 ) {
-    fun predictNextTurns(): List<Character> {
+    fun predictNextTurns(withCurrent: Boolean): List<Character> {
         val alreadyPlayedCharactersSet = mutableSetOf<String>()
         val alreadyPlayedCharacters = mutableListOf<String>()
         val characters = mutableMapOf<String, Character>()
 
-        val current = currentTurn()
+        val current = if (withCurrent) currentTurn() else null
         if (current != null) {
             alreadyPlayedCharactersSet.add(current)
         }
@@ -108,7 +108,7 @@ data class State2(
     fun toState(): State =
         State(
             inEditMode = false,
-            characters = predictNextTurns(),
+            characters = predictNextTurns(withCurrent = true),
             currentlySelectedCharacter = currentTurn()
         )
 

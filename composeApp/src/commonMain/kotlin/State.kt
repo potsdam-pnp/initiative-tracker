@@ -120,7 +120,7 @@ class Model private constructor(s: State2) : ViewModel(), Actions {
     }
 
     override fun next() {
-        val next = _state.value.predictNextTurns().firstOrNull()
+        val next = _state.value.predictNextTurns(withCurrent = false).firstOrNull()
         if (next != null) {
             addActions(StartTurn(next.key))
         }
