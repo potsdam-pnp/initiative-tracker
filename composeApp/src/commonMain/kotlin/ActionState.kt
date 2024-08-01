@@ -18,6 +18,11 @@ data class State2(
         val alreadyPlayedCharacters = mutableListOf<String>()
         val characters = mutableMapOf<String, Character>()
 
+        val current = currentTurn()
+        if (current != null) {
+            alreadyPlayedCharactersSet.add(current)
+        }
+
         var dying = 0
 
         for (action in actions.reversed()) {
@@ -82,7 +87,9 @@ data class State2(
             -((it.initiative ?: -100) * 2 + (if (it.playerCharacter == true) 0 else 1))
         }
 
-        return (notYetPlayed.map { it.key } + alreadyPlayedCharacters.reversed()).mapNotNull {
+        val currentAsList = if (current == null) listOf() else listOf(current)
+
+        return (currentAsList + notYetPlayed.map { it.key } + alreadyPlayedCharacters.reversed()).mapNotNull {
             characters[it]
         }
     }
