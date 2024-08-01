@@ -31,8 +31,8 @@ data class State2(
                     if (!alreadyPlayedCharactersSet.contains(action.id)) {
                         alreadyPlayedCharactersSet.add(action.id)
                         alreadyPlayedCharacters.add(alreadyPlayedCharacters.size - dying, action.id)
-                        dying = 0
                     }
+                    dying = 0
                 }
                 is Delay -> {
                     if (!alreadyPlayedCharactersSet.contains(action.id)) {
@@ -42,7 +42,7 @@ data class State2(
                     }
                 }
                 is Die -> {
-                    if (alreadyPlayedCharactersSet.contains(action.id)) {
+                    if (!alreadyPlayedCharactersSet.contains(action.id)) {
                         alreadyPlayedCharacters.add(action.id)
                         dying += 1
                         alreadyPlayedCharactersSet.add(action.id)
