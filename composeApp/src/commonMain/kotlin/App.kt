@@ -84,8 +84,20 @@ import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.compose_multiplatform
 import kotlin.math.roundToInt
 
+
+enum class ShownView {
+    CHARACTERS,
+    TURNS
+}
+
+data class ViewState(
+    val shownView: ShownView,
+    val currentlyEditedCharacter: String?
+)
+
+
 @Composable
-fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, editMode: Boolean) {
+fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, viewState: ViewState, toggleEditCharacter: (String) -> Unit) {
     var modifier: Modifier = Modifier.fillMaxWidth();
     if (isActive) {
         modifier = modifier.then(Modifier.background(color = Color.Yellow))
@@ -97,76 +109,67 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, edi
 
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.width(30.dp)) {
-            if (editMode) {
-                IconButton(modifier = Modifier.padding(0.dp).size(24.dp), onClick = {
-                    actions.moveCharacterUp(character.key)
-                }) {
-                    Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move up")
-                }
-                IconButton(modifier = Modifier.padding(0.dp).size(24.dp), onClick = {
-                    actions.moveCharacterDown(character.key)
+            //if (editMode) {
+            //    IconButton(modifier = Modifier.padding(0.dp).size(24.dp), onClick = {
+            //        actions.moveCharacterUp(character.key)
+            //    }) {
+            //        Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move up")
+            //}
+            //    IconButton(modifier = Modifier.padding(0.dp).size(24.dp), onClick = {
+            //        actions.moveCharacterDown(character.key)
 
-                }) {
-                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Move down")
-                }
-            }
-        }
-        Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
-            //when (character) {
-            //    is Character.Finished ->
-            //        Row(verticalAlignment = Alignment.CenterVertically) {
-            //            Text(character.name)
-            //            ShowPlayerVsNonPlayerCharacter(editMode, character, actions)
-            //        }
-            //    is Character.NoInitiativeYet ->
-            //        Row(verticalAlignment = Alignment.CenterVertically) {
-            //            Text(character.name)
-            //            ShowPlayerVsNonPlayerCharacter(editMode, character, actions)
-            //        }
-            //    is Character.Edit -> {
-            TextField(
-                //modifier = if (character.focusInitiative) Modifier else Modifier.focusRequester(character.focusRequester),
-                singleLine = true,
-                value = character.name ?: "",
-                onValueChange = { actions.editCharacter(character.key, it) },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                keyboardActions = KeyboardActions(
-                    onDone = {
-                        actions.toggleEditCharacter(character.key)
-                    },
-                    onNext = {
-                        focusManager.moveFocus(FocusDirection.Next)
-                    }
-                ),
-                label = { Text("Name") })
-            //DisposableEffect(Unit) {
-            //    character.focusRequester.requestFocus()
-            //    onDispose { } // Optional cleanup if needed
+            //    }) {
+            //        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Move down")
+            //    }
             //}
         }
+        Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
+            if (viewState.currentlyEditedCharacter != character.key) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(character.name ?: "")
+                    ShowPlayerVsNonPlayerCharacter(viewState, character, actions)
+                }
+            } else {
+                TextField(
+                    //modifier = if (character.focusInitiative) Modifier else Modifier.focusRequester(character.focusRequester),
+                    singleLine = true,
+                    value = character.name ?: "",
+                    onValueChange = { actions.editCharacter(character.key, it) },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            actions.toggleEditCharacter(character.key)
+                        },
+                        onNext = {
+                            focusManager.moveFocus(FocusDirection.Next)
+                        }
+                    ),
+                    label = { Text("Name") })
+                //DisposableEffect(Unit) {
+                //    character.focusRequester.requestFocus()
+                //    onDispose { } // Optional cleanup if needed
+                //}
+            }
+        }
         //}
-        //}
-        val toggleEditIcon = when (character) {
-            is Character.Finished, is Character.NoInitiativeYet -> Icons.Default.Edit
-            is Character.Edit -> Icons.Default.Check
+        val toggleEditIcon = if (viewState.currentlyEditedCharacter != character.key) {
+            Icons.Default.Edit
+        } else {
+            Icons.Default.Check
         }
         Column() {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                //when (character) {
-                //    is Character.Finished ->
-                //        Text(modifier = Modifier.padding(horizontal = 5.dp), text = character.initiative.toString())
-                //    is Character.NoInitiativeYet -> {}
-                //    is Character.Edit ->
-                val initiative = when (character) {
-                    is Character.Finished -> character.initiative
-                    is Character.Edit -> character.initiative
-                    is Character.NoInitiativeYet -> null
-                }
+                if (viewState.currentlyEditedCharacter != character.key) {
+                    Text(
+                        modifier = Modifier.padding(horizontal = 5.dp),
+                        text = character.initiative?.toString() ?: ""
+                    )
+                } else {
                 TextField(
                     modifier = Modifier.width(70.dp)
                         .padding(horizontal = 5.dp),//.then(if (!character.focusInitiative) Modifier else Modifier.focusRequester(character.focusRequester)),
                     singleLine = true,
-                    value = initiative?.toString() ?: "",
+                    value = character.initiative?.toString() ?: "",
                     onValueChange = { actions.editInitiative(character.key, it) },
                     keyboardOptions = KeyboardOptions(
                         imeAction = ImeAction.Done,
@@ -181,9 +184,9 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, edi
                         }
                     ),
                     label = { Text("In") })
-                //}
-                if (editMode) {
-                    IconButton(onClick = { actions.toggleEditCharacter(character.key) }) {
+                }
+                if (viewState.shownView == ShownView.CHARACTERS) {
+                    IconButton(onClick = { toggleEditCharacter(character.key) }) {
                         AnimatedContent(targetState = toggleEditIcon) {
                             Icon(it, contentDescription = "Toggle Edit")
                         }
@@ -195,7 +198,7 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, edi
                         )
                     }
                 } else {
-                    if (character.playerCharacter) {
+                    if (character.playerCharacter == true) {
                         IconButton(onClick = { actions.die(character.key) }) {
                             Icon(
                                 imageVector = deathIcon,
@@ -216,13 +219,9 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, edi
 
 
 @Composable
-fun ShowPlayerVsNonPlayerCharacter(editMode: Boolean, character: Character, actions: Actions) {
-    val isPlayerCharacter = when (character) {
-        is Character.Finished -> character.playerCharacter
-        is Character.NoInitiativeYet -> character.playerCharacter
-        is Character.Edit ->  character.playerCharacter
-    }
-    if (editMode) {
+fun ShowPlayerVsNonPlayerCharacter(viewState: ViewState, character: Character, actions: Actions) {
+    val isPlayerCharacter = character.playerCharacter == true
+    if (viewState.shownView == ShownView.CHARACTERS) {
         Button(modifier = Modifier.padding(start = 10.dp), onClick = { actions.togglePlayerCharacter(character.key) }) {
             Text(text = if (isPlayerCharacter) "PC" else "NPC")
         }
@@ -232,7 +231,7 @@ fun ShowPlayerVsNonPlayerCharacter(editMode: Boolean, character: Character, acti
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-fun InitOrder(innerPadding: PaddingValues, characters: List<Character>, active: String?, actions: Actions, listState: LazyListState, editMode: Boolean) {
+fun InitOrder(innerPadding: PaddingValues, characters: List<Character>, active: String?, actions: Actions, listState: LazyListState, viewState: ViewState, toggleEditCharacter: (String) -> Unit) {
     LazyColumn(contentPadding = innerPadding, state = listState) {
         items(
             characters + null,
@@ -241,10 +240,10 @@ fun InitOrder(innerPadding: PaddingValues, characters: List<Character>, active: 
             if (character != null) {
                 @Suppress("EXPERIMENTAL_FOUNDATION_API_USAGE")
                 Box(modifier = Modifier.animateItemPlacement()) {
-                    ShowCharacter(character, isActive = character.key == active, actions, editMode)
+                    ShowCharacter(character, isActive = character.key == active, actions, viewState, toggleEditCharacter)
                 }
             } else {
-                if (editMode) {
+                if (viewState.shownView == ShownView.CHARACTERS) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Center
@@ -294,12 +293,8 @@ fun SettingsMenu(characterList: List<Character>) {
         onDismissRequest = { showMenu = false }
     ) {
         getPlatform().DropdownMenuItemPlayerShortcut(enabled = characterList.isNotEmpty()) {
-            characterList.map {
-                when (it) {
-                    is Character.Finished -> it.name
-                    is Character.NoInitiativeYet -> it.name
-                    is Character.Edit -> it.name
-                }
+            characterList.mapNotNull {
+               it.name
             }
         }
     }
@@ -323,7 +318,6 @@ fun App(data: String? = null) {
                     actions = {
                         IconToggleButton(
                             checked = state.inEditMode,
-                            enabled = state.characters.all { it is Character.Finished },
                             onCheckedChange = {
                                 actions.toggleEditMode()
                             }) {
@@ -353,7 +347,7 @@ fun App(data: String? = null) {
                                 onClick = {
                                     model.sort()
                                 },
-                                enabled = state.characters.isNotEmpty() && state.characters.all { it is Character.Finished }) {
+                                enabled = state.characters.isNotEmpty()) {
                                 Text("Sort")
                             }
                         } else {
@@ -373,19 +367,19 @@ fun App(data: String? = null) {
                 }
             },
         ) { innerPadding ->
-            var inEditMode by remember { mutableStateOf(false) }
+            var viewState by remember { mutableStateOf(ViewState(ShownView.CHARACTERS, null)) }
             Column() {
                 TabRow(
-                    selectedTabIndex = if (inEditMode) {
-                        0
-                    } else {
-                        1
-                    }
+                    selectedTabIndex = viewState.shownView.ordinal
                 ) {
-                    Tab(selected = inEditMode, onClick = { inEditMode = true }) {
+                    Tab(selected = viewState.shownView == ShownView.CHARACTERS, onClick = {
+                        viewState = viewState.copy(shownView = ShownView.CHARACTERS)
+                    }) {
                         Text("Characters")
                     }
-                    Tab(selected = !inEditMode, onClick = { inEditMode = false }) {
+                    Tab(selected = viewState.shownView == ShownView.TURNS, onClick = {
+                        viewState = viewState.copy(shownView = ShownView.TURNS)
+                    }) {
                         Text("Turns")
                     }
                 }
@@ -395,8 +389,11 @@ fun App(data: String? = null) {
                     state.currentlySelectedCharacter,
                     actions,
                     listState,
-                    inEditMode
-                )
+                    viewState
+                ) {
+                    viewState =
+                        viewState.copy(currentlyEditedCharacter = if (viewState.currentlyEditedCharacter == it) null else it)
+                }
             }
         }
     }

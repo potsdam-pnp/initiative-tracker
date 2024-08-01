@@ -10,30 +10,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 
-sealed class Character {
-    abstract val key: String
-    abstract val name: String
-    abstract val playerCharacter: Boolean
-
-    data class Finished(
-        override val key: String,
-        override val name: String,
-        val initiative: Int,
-        override val playerCharacter: Boolean): Character()
-
-    data class NoInitiativeYet(
-        override val key: String,
-        override val name: String,
-        override val playerCharacter: Boolean): Character()
-
-    data class Edit(
-        override val key: String,
-        override val name: String,
-        val initiative: Int?,
-        override val playerCharacter: Boolean,
-        val focusRequester: FocusRequester = FocusRequester(),
-        val focusInitiative: Boolean): Character()
-}
+data class Character(
+    val key: String,
+    val name: String? = null,
+    val initiative: Int? = null,
+    val playerCharacter: Boolean? = null,
+    val dead: Boolean = false,
+    val isDelayed: Boolean = false
+)
 
 data class State(
     val inEditMode: Boolean,
@@ -143,7 +127,7 @@ class Model private constructor(s: State2) : ViewModel(), Actions {
     override fun next() {
         val next = _state.value.predictNextTurns().firstOrNull()
         if (next != null) {
-            addActions(StartTurn(next.id))
+            addActions(StartTurn(next.key))
         }
     }
 

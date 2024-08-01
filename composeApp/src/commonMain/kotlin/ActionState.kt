@@ -10,22 +10,13 @@ data class StartTurn(val id: String): ActionState()
 data class Delay(val id: String): ActionState()
 data class Die(val id: String): ActionState()
 
-data class CharacterInfo(val id: String, val name: String? = null, val initiative: Int? = null, val playerCharacter: Boolean? = null, val dead: Boolean = false, val isDelayed: Boolean = false) {
-    fun toCharacter(): Character =
-        if (initiative == null) {
-            Character.NoInitiativeYet(id, name ?: "", playerCharacter = playerCharacter ?: false)
-        } else {
-            Character.Finished(id, name ?: "", initiative, playerCharacter ?: false)
-        }
-}
-
 data class State2(
     val actions: List<ActionState>
 ) {
-    fun predictNextTurns(): List<CharacterInfo> {
+    fun predictNextTurns(): List<Character> {
         val alreadyPlayedCharactersSet = mutableSetOf<String>()
         val alreadyPlayedCharacters = mutableListOf<String>()
-        val characters = mutableMapOf<String, CharacterInfo>()
+        val characters = mutableMapOf<String, Character>()
 
         var dying = 0
 
@@ -41,7 +32,7 @@ data class State2(
                 is Delay -> {
                     if (!alreadyPlayedCharactersSet.contains(action.id)) {
                         characters[action.id] =
-                            characters.getOrPut(action.id) { CharacterInfo(action.id) }
+                            characters.getOrPut(action.id) { Character(action.id) }
                                 .copy(isDelayed = true)
                     }
                 }
@@ -54,25 +45,25 @@ data class State2(
                 }
 
                 is AddCharacter -> {
-                    characters.getOrPut(action.id) { CharacterInfo(action.id) }
+                    characters.getOrPut(action.id) { Character(action.id) }
                 }
                 is ChangeName -> {
                     characters[action.id] =
-                        characters.getOrPut(action.id) { CharacterInfo(action.id) }.copy(name = action.name)
+                        characters.getOrPut(action.id) { Character(action.id) }.copy(name = action.name)
                 }
 
                 is ChangeInitiative -> {
                     characters[action.id] =
-                        characters.getOrPut(action.id) { CharacterInfo(action.id) }.copy(initiative = action.initiative)
+                        characters.getOrPut(action.id) { Character(action.id) }.copy(initiative = action.initiative)
                 }
 
                 is ChangePlayerCharacter -> {
-                    characters[action.id] = characters.getOrPut(action.id) { CharacterInfo(action.id) }
+                    characters[action.id] = characters.getOrPut(action.id) { Character(action.id) }
                         .copy(playerCharacter = action.playerCharacter)
                 }
 
                 is DeleteCharacter -> {
-                    characters[action.id] = characters.getOrPut(action.id) { CharacterInfo(action.id) }
+                    characters[action.id] = characters.getOrPut(action.id) { Character(action.id) }
                         .copy(dead = true)
                 }
             }
@@ -82,7 +73,7 @@ data class State2(
             (it.initiative ?: -100) * 2 + (if (it.playerCharacter == true) 0 else 1)
         }
 
-        return (notYetPlayed.map { it.id } + alreadyPlayedCharacters.reversed()).mapNotNull {
+        return (notYetPlayed.map { it.key } + alreadyPlayedCharacters.reversed()).mapNotNull {
             characters[it]
         }
     }
@@ -101,9 +92,7 @@ data class State2(
     fun toState(): State =
         State(
             inEditMode = false,
-            characters = predictNextTurns().map {
-                it.toCharacter()
-            },
+            characters = predictNextTurns(),
             currentlySelectedCharacter = currentTurn()
         )
 
