@@ -37,6 +37,7 @@ interface Actions {
     fun next()
     fun togglePlayerCharacter(key: String, playerCharacter: Boolean)
     fun startTurn(characterKey: String)
+    fun finishTurn(characterKey: String)
 }
 
 
@@ -123,5 +124,9 @@ class Model private constructor(s: State2) : ViewModel(), Actions {
 
     override fun startTurn(characterKey: String) {
         addActions(StartTurn(characterKey))
+    }
+
+    override fun finishTurn(characterKey: String) {
+        addActions(FinishTurn(characterKey))
     }
 }

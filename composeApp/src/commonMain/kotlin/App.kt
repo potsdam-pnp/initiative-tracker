@@ -359,13 +359,22 @@ fun App(data: String? = null) {
                             Button(onClick = {
                                 model.delay()
                             }) {
-                                Text("Delay")
+                                Text("Delay turn")
                             }
 
                             Button(onClick = {
                                 model.next()
                             }) {
-                                Text("Next")
+                                Text("Start next turn")
+                            }
+
+                            Button(onClick = {
+                                state.currentlySelectedCharacter.let {
+                                    if (it != null)
+                                        model.finishTurn(it)
+                                }
+                            }) {
+                                Text("Finish turn")
                             }
                         }
                     }

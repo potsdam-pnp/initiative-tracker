@@ -9,6 +9,7 @@ data class DeleteCharacter(val id: String): ActionState()
 data class StartTurn(val id: String): ActionState()
 data class Delay(val id: String): ActionState()
 data class Die(val id: String): ActionState()
+data class FinishTurn(val id: String): ActionState()
 
 data class State2(
     val actions: List<ActionState>
@@ -55,6 +56,7 @@ data class State2(
                         alreadyPlayedCharactersSet.add(action.id)
                     }
                 }
+                is FinishTurn -> {}
 
                 is AddCharacter -> {
                     characters.getOrPut(action.id) { Character(action.id) }
@@ -107,6 +109,7 @@ data class State2(
             when (action) {
                 is StartTurn -> return action.id
                 is Delay -> return null
+                is FinishTurn -> return null
                 else -> {}
             }
         }
