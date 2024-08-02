@@ -477,7 +477,7 @@ fun App(data: String? = null) {
 @Composable
 fun ListActions(state: State) {
     LazyColumn() {
-        items(state.actions) {
+        items(state.actions.reversed()) {
             Row(
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
             ) {
