@@ -233,7 +233,7 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, vie
 fun ShowPlayerVsNonPlayerCharacter(viewState: ViewState, character: Character, actions: Actions) {
     val isPlayerCharacter = character.playerCharacter == true
     if (viewState.shownView == ShownView.CHARACTERS) {
-        Button(modifier = Modifier.padding(start = 10.dp), onClick = { actions.togglePlayerCharacter(character.key) }) {
+        Button(modifier = Modifier.padding(start = 10.dp), onClick = { actions.togglePlayerCharacter(character.key, !isPlayerCharacter) }) {
             Text(text = if (isPlayerCharacter) "PC" else "NPC")
         }
     }
