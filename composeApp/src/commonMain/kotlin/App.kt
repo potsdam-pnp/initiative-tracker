@@ -126,100 +126,114 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, vie
             //    }
             //}
         }
-        Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
-            if (viewState.currentlyEditedCharacter != character.key) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(character.name ?: "")
-                    ShowPlayerVsNonPlayerCharacter(viewState, character, actions)
-                    if (character.isDelayed) {
-                        Text("Delayed", Modifier.padding(horizontal = 10.dp), fontStyle = FontStyle.Italic)
-                        Button(onClick={ actions.startTurn(character.key) }) {
-                            Text("Take")
+        if (!character.dead) {
+            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
+                if (viewState.currentlyEditedCharacter != character.key) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(character.name ?: "")
+                        ShowPlayerVsNonPlayerCharacter(viewState, character, actions)
+                        if (character.isDelayed) {
+                            Text(
+                                "Delayed",
+                                Modifier.padding(horizontal = 10.dp),
+                                fontStyle = FontStyle.Italic
+                            )
+                            Button(onClick = { actions.startTurn(character.key) }) {
+                                Text("Take")
+                            }
                         }
                     }
-                }
-            } else {
-                TextField(
-                    modifier = if (character.name == null) { Modifier.focusRequester(focusRequester) } else { Modifier },
-                    singleLine = true,
-                    value = character.name ?: "",
-                    onValueChange = { actions.editCharacter(character.key, it) },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                    keyboardActions = KeyboardActions(
-                        onDone = {
-                            toggleEditCharacter(character.key)
+                } else {
+                    TextField(
+                        modifier = if (character.name == null) {
+                            Modifier.focusRequester(focusRequester)
+                        } else {
+                            Modifier
                         },
-                        onNext = {
-                            focusManager.moveFocus(FocusDirection.Next)
+                        singleLine = true,
+                        value = character.name ?: "",
+                        onValueChange = { actions.editCharacter(character.key, it) },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                toggleEditCharacter(character.key)
+                            },
+                            onNext = {
+                                focusManager.moveFocus(FocusDirection.Next)
+                            }
+                        ),
+                        label = { Text("Name") })
+                    if (character.name == null || character.initiative == null) {
+                        DisposableEffect(Unit) {
+                            focusRequester.requestFocus()
+                            onDispose { }
                         }
-                    ),
-                    label = { Text("Name") })
-                if (character.name == null || character.initiative == null) {
-                    DisposableEffect(Unit) {
-                        focusRequester.requestFocus()
-                        onDispose { }
                     }
                 }
             }
-        }
-        val toggleEditIcon = if (viewState.currentlyEditedCharacter != character.key) {
-            Icons.Default.Edit
-        } else {
-            Icons.Default.Check
-        }
-        Column() {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (viewState.currentlyEditedCharacter != character.key) {
-                    Text(
-                        modifier = Modifier.padding(horizontal = 5.dp),
-                        text = character.initiative?.toString() ?: ""
-                    )
-                } else {
-                TextField(
-                    modifier = Modifier.width(70.dp)
-                        .padding(horizontal = 5.dp)
-                        .then(if (character.initiative == null && character.name != null) Modifier.focusRequester(focusRequester) else Modifier),
-                    singleLine = true,
-                    value = character.initiative?.toString() ?: "",
-                    onValueChange = { actions.editInitiative(character.key, it) },
-                    keyboardOptions = KeyboardOptions(
-                        imeAction = ImeAction.Done,
-                        keyboardType = KeyboardType.Decimal
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onDone = {
-                            toggleEditCharacter(character.key)
-                        },
-                        onPrevious = {
-                            focusManager.moveFocus(FocusDirection.Previous)
-                        }
-                    ),
-                    label = { Text("In") })
-                }
-                if (viewState.shownView == ShownView.CHARACTERS) {
-                    IconButton(onClick = { toggleEditCharacter(character.key) }) {
-                        AnimatedContent(targetState = toggleEditIcon) {
-                            Icon(it, contentDescription = "Toggle Edit")
-                        }
-                    }
-                    IconButton(onClick = { actions.deleteCharacter(character.key) }) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = "Delete"
+            val toggleEditIcon = if (viewState.currentlyEditedCharacter != character.key) {
+                Icons.Default.Edit
+            } else {
+                Icons.Default.Check
+            }
+            Column() {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (viewState.currentlyEditedCharacter != character.key) {
+                        Text(
+                            modifier = Modifier.padding(horizontal = 5.dp),
+                            text = character.initiative?.toString() ?: ""
                         )
+                    } else {
+                        TextField(
+                            modifier = Modifier.width(70.dp)
+                                .padding(horizontal = 5.dp)
+                                .then(
+                                    if (character.initiative == null && character.name != null) Modifier.focusRequester(
+                                        focusRequester
+                                    ) else Modifier
+                                ),
+                            singleLine = true,
+                            value = character.initiative?.toString() ?: "",
+                            onValueChange = { actions.editInitiative(character.key, it) },
+                            keyboardOptions = KeyboardOptions(
+                                imeAction = ImeAction.Done,
+                                keyboardType = KeyboardType.Decimal
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onDone = {
+                                    toggleEditCharacter(character.key)
+                                },
+                                onPrevious = {
+                                    focusManager.moveFocus(FocusDirection.Previous)
+                                }
+                            ),
+                            label = { Text("In") })
                     }
-                } else {
-                    if (character.playerCharacter == true) {
-                        IconButton(onClick = { actions.die(character.key) }) {
+                    if (viewState.shownView == ShownView.CHARACTERS) {
+                        IconButton(onClick = { toggleEditCharacter(character.key) }) {
+                            AnimatedContent(targetState = toggleEditIcon) {
+                                Icon(it, contentDescription = "Toggle Edit")
+                            }
+                        }
+                        IconButton(onClick = { actions.deleteCharacter(character.key) }) {
                             Icon(
-                                imageVector = deathIcon,
-                                tint = Color.Black,
-                                contentDescription = "Get dying condition"
+                                Icons.Default.Delete,
+                                contentDescription = "Delete"
                             )
                         }
                     } else {
-                        IconButton(onClick = { actions.deleteCharacter(character.key) }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete")
+                        if (character.playerCharacter == true) {
+                            IconButton(onClick = { actions.die(character.key) }) {
+                                Icon(
+                                    imageVector = deathIcon,
+                                    tint = Color.Black,
+                                    contentDescription = "Get dying condition"
+                                )
+                            }
+                        } else {
+                            IconButton(onClick = { actions.deleteCharacter(character.key) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete")
+                            }
                         }
                     }
                 }
@@ -246,12 +260,12 @@ fun InitOrder(innerPadding: PaddingValues, characters: List<Character>, active: 
     LazyColumn(contentPadding = innerPadding, state = listState) {
         items(
             characters + null,
-            key = { it?.key ?: "" }
+            key = { (it?.key ?: "") + "-" + (it?.turn ?: "") }
         ) { character ->
             if (character != null) {
                 @Suppress("EXPERIMENTAL_FOUNDATION_API_USAGE")
                 Box(modifier = Modifier.animateItemPlacement()) {
-                    ShowCharacter(character, isActive = character.key == active, actions, viewState, toggleEditCharacter)
+                    ShowCharacter(character, isActive = character.key == active && !character.dead, actions, viewState, toggleEditCharacter)
                 }
             } else {
                 if (viewState.shownView == ShownView.CHARACTERS) {

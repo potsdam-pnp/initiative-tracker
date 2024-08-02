@@ -21,6 +21,7 @@ data class State2(
         val current = if (withCurrent) currentTurn() else null
         if (current != null) {
             alreadyPlayedCharactersSet.add(current)
+            characters[current] = Character(current, turn = -1)
         }
 
         var dying = 0
@@ -33,6 +34,12 @@ data class State2(
                         alreadyPlayedCharacters.add(alreadyPlayedCharacters.size - dying, action.id)
                     }
                     dying = 0
+                    characters[action.id] =
+                        characters.getOrPut(action.id) {
+                            Character(action.id)
+                        }.let {
+                            it.copy(turn = it.turn + 1)
+                        }
                 }
                 is Delay -> {
                     if (!alreadyPlayedCharactersSet.contains(action.id)) {
@@ -106,10 +113,18 @@ data class State2(
         return null
     }
 
-    fun toState(): State =
-        State(
-            characters = predictNextTurns(withCurrent = true),
+    fun toState(): State {
+        val characters = predictNextTurns(withCurrent = true).let {
+            val first = it.firstOrNull()
+            if (first == null) {
+                it
+            } else {
+                it + first.copy(turn = first.turn + 1, dead = true)
+            }
+        }
+        return State(
+            characters = characters,
             currentlySelectedCharacter = currentTurn()
         )
-
+    }
 }
