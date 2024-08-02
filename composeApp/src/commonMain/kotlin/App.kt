@@ -99,6 +99,8 @@ data class ViewState(
 
 @Composable
 fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, viewState: ViewState, toggleEditCharacter: (String) -> Unit) {
+    val focusRequester = remember { FocusRequester() }
+
     var modifier: Modifier = Modifier.fillMaxWidth();
     if (isActive) {
         modifier = modifier.then(Modifier.background(color = Color.Yellow))
@@ -138,7 +140,7 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, vie
                 }
             } else {
                 TextField(
-                    //modifier = if (character.focusInitiative) Modifier else Modifier.focusRequester(character.focusRequester),
+                    modifier = if (character.name == null) { Modifier.focusRequester(focusRequester) } else { Modifier },
                     singleLine = true,
                     value = character.name ?: "",
                     onValueChange = { actions.editCharacter(character.key, it) },
@@ -152,13 +154,14 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, vie
                         }
                     ),
                     label = { Text("Name") })
-                //DisposableEffect(Unit) {
-                //    character.focusRequester.requestFocus()
-                //    onDispose { } // Optional cleanup if needed
-                //}
+                if (character.name == null || character.initiative == null) {
+                    DisposableEffect(Unit) {
+                        focusRequester.requestFocus()
+                        onDispose { }
+                    }
+                }
             }
         }
-        //}
         val toggleEditIcon = if (viewState.currentlyEditedCharacter != character.key) {
             Icons.Default.Edit
         } else {
@@ -174,7 +177,8 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, vie
                 } else {
                 TextField(
                     modifier = Modifier.width(70.dp)
-                        .padding(horizontal = 5.dp),//.then(if (!character.focusInitiative) Modifier else Modifier.focusRequester(character.focusRequester)),
+                        .padding(horizontal = 5.dp)
+                        .then(if (character.initiative == null && character.name != null) Modifier.focusRequester(focusRequester) else Modifier),
                     singleLine = true,
                     value = character.initiative?.toString() ?: "",
                     onValueChange = { actions.editInitiative(character.key, it) },
