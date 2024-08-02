@@ -132,7 +132,7 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, vie
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(character.name ?: "")
                         ShowPlayerVsNonPlayerCharacter(viewState, character, actions)
-                        if (character.isDelayed) {
+                        if (character.isDelayed && viewState.shownView == ShownView.TURNS) {
                             Text(
                                 "Delayed",
                                 Modifier.padding(horizontal = 10.dp),
