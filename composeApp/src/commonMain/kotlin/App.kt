@@ -257,9 +257,21 @@ fun ShowPlayerVsNonPlayerCharacter(viewState: ViewState, character: Character, a
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
 fun InitOrder(innerPadding: PaddingValues, characters: List<Character>, active: String?, actions: Actions, listState: LazyListState, viewState: ViewState, toggleEditCharacter: (String) -> Unit) {
+    val listItems = characters.let {
+        if (viewState.shownView == ShownView.CHARACTERS) {
+            it + null
+        } else {
+            val first = it.firstOrNull()
+            if (first != null) {
+                it + first.copy(turn = first.turn + 1, dead = true)
+            } else {
+                it
+            }
+        }
+    }
     LazyColumn(contentPadding = innerPadding, state = listState) {
         items(
-            characters + null,
+            listItems,
             key = { (it?.key ?: "") + "-" + (it?.turn ?: "") }
         ) { character ->
             if (character != null) {

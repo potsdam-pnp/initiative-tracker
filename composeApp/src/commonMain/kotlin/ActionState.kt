@@ -116,18 +116,9 @@ data class State2(
         return null
     }
 
-    fun toState(): State {
-        val characters = predictNextTurns(withCurrent = true).let {
-            val first = it.firstOrNull()
-            if (first == null) {
-                it
-            } else {
-                it + first.copy(turn = first.turn + 1, dead = true)
-            }
-        }
-        return State(
-            characters = characters,
+    fun toState(): State =
+        State(
+            characters = predictNextTurns(withCurrent = true),
             currentlySelectedCharacter = currentTurn()
         )
-    }
 }
