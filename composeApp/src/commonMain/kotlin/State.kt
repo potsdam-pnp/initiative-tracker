@@ -20,7 +20,6 @@ data class Character(
 )
 
 data class State(
-    val inEditMode: Boolean,
     val characters: List<Character> = listOf(),
     val currentlySelectedCharacter: String? = null,
 )

@@ -311,8 +311,10 @@ fun SettingsMenu(characterList: List<Character>) {
 @Preview
 fun App(data: String? = null) {
     val model = viewModel { Model(data) }
-    val state by model.state.collectAsState(State(inEditMode = false))
+    val state by model.state.collectAsState(State())
     val actions: Actions = model
+
+    var viewState by remember { mutableStateOf(ViewState(ShownView.CHARACTERS, null)) }
 
     MaterialTheme {
         val listState = rememberLazyListState()
@@ -328,25 +330,14 @@ fun App(data: String? = null) {
                 )
             },
             bottomBar = {
-                BottomNavigation(windowInsets = AppBarDefaults.bottomAppBarWindowInsets) {
-                    Button(onClick = {}) { Text("Hello") }
-                }
-                BottomAppBar(
-                    windowInsets = AppBarDefaults.bottomAppBarWindowInsets,
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceAround
+                if (viewState.shownView == ShownView.TURNS) {
+                    BottomAppBar(
+                        windowInsets = AppBarDefaults.bottomAppBarWindowInsets,
                     ) {
-                        if (state.inEditMode) {
-                            Button(
-                                onClick = {
-                                    model.sort()
-                                },
-                                enabled = state.characters.isNotEmpty()) {
-                                Text("Sort")
-                            }
-                        } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceAround
+                        ) {
                             Button(onClick = {
                                 model.delay()
                             }) {
@@ -363,7 +354,6 @@ fun App(data: String? = null) {
                 }
             },
         ) { innerPadding ->
-            var viewState by remember { mutableStateOf(ViewState(ShownView.CHARACTERS, null)) }
             Column() {
                 TabRow(
                     selectedTabIndex = viewState.shownView.ordinal

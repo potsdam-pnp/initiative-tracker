@@ -108,7 +108,6 @@ data class State2(
 
     fun toState(): State =
         State(
-            inEditMode = false,
             characters = predictNextTurns(withCurrent = true),
             currentlySelectedCharacter = currentTurn()
         )
