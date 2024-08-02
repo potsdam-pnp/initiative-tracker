@@ -62,11 +62,13 @@ import androidx.compose.material.IconToggleButton
 import androidx.compose.material.Tab
 import androidx.compose.material.TabRow
 import androidx.compose.material.TextField
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.materialIcon
@@ -80,6 +82,10 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.compose_multiplatform
@@ -337,6 +343,12 @@ fun SettingsMenu(characterList: List<Character>) {
     }
 }
 
+enum class Screens(val title: String) {
+    MainScreen("Initiative Tracker"),
+    ListActions("Initiative Tracker - List Actions")
+}
+
+
 @Composable
 @Preview
 fun App(data: String? = null) {
@@ -347,20 +359,42 @@ fun App(data: String? = null) {
     var viewState by remember { mutableStateOf(ViewState(ShownView.CHARACTERS, null)) }
 
     MaterialTheme {
-        val listState = rememberLazyListState()
+        val navController = rememberNavController()
+        val backStackEntry by navController.currentBackStackEntryAsState()
 
         Scaffold(
             topBar = {
                 TopAppBar(
                     windowInsets = AppBarDefaults.topAppBarWindowInsets,
-                    title = { Text("Initiative Tracker") },
+                    title = {
+                        val currentScreen = Screens.valueOf(
+                            backStackEntry?.destination?.route ?: Screens.MainScreen.name
+                        )
+                        Text(currentScreen.title)
+                    },
                     actions = {
                         SettingsMenu(state.characters)
+                    },
+                    navigationIcon = {
+                        if (backStackEntry?.destination?.route != Screens.MainScreen.name) {
+                            IconButton(onClick = {
+                                navController.navigateUp()
+                            }) {
+                                Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Back")
+                            }
+                        } else {
+                            IconButton(onClick = {
+                                navController.navigate(Screens.ListActions.name)
+                            }) {
+                                Icon(Icons.Default.Menu, contentDescription = "Menu")
+                            }
+
+                        }
                     }
                 )
             },
             bottomBar = {
-                if (viewState.shownView == ShownView.TURNS) {
+                if (backStackEntry?.destination?.route == Screens.MainScreen.name && viewState.shownView == ShownView.TURNS) {
                     BottomAppBar(
                         windowInsets = AppBarDefaults.bottomAppBarWindowInsets,
                     ) {
@@ -393,33 +427,94 @@ fun App(data: String? = null) {
                 }
             },
         ) { innerPadding ->
-            Column() {
-                TabRow(
-                    selectedTabIndex = viewState.shownView.ordinal
-                ) {
-                    Tab(selected = viewState.shownView == ShownView.CHARACTERS, onClick = {
-                        viewState = viewState.copy(shownView = ShownView.CHARACTERS)
-                    }) {
-                        Text("Characters")
-                    }
-                    Tab(selected = viewState.shownView == ShownView.TURNS, onClick = {
-                        viewState = viewState.copy(shownView = ShownView.TURNS, currentlyEditedCharacter = null)
-                    }) {
-                        Text("Turns")
+            NavHost(
+                navController = navController,
+                startDestination = Screens.MainScreen.name
+            ) {
+                composable(route = Screens.MainScreen.name) {
+                    val listState = rememberLazyListState()
+
+                    Column() {
+                        TabRow(
+                            selectedTabIndex = viewState.shownView.ordinal
+                        ) {
+                            Tab(selected = viewState.shownView == ShownView.CHARACTERS, onClick = {
+                                viewState = viewState.copy(shownView = ShownView.CHARACTERS)
+                            }) {
+                                Text("Characters")
+                            }
+                            Tab(selected = viewState.shownView == ShownView.TURNS, onClick = {
+                                viewState = viewState.copy(
+                                    shownView = ShownView.TURNS,
+                                    currentlyEditedCharacter = null
+                                )
+                            }) {
+                                Text("Turns")
+                            }
+                        }
+                        InitOrder(
+                            innerPadding,
+                            state.characters,
+                            state.currentlySelectedCharacter,
+                            actions,
+                            listState,
+                            viewState
+                        ) {
+                            viewState =
+                                viewState.copy(currentlyEditedCharacter = if (viewState.currentlyEditedCharacter == it) null else it)
+                        }
                     }
                 }
-                InitOrder(
-                    innerPadding,
-                    state.characters,
-                    state.currentlySelectedCharacter,
-                    actions,
-                    listState,
-                    viewState
-                ) {
-                    viewState =
-                        viewState.copy(currentlyEditedCharacter = if (viewState.currentlyEditedCharacter == it) null else it)
+
+                composable(route = Screens.ListActions.name) {
+                    ListActions(state)
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun ListActions(state: State) {
+    LazyColumn() {
+        items(state.actions) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+            ) {
+                Text(descriptionOfAction(it))
+            }
+        }
+    }
+}
+
+fun descriptionOfAction(action: ActionState): String {
+    when (action) {
+        is AddCharacter -> {
+            return "Add character ${action.id}"
+        }
+        is ChangeName -> {
+            return "Change name of character ${action.id} to ${action.name}"
+        }
+        is ChangeInitiative -> {
+            return "Change initiative of character ${action.id} to ${action.initiative}"
+        }
+        is ChangePlayerCharacter -> {
+            return "Change player character of character ${action.id} to ${action.playerCharacter}"
+        }
+        is DeleteCharacter -> {
+            return "Delete character ${action.id}"
+        }
+        is StartTurn -> {
+            return "Start turn of character ${action.id}"
+        }
+        is Delay -> {
+            return "Delay turn of character ${action.id}"
+        }
+        is FinishTurn -> {
+            return "Finish turn of character ${action.id}"
+        }
+        is Die -> {
+            return "Character ${action.id} dies"
         }
     }
 }

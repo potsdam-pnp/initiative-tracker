@@ -23,6 +23,7 @@ data class Character(
 data class State(
     val characters: List<Character> = listOf(),
     val currentlySelectedCharacter: String? = null,
+    val actions: List<ActionState> = listOf()
 )
 
 interface Actions {

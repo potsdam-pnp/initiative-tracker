@@ -119,6 +119,7 @@ data class State2(
     fun toState(): State =
         State(
             characters = predictNextTurns(withCurrent = true),
-            currentlySelectedCharacter = currentTurn()
+            currentlySelectedCharacter = currentTurn(),
+            actions = actions
         )
 }
