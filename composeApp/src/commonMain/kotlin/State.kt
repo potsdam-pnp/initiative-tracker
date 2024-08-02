@@ -38,6 +38,7 @@ interface Actions {
     fun delay()
     fun next()
     fun togglePlayerCharacter(key: String)
+    fun startTurn(characterKey: String)
 }
 
 
@@ -128,5 +129,9 @@ class Model private constructor(s: State2) : ViewModel(), Actions {
 
     override fun togglePlayerCharacter(characterKey: String) {
         addActions(ChangePlayerCharacter(characterKey, true)) // TODO Toggle instead of set to false
+    }
+
+    override fun startTurn(characterKey: String) {
+        addActions(StartTurn(characterKey))
     }
 }

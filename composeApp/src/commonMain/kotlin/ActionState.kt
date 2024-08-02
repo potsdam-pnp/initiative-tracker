@@ -90,7 +90,8 @@ data class State2(
         val currentAsList = if (current == null) listOf() else listOf(current)
 
         return (currentAsList + notYetPlayed.map { it.key } + alreadyPlayedCharacters.reversed()).mapNotNull {
-            characters[it]
+            val result = characters[it];
+            if (result?.dead == true) null else result
         }
     }
 

@@ -76,6 +76,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -128,6 +129,12 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, vie
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(character.name ?: "")
                     ShowPlayerVsNonPlayerCharacter(viewState, character, actions)
+                    if (character.isDelayed) {
+                        Text("Delayed", Modifier.padding(horizontal = 10.dp), fontStyle = FontStyle.Italic)
+                        Button(onClick={ actions.startTurn(character.key) }) {
+                            Text("Take")
+                        }
+                    }
                 }
             } else {
                 TextField(
