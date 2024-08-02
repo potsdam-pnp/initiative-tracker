@@ -28,12 +28,10 @@ interface Actions {
     fun deleteCharacter(characterKey: String)
     fun editCharacter(characterKey: String, name: String)
     fun editInitiative(characterKey: String, initiative: String)
-    fun toggleEditCharacter(characterKey: String)
     fun moveCharacterUp(characterKey: String)
     fun moveCharacterDown(characterKey: String)
     fun addCharacter()
     fun die(characterKey: String)
-    fun sort()
     fun delay()
     fun next()
     fun togglePlayerCharacter(key: String)
@@ -88,10 +86,6 @@ class Model private constructor(s: State2) : ViewModel(), Actions {
         }
     }
 
-    override fun toggleEditCharacter(characterKey: String) {
-        // TODO
-    }
-
     override fun moveCharacterUp(characterKey: String) {
         // TODO
     }
@@ -106,10 +100,6 @@ class Model private constructor(s: State2) : ViewModel(), Actions {
 
     override fun die(characterKey: String) {
         addActions(Die(characterKey))
-    }
-
-    override fun sort() {
-       // TODO
     }
 
     override fun delay() {

@@ -188,7 +188,7 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, vie
                     ),
                     keyboardActions = KeyboardActions(
                         onDone = {
-                            actions.toggleEditCharacter(character.key)
+                            toggleEditCharacter(character.key)
                         },
                         onPrevious = {
                             focusManager.moveFocus(FocusDirection.Previous)
