@@ -36,7 +36,7 @@ object Server {
         isSupported = true
     ))
 
-    var server: NettyApplicationEngine? = null
+    var server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>? = null
 
     fun toggle(state: Flow<State>) {
         if (status.value.isRunning) {
@@ -68,7 +68,7 @@ object Server {
 
             thread {
                 runBlocking {
-                    val connectors = it.resolvedConnectors().joinToString { it.host + ":" + it.port }
+                    val connectors = it.engine.resolvedConnectors().joinToString { it.host + ":" + it.port }
                     status.update {
                         it.copy(message = "Server running on $connectors")
                     }
