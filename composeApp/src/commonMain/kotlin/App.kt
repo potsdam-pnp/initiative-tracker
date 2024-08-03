@@ -382,7 +382,7 @@ fun App(data: String? = null) {
                 }
 
                 composable(route = Screens.ListActions.name) {
-                    ListActions(state)
+                    ListActions(innerPadding, state)
                 }
             }
         }
@@ -473,8 +473,8 @@ fun MainScreen(innerPadding: PaddingValues, state: State, model: Model) {
 }
 
 @Composable
-fun ListActions(state: State) {
-    LazyColumn {
+fun ListActions(innerPadding: PaddingValues, state: State) {
+    LazyColumn(contentPadding = innerPadding) {
         items(state.actions.reversed()) {
             Row(
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
