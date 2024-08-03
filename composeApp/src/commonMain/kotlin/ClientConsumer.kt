@@ -54,8 +54,13 @@ object ClientConsumer {
                         path = "/ws"
                     ) {
                         launch {
+                            var alreadyDroppedFirstMessage = false
                             model.state.collect {
-                                send(Frame.Text(serializeActions(it.actions)))
+                                if (!alreadyDroppedFirstMessage) {
+                                    alreadyDroppedFirstMessage = true
+                                } else {
+                                    send(Frame.Text(serializeActions(it.actions)))
+                                }
                             }
                         }
                         while (true) {
