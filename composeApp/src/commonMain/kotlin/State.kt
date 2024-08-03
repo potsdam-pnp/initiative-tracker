@@ -23,8 +23,6 @@ interface Actions {
     fun deleteCharacter(characterKey: String)
     fun editCharacter(characterKey: String, name: String)
     fun editInitiative(characterKey: String, initiative: String)
-    fun moveCharacterUp(characterKey: String)
-    fun moveCharacterDown(characterKey: String)
     fun addCharacter()
     fun die(characterKey: String)
     fun delay()
@@ -82,14 +80,6 @@ class Model private constructor(s: State2) : ViewModel(), Actions {
         if (initiativeNumber != null) {
             addActions(ChangeInitiative(characterKey, initiativeNumber))
         }
-    }
-
-    override fun moveCharacterUp(characterKey: String) {
-        // TODO
-    }
-
-    override fun moveCharacterDown(characterKey: String) {
-        // TODO
     }
 
     override fun addCharacter() {
