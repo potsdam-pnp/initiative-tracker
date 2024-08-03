@@ -326,10 +326,9 @@ fun SettingsMenu(characterList: List<Character>) {
         expanded = showMenu,
         onDismissRequest = { showMenu = false }
     ) {
-        getPlatform().DropdownMenuItemPlayerShortcut(enabled = characterList.isNotEmpty()) {
-            characterList.mapNotNull {
-               it.name
-            }
+        val characters = characterList.mapNotNull { it.name }
+        getPlatform().DropdownMenuItemPlayerShortcut(enabled = characters.isNotEmpty()) {
+            characters
         }
     }
 }
