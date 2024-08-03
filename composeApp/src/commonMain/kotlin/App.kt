@@ -14,6 +14,7 @@ import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -262,7 +263,7 @@ fun ShowPlayerVsNonPlayerCharacter(viewState: ViewState, character: Character, a
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-fun InitOrder(innerPadding: PaddingValues, characters: List<Character>, active: String?, actions: Actions, listState: LazyListState, viewState: ViewState, toggleEditCharacter: (String) -> Unit) {
+fun InitOrder(innerPadding: PaddingValues, columnScope: ColumnScope, characters: List<Character>, active: String?, actions: Actions, listState: LazyListState, viewState: ViewState, toggleEditCharacter: (String) -> Unit) {
     val listItems = characters.let {
         if (viewState.shownView == ShownView.CHARACTERS) {
             it + null
@@ -275,7 +276,7 @@ fun InitOrder(innerPadding: PaddingValues, characters: List<Character>, active: 
             }
         }
     }
-    LazyColumn(contentPadding = innerPadding, state = listState) {
+    LazyColumn(contentPadding = innerPadding, state = listState, modifier = with(columnScope) { Modifier.fillMaxWidth().weight(1f) }) {
         items(
             listItems,
             key = { (it?.key ?: "") + "-" + (it?.turn ?: "") }
@@ -354,9 +355,6 @@ enum class Screens(val title: String) {
 fun App(data: String? = null) {
     val model = viewModel { Model(data) }
     val state by model.state.collectAsState(State())
-    val actions: Actions = model
-
-    var viewState by remember { mutableStateOf(ViewState(ShownView.CHARACTERS, null)) }
 
     MaterialTheme {
         val navController = rememberNavController()
@@ -393,81 +391,88 @@ fun App(data: String? = null) {
                     }
                 )
             },
-            bottomBar = {
-                if (backStackEntry?.destination?.route == Screens.MainScreen.name && viewState.shownView == ShownView.TURNS) {
-                    BottomAppBar(
-                        windowInsets = AppBarDefaults.bottomAppBarWindowInsets,
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceAround
-                        ) {
-                            Button(onClick = {
-                                model.delay()
-                            }) {
-                                Text("Delay turn")
-                            }
-
-                            Button(onClick = {
-                                model.next()
-                            }) {
-                                Text("Start next turn")
-                            }
-
-                            Button(onClick = {
-                                state.currentlySelectedCharacter.let {
-                                    if (it != null)
-                                        model.finishTurn(it)
-                                }
-                            }) {
-                                Text("Finish turn")
-                            }
-                        }
-                    }
-                }
-            },
         ) { innerPadding ->
             NavHost(
                 navController = navController,
                 startDestination = Screens.MainScreen.name
             ) {
                 composable(route = Screens.MainScreen.name) {
-                    val listState = rememberLazyListState()
-
-                    Column() {
-                        TabRow(
-                            selectedTabIndex = viewState.shownView.ordinal
-                        ) {
-                            Tab(selected = viewState.shownView == ShownView.CHARACTERS, onClick = {
-                                viewState = viewState.copy(shownView = ShownView.CHARACTERS)
-                            }) {
-                                Text("Characters")
-                            }
-                            Tab(selected = viewState.shownView == ShownView.TURNS, onClick = {
-                                viewState = viewState.copy(
-                                    shownView = ShownView.TURNS,
-                                    currentlyEditedCharacter = null
-                                )
-                            }) {
-                                Text("Turns")
-                            }
-                        }
-                        InitOrder(
-                            innerPadding,
-                            state.characters,
-                            state.currentlySelectedCharacter,
-                            actions,
-                            listState,
-                            viewState
-                        ) {
-                            viewState =
-                                viewState.copy(currentlyEditedCharacter = if (viewState.currentlyEditedCharacter == it) null else it)
-                        }
-                    }
+                    MainScreen(innerPadding, state, model)
                 }
 
                 composable(route = Screens.ListActions.name) {
                     ListActions(state)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MainScreen(innerPadding: PaddingValues, state: State, model: Model) {
+    val listState = rememberLazyListState()
+    var viewState by remember { mutableStateOf(ViewState(ShownView.CHARACTERS, null)) }
+
+    val actions: Actions = model
+
+    Column() {
+        TabRow(
+            selectedTabIndex = viewState.shownView.ordinal
+        ) {
+            Tab(selected = viewState.shownView == ShownView.CHARACTERS, onClick = {
+                viewState = viewState.copy(shownView = ShownView.CHARACTERS)
+            }) {
+                Text("Characters")
+            }
+            Tab(selected = viewState.shownView == ShownView.TURNS, onClick = {
+                viewState = viewState.copy(
+                    shownView = ShownView.TURNS,
+                    currentlyEditedCharacter = null
+                )
+            }) {
+                Text("Turns")
+            }
+        }
+        InitOrder(
+            innerPadding,
+            this,
+            state.characters,
+            state.currentlySelectedCharacter,
+            actions,
+            listState,
+            viewState
+        ) {
+            viewState =
+                viewState.copy(currentlyEditedCharacter = if (viewState.currentlyEditedCharacter == it) null else it)
+        }
+        if (viewState.shownView == ShownView.TURNS) {
+            BottomAppBar(
+                windowInsets = AppBarDefaults.bottomAppBarWindowInsets,
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    Button(onClick = {
+                        model.delay()
+                    }) {
+                        Text("Delay turn")
+                    }
+
+                    Button(onClick = {
+                        model.next()
+                    }) {
+                        Text("Start next turn")
+                    }
+
+                    Button(onClick = {
+                        state.currentlySelectedCharacter.let {
+                            if (it != null)
+                                model.finishTurn(it)
+                        }
+                    }) {
+                        Text("Finish turn")
+                    }
                 }
             }
         }
