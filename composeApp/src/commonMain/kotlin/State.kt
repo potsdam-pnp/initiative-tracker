@@ -32,6 +32,8 @@ interface Actions {
     fun togglePlayerCharacter(characterKey: String, playerCharacter: Boolean)
     fun startTurn(characterKey: String)
     fun finishTurn(characterKey: String)
+    fun deleteAction(index: Int)
+    fun deleteNewerActions(index: Int)
 }
 
 
@@ -122,5 +124,23 @@ class Model private constructor(s: State2) : ViewModel(), Actions {
 
     override fun finishTurn(characterKey: String) {
         addActions(FinishTurn(characterKey))
+    }
+
+    override fun deleteAction(index: Int) {
+        _state.update {
+            it.copy(
+                actions = it.actions.toMutableList().also {
+                    it.removeAt(index)
+                }
+            )
+        }
+    }
+
+    override fun deleteNewerActions(index: Int) {
+        _state.update {
+            it.copy(
+                actions = it.actions.dropLast(it.actions.size - index)
+            )
+        }
     }
 }

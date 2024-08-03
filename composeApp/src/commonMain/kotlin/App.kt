@@ -1,6 +1,7 @@
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -30,9 +32,11 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.materialIcon
 import androidx.compose.material.icons.materialPath
+import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.BottomAppBarDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,6 +52,7 @@ import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -445,7 +450,7 @@ fun App(data: String? = null) {
                     }
 
                     composable(route = Screens.ListActions.name) {
-                        ListActions(innerPadding, state)
+                        ListActions(innerPadding, state, model)
                     }
                 }
             }
@@ -528,16 +533,77 @@ fun MainScreen(innerPadding: PaddingValues, state: State, model: Model, viewStat
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ListActions(innerPadding: PaddingValues, state: State) {
+fun ListActions(innerPadding: PaddingValues, state: State, actions: Actions) {
+    var showModalDialogOfIndex by remember { mutableStateOf<Int?>(null) }
     LazyColumn(contentPadding = innerPadding) {
-        items(state.actions.reversed()) {
+        items(state.actions.withIndex().reversed()) { item ->
             Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                modifier =
+                Modifier.clickable(onClick = {
+                        showModalDialogOfIndex = item.index
+                    })
             ) {
-                Text(descriptionOfAction(it))
+                Text(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp),
+                    text = descriptionOfAction(item.value)
+                )
             }
         }
+    }
+    val modelDialogIndex = showModalDialogOfIndex
+    if (modelDialogIndex != null) {
+        BasicAlertDialog(
+            onDismissRequest = { showModalDialogOfIndex = null },
+            content = {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    Column {
+                        Text(
+                            modifier = Modifier.align(Alignment.CenterHorizontally).padding(16.dp),
+                            textAlign = null,
+                            text = "Delete actions menu",
+                        )
+                        HorizontalDivider()
+                        Text(
+                            text = descriptionOfAction(state.actions[modelDialogIndex]),
+                            modifier = Modifier.padding(16.dp)
+                        )
+
+                        TextButton(
+                            modifier = Modifier.align(Alignment.End),
+                            onClick = { showModalDialogOfIndex = null },
+                        ) {
+                            Text("Dismiss")
+                        }
+                        TextButton(
+                            modifier = Modifier.align(Alignment.End),
+                            onClick = {
+                                showModalDialogOfIndex = null
+                                actions.deleteAction(modelDialogIndex)
+                            },
+                        ) {
+                            Text("Undo action")
+                        }
+                        TextButton(
+                            modifier = Modifier.align(Alignment.End),
+                            onClick = {
+                                showModalDialogOfIndex = null
+                                actions.deleteNewerActions(modelDialogIndex)
+                            },
+                        ) {
+                            Text("Undo action and all newer actions")
+                        }
+
+                    }
+                }
+            }
+        )
     }
 }
 
