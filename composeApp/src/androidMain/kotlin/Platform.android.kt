@@ -27,6 +27,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlin.concurrent.thread
 import io.ktor.websocket.Frame
+import io.ktor.websocket.readText
 
 
 object Server {
@@ -38,15 +39,15 @@ object Server {
 
     var server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>? = null
 
-    fun toggle(state: Flow<State>) {
+    fun toggle(model: Model) {
         if (status.value.isRunning) {
             stop()
         } else {
-            start(state)
+            start(model)
         }
     }
 
-    private fun start(state: Flow<State>) {
+    private fun start(model: Model) {
         server = embeddedServer(Netty, port = 8080) {
             install(WebSockets)
             routing {
@@ -54,11 +55,22 @@ object Server {
                     call.respondText("Initiative Tracker server running succesfully")
                 }
                 webSocket("/ws") {
-                    state.collect {
-                        send(Frame.Text(serializeActions(it.actions)))
+                    launch {
+                        model.state.collect {
+                            send(Frame.Text(serializeActions(it.actions)))
+                        }
+                    }
+                    while (true) {
+                        val frameText = (incoming.receive() as? Frame.Text)?.readText()
+                        if (frameText != null) {
+                            val actions = deserializeActions(frameText)
+                            if (actions != null) {
+                                model.receiveActions(actions)
+                            }
+                        }
+
                     }
                 }
-
             }
         }.also {
             it.start(wait = false)
@@ -117,8 +129,8 @@ class AndroidPlatform : Platform {
     override val serverStatus: StateFlow<ServerStatus>
         get() = Server.status
 
-    override fun toggleServer(state: Flow<State>) {
-        Server.toggle(state)
+    override fun toggleServer(model: Model) {
+        Server.toggle(model)
     }
 }
 

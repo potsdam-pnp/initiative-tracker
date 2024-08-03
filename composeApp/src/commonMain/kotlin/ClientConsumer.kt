@@ -53,6 +53,11 @@ object ClientConsumer {
                         port = 8080,
                         path = "/ws"
                     ) {
+                        launch {
+                            model.state.collect {
+                                send(Frame.Text(serializeActions(it.actions)))
+                            }
+                        }
                         while (true) {
                             val othersMessage = incoming.receive() as? Frame.Text
                             if (othersMessage != null) {

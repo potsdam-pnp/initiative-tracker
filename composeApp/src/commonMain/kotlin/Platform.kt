@@ -20,7 +20,7 @@ interface Platform {
 
     }
 
-    fun toggleServer(state: Flow<State>) {}
+    fun toggleServer(model: Model) {}
     val serverStatus: StateFlow<ServerStatus> get() { return unsupportedPlatformFlow }
 }
 

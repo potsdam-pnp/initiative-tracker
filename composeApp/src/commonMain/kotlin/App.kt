@@ -487,7 +487,7 @@ fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope
             headlineContent = { Text("Function as Server") },
             trailingContent = {
                 Switch(checked = serverStatus.isRunning, enabled = serverStatus.isSupported, onCheckedChange = {
-                    getPlatform().toggleServer(model.state)
+                    getPlatform().toggleServer(model)
                 })
             }
         )
