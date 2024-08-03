@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.materialIcon
@@ -33,25 +35,38 @@ import androidx.compose.material.icons.materialPath
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.BottomAppBarDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.Divider
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,6 +85,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 
@@ -125,7 +141,7 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, vie
                                 Modifier.padding(horizontal = 10.dp),
                                 fontStyle = FontStyle.Italic
                             )
-                            Button(onClick = { actions.startTurn(character.key) }) {
+                            OutlinedButton(onClick = { actions.startTurn(character.key) }) {
                                 Text("Take")
                             }
                         }
@@ -330,7 +346,7 @@ enum class Screens(val title: String) {
 }
 
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 @Preview
 fun App(data: String? = null) {
@@ -341,48 +357,103 @@ fun App(data: String? = null) {
         val navController = rememberNavController()
         val backStackEntry by navController.currentBackStackEntryAsState()
 
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    windowInsets = TopAppBarDefaults.windowInsets,
-                    title = {
-                        val currentScreen = Screens.valueOf(
-                            backStackEntry?.destination?.route ?: Screens.MainScreen.name
-                        )
-                        Text(currentScreen.title)
-                    },
-                    actions = {
-                        SettingsMenu(state.characters)
-                    },
-                    navigationIcon = {
-                        if (backStackEntry?.destination?.route != Screens.MainScreen.name) {
-                            IconButton(onClick = {
-                                navController.navigateUp()
-                            }) {
-                                Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Back")
+
+        val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+        val scope = rememberCoroutineScope()
+
+        val viewStateVar = remember { mutableStateOf(ViewState(ShownView.CHARACTERS, null)) }
+        var viewState by viewStateVar
+        val pagerState = rememberPagerState(initialPage = viewState.shownView.ordinal) { 2 }
+
+        LaunchedEffect(pagerState.currentPage) {
+            pagerState.interactionSource
+            viewState = viewState.copy(shownView = ShownView.entries[pagerState.currentPage])
+        }
+        LaunchedEffect(viewState.shownView) {
+            pagerState.animateScrollToPage(viewState.shownView.ordinal)
+        }
+
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                ModalDrawerSheet {
+                    Text("Initiative Tracker", Modifier.padding(16.dp))
+                    HorizontalDivider()
+                    NavigationDrawerItem(
+                        label = { Text("Characters") },
+                        selected = backStackEntry?.destination?.route == Screens.MainScreen.name && viewState.shownView == ShownView.CHARACTERS,
+                        onClick = {
+                            navController.navigate(Screens.MainScreen.name) {
+                                popUpTo(Screens.MainScreen.name)
+                                launchSingleTop = true
                             }
-                        } else {
+                            viewState = viewState.copy(shownView = ShownView.CHARACTERS)
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+                    NavigationDrawerItem(
+                        label = { Text("Turns") },
+                        selected = backStackEntry?.destination?.route == Screens.MainScreen.name && viewState.shownView == ShownView.TURNS,
+                        onClick = {
+                            navController.navigate(Screens.MainScreen.name) {
+                                popUpTo(Screens.MainScreen.name)
+                                launchSingleTop = true
+                            }
+                            viewState = viewState.copy(shownView = ShownView.TURNS)
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+                    HorizontalDivider()
+                    NavigationDrawerItem(
+                        label = { Text("List Actions") },
+                        selected = backStackEntry?.destination?.route == Screens.ListActions.name,
+                        onClick = {
+                            navController.navigate(Screens.ListActions.name) {
+                                popUpTo(Screens.MainScreen.name)
+                                launchSingleTop = true
+                            }
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+                }
+            }
+        ) {
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        windowInsets = TopAppBarDefaults.windowInsets,
+                        title = {
+                            val currentScreen = Screens.valueOf(
+                                backStackEntry?.destination?.route ?: Screens.MainScreen.name
+                            )
+                            Text(currentScreen.title)
+                        },
+                        actions = {
+                            SettingsMenu(state.characters)
+                        },
+                        navigationIcon = {
                             IconButton(onClick = {
-                                navController.navigate(Screens.ListActions.name)
+                                scope.launch {
+                                    drawerState.open()
+                                }
                             }) {
                                 Icon(Icons.Default.Menu, contentDescription = "Menu")
                             }
-
                         }
+                    )
+                },
+            ) { innerPadding ->
+                NavHost(
+                    navController = navController,
+                    startDestination = Screens.MainScreen.name
+                ) {
+                    composable(route = Screens.MainScreen.name) {
+                        MainScreen(innerPadding, state, model, viewStateVar, pagerState)
                     }
-                )
-            },
-        ) { innerPadding ->
-            NavHost(
-                navController = navController,
-                startDestination = Screens.MainScreen.name
-            ) {
-                composable(route = Screens.MainScreen.name) {
-                    MainScreen(innerPadding, state, model)
-                }
 
-                composable(route = Screens.ListActions.name) {
-                    ListActions(innerPadding, state)
+                    composable(route = Screens.ListActions.name) {
+                        ListActions(innerPadding, state)
+                    }
                 }
             }
         }
@@ -391,11 +462,9 @@ fun App(data: String? = null) {
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(innerPadding: PaddingValues, state: State, model: Model) {
-    var viewState by remember { mutableStateOf(ViewState(ShownView.CHARACTERS, null)) }
-    val pagerState = rememberPagerState { 2 }
-
+fun MainScreen(innerPadding: PaddingValues, state: State, model: Model, viewStateVar: MutableState<ViewState>, pagerState: PagerState) {
     val actions: Actions = model
+    var viewState by viewStateVar
 
     Column(Modifier.padding(innerPadding)) {
         PrimaryTabRow(
@@ -438,7 +507,7 @@ fun MainScreen(innerPadding: PaddingValues, state: State, model: Model) {
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceAround
                         ) {
-                            Button(onClick = {
+                            OutlinedButton( onClick = {
                                 model.delay()
                             }) {
                                 Text("Delay turn")
@@ -450,7 +519,7 @@ fun MainScreen(innerPadding: PaddingValues, state: State, model: Model) {
                                 Text("Start next turn")
                             }
 
-                            Button(onClick = {
+                            OutlinedButton(onClick = {
                                 state.currentlySelectedCharacter.let {
                                     if (it != null)
                                         model.finishTurn(it)
@@ -462,12 +531,6 @@ fun MainScreen(innerPadding: PaddingValues, state: State, model: Model) {
                     }
                 }
             }
-        }
-        LaunchedEffect(pagerState.currentPage) {
-            viewState = viewState.copy(shownView = ShownView.entries[pagerState.currentPage])
-        }
-        LaunchedEffect(viewState.shownView) {
-            pagerState.animateScrollToPage(viewState.shownView.ordinal)
         }
     }
 }
