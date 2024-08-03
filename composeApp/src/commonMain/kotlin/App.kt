@@ -99,7 +99,7 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, vie
     val focusRequester = remember { FocusRequester() }
 
     var modifier: Modifier = Modifier.fillMaxWidth()
-    if (isActive) {
+    if (isActive && viewState.shownView == ShownView.TURNS) {
         modifier = modifier.then(Modifier.background(color = Color.Yellow))
     }
     modifier =
@@ -357,7 +357,7 @@ fun App(data: String? = null) {
 
         val viewStateVar = remember { mutableStateOf(ViewState(ShownView.CHARACTERS, null)) }
         var viewState by viewStateVar
-        val pagerState = rememberPagerState(initialPage = viewState.shownView.ordinal) { 2 }
+        val pagerState = rememberPagerState(initialPage = viewState.shownView.ordinal) { ShownView.entries.size }
 
         LaunchedEffect(pagerState.currentPage) {
             pagerState.interactionSource
