@@ -43,6 +43,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
@@ -50,6 +51,7 @@ import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -84,6 +86,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -340,7 +343,8 @@ fun SettingsMenu(characterList: List<Character>) {
 
 enum class Screens(val title: String) {
     MainScreen("Initiative Tracker"),
-    ListActions("Initiative Tracker - List Actions")
+    ListActions("List Actions"),
+    ConnectionSettings("Connection Settings")
 }
 
 
@@ -348,6 +352,7 @@ enum class Screens(val title: String) {
 @Composable
 @Preview
 fun App(data: String? = null) {
+    val globalCoroutineScope = rememberCoroutineScope()
     val model = viewModel { Model(data) }
     val state by model.state.collectAsState(State())
 
@@ -377,6 +382,17 @@ fun App(data: String? = null) {
                 ModalDrawerSheet {
                     Text("Initiative Tracker", Modifier.padding(16.dp))
                     HorizontalDivider()
+                    NavigationDrawerItem(
+                        label = { Text("Connection Settings") },
+                        selected = backStackEntry?.destination?.route == Screens.ConnectionSettings.name,
+                        onClick = {
+                            navController.navigate(Screens.ConnectionSettings.name) {
+                                popUpTo(Screens.MainScreen.name)
+                                launchSingleTop = true
+                            }
+                            scope.launch { drawerState.close() }
+                        }
+                    )
                     NavigationDrawerItem(
                         label = { Text("Characters") },
                         selected = backStackEntry?.destination?.route == Screens.MainScreen.name && viewState.shownView == ShownView.CHARACTERS,
@@ -452,9 +468,64 @@ fun App(data: String? = null) {
                     composable(route = Screens.ListActions.name) {
                         ListActions(innerPadding, state, model)
                     }
+
+                    composable(route = Screens.ConnectionSettings.name) {
+                        ConnectionSettings(innerPadding, model, globalCoroutineScope)
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope: CoroutineScope) {
+    Column(modifier = Modifier.padding(innerPadding)) {
+        val serverStatus by getPlatform().serverStatus.collectAsState()
+        val clientStatus by ClientConsumer.clientStatus.collectAsState()
+        ListItem(
+            headlineContent = { Text("Function as Server") },
+            trailingContent = {
+                Switch(checked = serverStatus.isRunning, enabled = serverStatus.isSupported, onCheckedChange = {
+                    getPlatform().toggleServer(model.state)
+                })
+            }
+        )
+        ListItem(
+            headlineContent = { Text("Server status") },
+            supportingContent = {
+                Text(serverStatus.message)
+            }
+        )
+        ListItem(
+            headlineContent = { Text("Function as Client") },
+            trailingContent = {
+                Switch(checked = clientStatus.isRunning, onCheckedChange = {
+                    ClientConsumer.toggleClient(model, coroutineScope)
+                })
+            }
+        )
+        ListItem(
+            headlineContent = {
+                if (clientStatus.isRunning) {
+                    Text("Host: ${clientStatus.host}")
+                } else {
+                    TextField(
+                        value = clientStatus.host,
+                        label = { Text("Host") },
+                        singleLine = true,
+                        onValueChange = {
+                            ClientConsumer.changeHost(it)
+                        })
+                }
+            }
+        )
+        ListItem(
+            headlineContent = { Text("Client status") },
+            supportingContent = {
+                Text(clientStatus.message)
+            }
+        )
     }
 }
 

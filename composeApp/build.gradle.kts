@@ -65,6 +65,8 @@ kotlin {
             implementation(compose.components.uiToolingPreview)
             implementation(libs.lifecycle.viewmodel.compose)
             implementation(libs.androidx.navigation.compose)
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.cio)
         }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
@@ -89,7 +91,7 @@ android {
     }
     packaging {
         resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "/META-INF/{AL2.0,LGPL2.1,INDEX.LIST,io.netty.versions.properties}"
         }
     }
     buildTypes {
@@ -106,6 +108,10 @@ android {
     }
     dependencies {
         debugImplementation(compose.uiTooling)
+        implementation(libs.ktor.server.core)
+        implementation(libs.ktor.server.netty)
+        implementation(libs.ktor.server.websockets)
+
     }
 }
 

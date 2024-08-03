@@ -32,6 +32,7 @@ interface Actions {
     fun finishTurn(characterKey: String)
     fun deleteAction(index: Int)
     fun deleteNewerActions(index: Int)
+    fun receiveActions(actions: List<ActionState>)
 }
 
 
@@ -130,6 +131,14 @@ class Model private constructor(s: State2) : ViewModel(), Actions {
         _state.update {
             it.copy(
                 actions = it.actions.dropLast(it.actions.size - index)
+            )
+        }
+    }
+
+    override fun receiveActions(actions: List<ActionState>) {
+        _state.update {
+            it.copy(
+                actions = actions
             )
         }
     }

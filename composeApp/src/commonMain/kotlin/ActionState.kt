@@ -11,6 +11,50 @@ data class Delay(val id: String): ActionState()
 data class Die(val id: String): ActionState()
 data class FinishTurn(val id: String): ActionState()
 
+fun serializeActions(actions: List<ActionState>): String {
+    return actions.joinToString(",") {
+        when (it) {
+            is AddCharacter -> "a${it.id}"
+            is ChangeName -> "n${it.id}:${it.name}"
+            is ChangeInitiative -> "i${it.id}:${it.initiative}"
+            is ChangePlayerCharacter -> "${if (it.playerCharacter) "p" else "P"}${it.id}"
+            is DeleteCharacter -> "c${it.id}"
+            is StartTurn -> "s${it.id}"
+            is Delay -> "D${it.id}"
+            is Die -> "d${it.id}"
+            is FinishTurn -> "f${it.id}"
+        }
+    }
+}
+
+fun deserializeActions(serialized: String): List<ActionState>? {
+    try {
+        if (serialized == "") {
+            return listOf()
+        }
+        return serialized.split(",").map {
+            when (it[0]) {
+                'a' -> AddCharacter(it.substring(1))
+                'n' -> ChangeName(it.substring(1).split(":")[0], it.substring(1).split(":")[1])
+                'i' -> ChangeInitiative(
+                    it.substring(1).split(":")[0],
+                    it.substring(1).split(":")[1].toInt()
+                )
+                'p' -> ChangePlayerCharacter(it.substring(1), true)
+                'P' -> ChangePlayerCharacter(it.substring(1), false)
+                'c' -> DeleteCharacter(it.substring(1))
+                's' -> StartTurn(it.substring(1))
+                'D' -> Delay(it.substring(1))
+                'd' -> Die(it.substring(1))
+                'f' -> FinishTurn(it.substring(1))
+                else -> return null
+            }
+        }
+    } catch (e: Exception) {
+        throw Exception("Error deserializing \"$serialized\"", e)
+    }
+}
+
 data class State2(
     val actions: List<ActionState>
 ) {
