@@ -1,12 +1,5 @@
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.focus.FocusRequester
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 
@@ -36,7 +29,7 @@ interface Actions {
     fun die(characterKey: String)
     fun delay()
     fun next()
-    fun togglePlayerCharacter(key: String, playerCharacter: Boolean)
+    fun togglePlayerCharacter(characterKey: String, playerCharacter: Boolean)
     fun startTurn(characterKey: String)
     fun finishTurn(characterKey: String)
 }
