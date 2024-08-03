@@ -27,16 +27,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.material.AppBarDefaults
-import androidx.compose.material.Button
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
-import androidx.compose.material.TopAppBar
-import androidx.compose.material.BottomAppBar
-import androidx.compose.material.FloatingActionButton
-import androidx.compose.material.Icon
-import androidx.compose.material.IconButton
-import androidx.compose.material.Scaffold
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -59,12 +58,9 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.BottomNavigation
-import androidx.compose.material.DropdownMenu
-import androidx.compose.material.IconToggleButton
-import androidx.compose.material.Tab
-import androidx.compose.material.TabRow
-import androidx.compose.material.TextField
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TextField
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Check
@@ -76,6 +72,10 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.materialIcon
 import androidx.compose.material.icons.materialPath
+import androidx.compose.material3.BottomAppBarDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -265,7 +265,7 @@ fun ShowPlayerVsNonPlayerCharacter(viewState: ViewState, character: Character, a
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-fun InitOrder(innerPadding: PaddingValues, columnScope: ColumnScope, characters: List<Character>, active: String?, actions: Actions, listState: LazyListState, viewState: ViewState, toggleEditCharacter: (String) -> Unit) {
+fun InitOrder(columnScope: ColumnScope, characters: List<Character>, active: String?, actions: Actions, listState: LazyListState, viewState: ViewState, toggleEditCharacter: (String) -> Unit) {
     val listItems = characters.let {
         if (viewState.shownView == ShownView.CHARACTERS) {
             it + null
@@ -278,7 +278,7 @@ fun InitOrder(innerPadding: PaddingValues, columnScope: ColumnScope, characters:
             }
         }
     }
-    LazyColumn(contentPadding = innerPadding, state = listState, modifier = with(columnScope) { Modifier.fillMaxWidth().weight(1f) }) {
+    LazyColumn(state = listState, modifier = with(columnScope) { Modifier.fillMaxWidth().weight(1f) }) {
         items(
             listItems,
             key = { (it?.key ?: "") + "-" + (it?.turn ?: "") }
@@ -352,6 +352,7 @@ enum class Screens(val title: String) {
 }
 
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 @Preview
 fun App(data: String? = null) {
@@ -365,7 +366,7 @@ fun App(data: String? = null) {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    windowInsets = AppBarDefaults.topAppBarWindowInsets,
+                    windowInsets = TopAppBarDefaults.windowInsets,
                     title = {
                         val currentScreen = Screens.valueOf(
                             backStackEntry?.destination?.route ?: Screens.MainScreen.name
@@ -410,7 +411,7 @@ fun App(data: String? = null) {
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(innerPadding: PaddingValues, state: State, model: Model) {
     var viewState by remember { mutableStateOf(ViewState(ShownView.CHARACTERS, null)) }
@@ -418,42 +419,42 @@ fun MainScreen(innerPadding: PaddingValues, state: State, model: Model) {
 
     val actions: Actions = model
 
-    Column() {
-        TabRow(
+    Column(Modifier.padding(innerPadding)) {
+        PrimaryTabRow(
             selectedTabIndex = viewState.shownView.ordinal
         ) {
             Tab(selected = viewState.shownView == ShownView.CHARACTERS, onClick = {
                 viewState = viewState.copy(shownView = ShownView.CHARACTERS)
-            }) {
+            }, text = {
                 Text("Characters")
-            }
+            })
             Tab(selected = viewState.shownView == ShownView.TURNS, onClick = {
                 viewState = viewState.copy(
                     shownView = ShownView.TURNS,
                     currentlyEditedCharacter = null
                 )
-            }) {
+            }, text = {
                 Text("Turns")
-            }
+            })
         }
-        HorizontalPager(pagerState) {
+        HorizontalPager(pagerState) { page ->
+            val thisViewState = viewState.copy(shownView = ShownView.entries[page])
             Column() {
                 val listState = rememberLazyListState()
                 InitOrder(
-                    innerPadding,
                     this,
                     state.characters,
                     state.currentlySelectedCharacter,
                     actions,
                     listState,
-                    viewState
+                    thisViewState
                 ) {
                     viewState =
                         viewState.copy(currentlyEditedCharacter = if (viewState.currentlyEditedCharacter == it) null else it)
                 }
-                if (viewState.shownView == ShownView.TURNS) {
+                if (thisViewState.shownView == ShownView.TURNS) {
                     BottomAppBar(
-                        windowInsets = AppBarDefaults.bottomAppBarWindowInsets,
+                        windowInsets = BottomAppBarDefaults.windowInsets,
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),

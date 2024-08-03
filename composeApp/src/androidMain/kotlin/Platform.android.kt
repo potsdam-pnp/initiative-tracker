@@ -5,8 +5,8 @@ import android.content.pm.ShortcutManager
 import android.graphics.drawable.Icon
 import android.net.Uri
 import android.os.Build
-import androidx.compose.material.DropdownMenuItem
-import androidx.compose.material.Text
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import io.github.potsdam_pnp.initiative_tracker.R
@@ -34,9 +34,9 @@ class AndroidPlatform : Platform {
 
                 shortcutManager.requestPinShortcut(pinShortcutInfo, null)
             }
-        }, enabled = enabled) {
+        }, enabled = enabled, text = {
             Text("Add players to home screen")
-        }
+        })
     }
 }
 
