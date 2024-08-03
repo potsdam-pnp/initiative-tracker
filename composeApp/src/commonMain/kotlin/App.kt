@@ -55,6 +55,8 @@ import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.BottomNavigation
@@ -408,10 +410,11 @@ fun App(data: String? = null) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MainScreen(innerPadding: PaddingValues, state: State, model: Model) {
-    val listState = rememberLazyListState()
     var viewState by remember { mutableStateOf(ViewState(ShownView.CHARACTERS, null)) }
+    val pagerState = rememberPagerState { 2 }
 
     val actions: Actions = model
 
@@ -433,48 +436,59 @@ fun MainScreen(innerPadding: PaddingValues, state: State, model: Model) {
                 Text("Turns")
             }
         }
-        InitOrder(
-            innerPadding,
-            this,
-            state.characters,
-            state.currentlySelectedCharacter,
-            actions,
-            listState,
-            viewState
-        ) {
-            viewState =
-                viewState.copy(currentlyEditedCharacter = if (viewState.currentlyEditedCharacter == it) null else it)
-        }
-        if (viewState.shownView == ShownView.TURNS) {
-            BottomAppBar(
-                windowInsets = AppBarDefaults.bottomAppBarWindowInsets,
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceAround
+        HorizontalPager(pagerState) {
+            Column() {
+                val listState = rememberLazyListState()
+                InitOrder(
+                    innerPadding,
+                    this,
+                    state.characters,
+                    state.currentlySelectedCharacter,
+                    actions,
+                    listState,
+                    viewState
                 ) {
-                    Button(onClick = {
-                        model.delay()
-                    }) {
-                        Text("Delay turn")
-                    }
+                    viewState =
+                        viewState.copy(currentlyEditedCharacter = if (viewState.currentlyEditedCharacter == it) null else it)
+                }
+                if (viewState.shownView == ShownView.TURNS) {
+                    BottomAppBar(
+                        windowInsets = AppBarDefaults.bottomAppBarWindowInsets,
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceAround
+                        ) {
+                            Button(onClick = {
+                                model.delay()
+                            }) {
+                                Text("Delay turn")
+                            }
 
-                    Button(onClick = {
-                        model.next()
-                    }) {
-                        Text("Start next turn")
-                    }
+                            Button(onClick = {
+                                model.next()
+                            }) {
+                                Text("Start next turn")
+                            }
 
-                    Button(onClick = {
-                        state.currentlySelectedCharacter.let {
-                            if (it != null)
-                                model.finishTurn(it)
+                            Button(onClick = {
+                                state.currentlySelectedCharacter.let {
+                                    if (it != null)
+                                        model.finishTurn(it)
+                                }
+                            }) {
+                                Text("Finish turn")
+                            }
                         }
-                    }) {
-                        Text("Finish turn")
                     }
                 }
             }
+        }
+        LaunchedEffect(pagerState.currentPage) {
+            viewState = viewState.copy(shownView = ShownView.entries[pagerState.currentPage])
+        }
+        LaunchedEffect(viewState.shownView) {
+            pagerState.animateScrollToPage(viewState.shownView.ordinal)
         }
     }
 }
