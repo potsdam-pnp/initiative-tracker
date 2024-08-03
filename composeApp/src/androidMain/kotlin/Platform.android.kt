@@ -16,7 +16,7 @@ class AndroidPlatform : Platform {
 
     @Composable
     override fun DropdownMenuItemPlayerShortcut(enabled: Boolean, playerList: () -> List<String>) {
-        val context = LocalContext.current;
+        val context = LocalContext.current
         DropdownMenuItem(onClick = {
             val shortcutManager = context.getSystemService(ShortcutManager::class.java)
 
