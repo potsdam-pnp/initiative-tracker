@@ -1,16 +1,22 @@
+import android.content.Context
 import android.content.Intent
 import android.content.Intent.ACTION_VIEW
 import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
 import android.graphics.drawable.Icon
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.view.Choreographer.FrameData
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat.startActivity
 import io.github.potsdam_pnp.initiative_tracker.R
+import io.ktor.http.ContentType
 import kotlinx.coroutines.flow.Flow
 
 import io.ktor.server.application.*
@@ -28,6 +34,9 @@ import kotlinx.coroutines.runBlocking
 import kotlin.concurrent.thread
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
+import java.net.Inet4Address
+import java.net.Inet6Address
+import java.util.Formatter
 
 
 object Server {
@@ -39,20 +48,35 @@ object Server {
 
     var server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>? = null
 
-    fun toggle(model: Model) {
+    fun toggle(model: Model, context: Context) {
         if (status.value.isRunning) {
             stop()
         } else {
-            start(model)
+            start(model, context)
         }
     }
 
-    private fun start(model: Model) {
+    private fun start(model: Model, context: Context) {
         server = embeddedServer(Netty, port = 8080) {
             install(WebSockets)
             routing {
                 get("/") {
                     call.respondText("Initiative Tracker server running succesfully")
+                }
+                get("/app") {
+                    val website = "https://potsdam-pnp.github.io/initiative-tracker"
+                    call.respondText(
+                        contentType = ContentType.Text.Html,
+                        text = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n"
+                        + "    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n"
+                        + "    <title>KotlinProject</title>\n"
+                        + "    <link type=\"text/css\" rel=\"stylesheet\" href=\"$website/styles.css\">\n"
+                        + "    <script type=\"application/javascript\" src=\"$website/composeApp.js\"></script>\n"
+                        + "</head>\n<body>\n</body>\n</html>"
+                    )
+                }
+                get("/composeApp.wasm") {
+                    call.respondRedirect("https://potsdam-pnp.github.io/initiative-tracker/composeApp.wasm")
                 }
                 webSocket("/ws") {
                     launch {
@@ -87,12 +111,46 @@ object Server {
                 }
             }
         }
+
+        ipAddressFromWifi(context)
     }
 
     private fun stop() {
         server?.stop()
         status.update {
-            it.copy(isRunning = false, message = "Server stopped")
+            it.copy(isRunning = false, message = "Server stopped", joinLinks = emptyList())
+        }
+    }
+
+    private fun ipAddressFromWifi(context: Context) {
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val currentNetwork = connectivityManager.activeNetwork
+        val capabilities = connectivityManager.getNetworkCapabilities(currentNetwork)
+
+        if (capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
+            val linkProperties = connectivityManager.getLinkProperties(currentNetwork)
+            val ipAddress = linkProperties?.linkAddresses?.mapNotNull { it.address }.orEmpty()
+
+            val addressStrings = ipAddress.map {
+                // Convert IP address to a readable string (if needed)
+                if (it is Inet4Address) {
+                    Formatter().format(
+                        "%d.%d.%d.%d",
+                        it.address[0].toInt() and 0xff,
+                        it.address[1].toInt() and 0xff,
+                        it.address[2].toInt() and 0xff,
+                        it.address[3].toInt() and 0xff
+                    ).toString()
+                } else if (it is Inet6Address) {
+                    "[${it.toString().substring(1)}]"
+                } else {
+                    it.toString()
+                }
+            }
+
+            status.update {
+                it.copy(joinLinks = addressStrings.map { "http://$it:8080/app#server=$it" })
+            }
         }
     }
 }
@@ -129,9 +187,26 @@ class AndroidPlatform : Platform {
     override val serverStatus: StateFlow<ServerStatus>
         get() = Server.status
 
-    override fun toggleServer(model: Model) {
-        Server.toggle(model)
+    override fun toggleServer(model: Model, context: PlatformContext) {
+        Server.toggle(model, context.context)
+    }
+
+    @Composable
+    override fun getContext(): PlatformContext {
+        return PlatformContext(LocalContext.current)
+    }
+
+    override fun shareLink(context: PlatformContext, link: String) {
+        val sendIntent: Intent = Intent().apply {
+            action = Intent.ACTION_SEND
+            putExtra(Intent.EXTRA_TEXT, link)
+            type = "text/plain"
+        }
+
+        val shareIntent = Intent.createChooser(sendIntent, null)
+        startActivity(context.context, shareIntent, null)
     }
 }
 
+actual class PlatformContext(val context: Context)
 actual fun getPlatform(): Platform = AndroidPlatform()

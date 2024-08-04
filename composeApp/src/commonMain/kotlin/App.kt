@@ -354,6 +354,15 @@ enum class Screens(val title: String) {
 fun App(data: String? = null) {
     val globalCoroutineScope = rememberCoroutineScope()
     val model = viewModel { Model(data) }
+    LaunchedEffect(Unit) {
+        val predefinedServerHost = data?.split("&")?.firstOrNull { it.startsWith("server=") }?.let {
+            it.substring(7)
+        }
+        if (predefinedServerHost != null) {
+            ClientConsumer.changeHost(predefinedServerHost)
+            ClientConsumer.start(model, globalCoroutineScope)
+        }
+    }
     val state by model.state.collectAsState(State())
 
     MaterialTheme {
@@ -483,11 +492,12 @@ fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope
     Column(modifier = Modifier.padding(innerPadding)) {
         val serverStatus by getPlatform().serverStatus.collectAsState()
         val clientStatus by ClientConsumer.clientStatus.collectAsState()
+        val context = getPlatform().getContext()
         ListItem(
             headlineContent = { Text("Function as Server") },
             trailingContent = {
                 Switch(checked = serverStatus.isRunning, enabled = serverStatus.isSupported, onCheckedChange = {
-                    getPlatform().toggleServer(model)
+                    getPlatform().toggleServer(model, context)
                 })
             }
         )
@@ -497,6 +507,17 @@ fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope
                 Text(serverStatus.message)
             }
         )
+        serverStatus.joinLinks.forEach { joinLink ->
+            ListItem(
+                headlineContent = { Text("Join Link") },
+                supportingContent = {
+                    Text(joinLink)
+                },
+                modifier = Modifier.clickable {
+                    getPlatform().shareLink(context, joinLink)
+                }
+            )
+        }
         ListItem(
             headlineContent = { Text("Function as Client") },
             trailingContent = {

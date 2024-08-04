@@ -2,6 +2,7 @@ import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import kotlin.random.Random
 
 data class Character(
     val key: String,
@@ -40,14 +41,17 @@ class Model private constructor(s: State2) : ViewModel(), Actions {
     private val _state = MutableStateFlow(s)
     val state = _state.map { it.toState() }
 
+    @OptIn(ExperimentalStdlibApi::class)
+    private val thisDevice = Random.nextInt().toHexString().takeLast(4)
     private var lastKey: Int = 0
     private fun nextKey(): String {
         lastKey += 1
-        return lastKey.toString()
+        return "${thisDevice}$lastKey"
     }
 
     constructor(data: String?) : this(State2(listOf())) {
-        val characterNames = data?.split(",") ?: emptyList()
+        val characterData = data?.split("&")?.firstOrNull { !it.contains('=') }
+        val characterNames = characterData?.split(",") ?: emptyList()
         addActions(
             *characterNames.flatMap {
                 val key = nextKey()
