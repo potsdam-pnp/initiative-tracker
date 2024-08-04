@@ -20,9 +20,11 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Check
@@ -542,7 +544,11 @@ fun App(data: String? = null) {
 
 @Composable
 fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope: CoroutineScope) {
-    Column(modifier = Modifier.padding(innerPadding)) {
+    val scrollState = rememberScrollState()
+
+    Column(modifier = Modifier.padding(innerPadding).verticalScroll(
+        scrollState
+    )) {
         val serverStatus by getPlatform().serverStatus.collectAsState()
         val clientStatus by ClientConsumer.clientStatus.collectAsState()
         val context = getPlatform().getContext()
@@ -604,18 +610,18 @@ fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope
         ListItem(
             headlineContent = { Text("Send updates") },
             trailingContent = {
-                val x by receiveUpdates.collectAsState()
+                val x by sendUpdates.collectAsState()
                 Switch(checked = x, onCheckedChange = {
-                    receiveUpdates.value = it
+                    sendUpdates.value = it
                 })
             }
         )
         ListItem(
             headlineContent = { Text("Apply received updates") },
             trailingContent = {
-                val x by sendUpdates.collectAsState()
+                val x by receiveUpdates.collectAsState()
                 Switch(checked = x, onCheckedChange = {
-                    sendUpdates.value = it
+                    receiveUpdates.value = it
                 })
             }
         )
