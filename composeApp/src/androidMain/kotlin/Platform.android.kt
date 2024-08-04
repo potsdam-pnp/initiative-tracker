@@ -25,6 +25,8 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
+import io.ktor.server.plugins.origin
+import io.ktor.server.request.path
 import io.ktor.server.websocket.WebSockets
 import io.ktor.server.websocket.webSocket
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -86,8 +88,7 @@ object Server {
                     call.respondRedirect("https://potsdam-pnp.github.io/initiative-tracker/composeApp.wasm")
                 }
                 get("/composeResources/{...}") {
-                    val capturedPath = call.parameters.getAll("...")?.joinToString("/") ?: ""
-                    val newPath = "https://potsdam-pnp.github.io/initiative-tracker/composeResources/$capturedPath"
+                    val newPath = "https://potsdam-pnp.github.io/initiative-tracker" + call.request.origin.uri
                     call.respondRedirect(newPath)
                 }
                 webSocket("/ws") {
