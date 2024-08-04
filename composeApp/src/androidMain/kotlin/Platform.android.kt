@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat.startActivity
+import io.github.aakira.napier.Napier
 import io.github.potsdam_pnp.initiative_tracker.R
 import io.ktor.http.ContentType
 import kotlinx.coroutines.flow.Flow
@@ -33,7 +34,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlin.concurrent.thread
 import io.ktor.websocket.Frame
+import io.ktor.websocket.close
 import io.ktor.websocket.readText
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.selects.select
 import java.net.Inet4Address
 import java.net.Inet6Address
 import java.util.Formatter
@@ -43,7 +49,8 @@ object Server {
     val status = MutableStateFlow(ServerStatus(
         isRunning = false,
         message = "Server not running",
-        isSupported = true
+        isSupported = true,
+        connections = 0
     ))
 
     var server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>? = null
@@ -79,20 +86,49 @@ object Server {
                     call.respondRedirect("https://potsdam-pnp.github.io/initiative-tracker/composeApp.wasm")
                 }
                 webSocket("/ws") {
-                    launch {
+                    val job = launch {
                         model.state.collect {
                             send(Frame.Text(serializeActions(it.actions)))
                         }
                     }
-                    while (true) {
-                        val frameText = (incoming.receive() as? Frame.Text)?.readText()
-                        if (frameText != null) {
-                            val actions = deserializeActions(frameText)
-                            if (actions != null) {
-                                model.receiveActions(actions)
+
+                    status.update { it.copy(connections = it.connections + 1) }
+
+                    try {
+
+                        val finish = launch {
+                            status.first { !it.isRunning }
+                        }
+
+                        while (true) {
+                            val nextFrame = async { incoming.receive() }
+
+                            val frame = select<Frame?> {
+                                finish.onJoin { null }
+                                nextFrame.onAwait { it }
+                            }
+
+                            if (frame == null) {
+                                break
+                            } else {
+                                val frameText = (frame as? Frame.Text)?.readText()
+                                if (frameText != null) {
+                                    val actions = deserializeActions(frameText)
+                                    if (actions != null) {
+                                        model.receiveActions(actions)
+                                    }
+                                }
                             }
                         }
 
+                        Napier.w("Closing connection")
+
+                        job.cancelAndJoin()
+                    } finally {
+                        status.update {
+                            Napier.w("Updating connections")
+                            it.copy(connections = it.connections - 1)
+                        }
                     }
                 }
             }
@@ -116,10 +152,10 @@ object Server {
     }
 
     private fun stop() {
-        server?.stop()
         status.update {
-            it.copy(isRunning = false, message = "Server stopped", joinLinks = emptyList())
+            it.copy(isRunning = false, message = "Server stopping", joinLinks = emptyList())
         }
+        server?.stop()
     }
 
     private fun ipAddressFromWifi(context: Context) {

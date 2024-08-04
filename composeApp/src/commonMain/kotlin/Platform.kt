@@ -8,10 +8,11 @@ data class ServerStatus(
     val isRunning: Boolean,
     val message: String,
     val isSupported: Boolean,
-    val joinLinks: List<String> = emptyList()
+    val joinLinks: List<String> = emptyList(),
+    val connections: Int
 )
 
-val unsupportedPlatformFlow = MutableStateFlow(ServerStatus(false, "Server not supported on ${getPlatform().name}", isSupported = false))
+val unsupportedPlatformFlow = MutableStateFlow(ServerStatus(false, "Server not supported on ${getPlatform().name}", isSupported = false, connections = 0))
 
 interface Platform {
     val name: String

@@ -5,13 +5,17 @@ import io.ktor.http.HttpMethod
 import io.ktor.utils.io.core.use
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
 
 object ClientConsumer {
     private val _clientStatus = MutableStateFlow(ClientStatus())
@@ -37,7 +41,7 @@ object ClientConsumer {
 
     fun start(model: Model, coroutineScope: kotlinx.coroutines.CoroutineScope) {
         _clientStatus.update {
-            it.copy(isRunning = true, message = "Starting")
+            it.copy(isRunning = true, message = "Starting", receivedSuccesfulFrames = 0, receivedFailedFrames = 0)
         }
         if (httpClient == null) {
             httpClient = HttpClient() {
@@ -63,8 +67,20 @@ object ClientConsumer {
                                 }
                             }
                         }
+
                         while (true) {
-                            val othersMessage = incoming.receive() as? Frame.Text
+                            val nextFrame = async { incoming.receive() }
+
+                            val frame = select<Frame?> {
+                                closeReason.onAwait { null }
+                                nextFrame.onAwait { it }
+                            }
+
+                            if (frame == null) {
+                                break
+                            }
+
+                            val othersMessage = frame as? Frame.Text
                             if (othersMessage != null) {
                                 val actions = deserializeActions(othersMessage.readText())
                                 if (actions != null) {
@@ -87,18 +103,32 @@ object ClientConsumer {
                                 }
                             }
                         }
+
+                        val stopMessage = closeReason.await().let {
+                            when (it) {
+                                null -> "Connection terminated"
+                                else -> "Connection terminated with reason: $it"
+                            }
+                        }
+
+                        _clientStatus.update {
+                            it.copy(isRunning = false, message = stopMessage)
+                        }
                     }
-                } catch(e: Exception) {
+                } catch (e: CancellationException) {
+                    _clientStatus.update {
+                        it.copy(isRunning = false, message = "Stopped")
+                    }
+                } catch (e: Exception) {
                     _clientStatus.update {
                         it.copy(
                             isRunning = false,
-                            message = "Error: $e (${it.receivedSuccesfulFrames} states received so far, ${it.receivedFailedFrames} failed transmissions)"
+                            message = "Error: $e"
                         )
                     }
                 }
             }
         }
-
     }
 
     private fun runningMessage(clientStatus: ClientStatus): String {

@@ -67,6 +67,7 @@ kotlin {
             implementation(libs.lifecycle.viewmodel.compose)
             implementation(libs.androidx.navigation.compose)
             implementation(libs.ktor.client.core)
+            implementation(libs.napier)
         }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)

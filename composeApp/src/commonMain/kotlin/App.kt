@@ -32,6 +32,8 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.materialIcon
 import androidx.compose.material.icons.materialPath
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.BottomAppBarDefaults
@@ -51,6 +53,9 @@ import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -76,6 +81,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key.Companion.R
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.input.ImeAction
@@ -86,8 +92,14 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import io.github.aakira.napier.Napier
+import kotlinproject.composeapp.generated.resources.Res
+import kotlinproject.composeapp.generated.resources.baseline_sync_24
+import kotlinproject.composeapp.generated.resources.baseline_sync_disabled_24
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 
@@ -385,6 +397,8 @@ fun App(data: String? = null) {
             pagerState.animateScrollToPage(viewState.shownView.ordinal)
         }
 
+        val snackBarHostState = remember { SnackbarHostState() }
+
         ModalNavigationDrawer(
             drawerState = drawerState,
             drawerContent = {
@@ -393,6 +407,24 @@ fun App(data: String? = null) {
                     HorizontalDivider()
                     NavigationDrawerItem(
                         label = { Text("Connection Settings") },
+                        badge = {
+                            val clientStatus by ClientConsumer.clientStatus.collectAsState()
+                            val serverStatus by getPlatform().serverStatus.collectAsState()
+                            BadgedBox(badge = {
+                                if (serverStatus.isRunning) {
+                                    Badge { Text(serverStatus.connections.toString()) }
+                                }
+                            }) {
+                                if (clientStatus.isRunning || serverStatus.isRunning) {
+                                    val vector = painterResource(Res.drawable.baseline_sync_24)
+                                    Icon(painter = vector, contentDescription = "Synced")
+                                } else {
+                                    val vector =
+                                        painterResource(Res.drawable.baseline_sync_disabled_24)
+                                    Icon(painter = vector, contentDescription = "Not Synced")
+                                }
+                            }
+                        },
                         selected = backStackEntry?.destination?.route == Screens.ConnectionSettings.name,
                         onClick = {
                             navController.navigate(Screens.ConnectionSettings.name) {
@@ -442,6 +474,27 @@ fun App(data: String? = null) {
             }
         ) {
             Scaffold(
+                snackbarHost = {
+                    SnackbarHost(hostState = snackBarHostState )
+
+                    Napier.i("hello from Napier")
+
+                    LaunchedEffect(Unit) {
+                        var previous = false
+                        ClientConsumer.clientStatus.collect {
+                            Napier.i("collect client status: " + it.message + " ")
+                            if (previous && !it.isRunning) {
+                                    Napier.i("want to show snackbar ")
+                                    snackBarHostState.showSnackbar(
+                                        "Client disconnected: " + it.message,
+                                        withDismissAction = true,
+                                        duration = SnackbarDuration.Long
+                                    )
+                            }
+                            previous = it.isRunning
+                        }
+                    }
+                },
                 topBar = {
                     TopAppBar(
                         windowInsets = TopAppBarDefaults.windowInsets,
@@ -504,7 +557,7 @@ fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope
         ListItem(
             headlineContent = { Text("Server status") },
             supportingContent = {
-                Text(serverStatus.message)
+                Text(serverStatus.message + "\nConnections: ${serverStatus.connections}")
             }
         )
         serverStatus.joinLinks.forEach { joinLink ->
