@@ -12,7 +12,7 @@ correct location
 -->
 <script>
     var host = window.location.hash.substring(1).split("&").filter(x => x.startsWith("server="))[0].substring(7);
-    window.location.href = "http://" + host + "/app" + window.location.hash;
+    window.location.href = "http://" + host + ":8080/app" + window.location.hash;
 </script>
 </body>
 </html>

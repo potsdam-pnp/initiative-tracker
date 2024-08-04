@@ -195,7 +195,7 @@ object Server {
             }
 
             status.update {
-                it.copy(joinLinks = addressStrings.map { "http://$it:8080/app#server=$it" })
+                it.copy(joinLinks = addressStrings.map { "https://potsdam-pnp.github.io/initiative-tracker/app#server=$it" })
             }
         }
     }
