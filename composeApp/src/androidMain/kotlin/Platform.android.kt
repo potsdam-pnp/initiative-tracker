@@ -85,6 +85,11 @@ object Server {
                 get("/composeApp.wasm") {
                     call.respondRedirect("https://potsdam-pnp.github.io/initiative-tracker/composeApp.wasm")
                 }
+                get("/composeResources/{...}") {
+                    val capturedPath = call.parameters.getAll("...")?.joinToString("/") ?: ""
+                    val newPath = "https://potsdam-pnp.github.io/initiative-tracker/composeResources/$capturedPath"
+                    call.respondRedirect(newPath)
+                }
                 webSocket("/ws") {
                     val job = launch {
                         model.state.collect {
