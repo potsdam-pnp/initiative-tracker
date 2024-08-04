@@ -87,8 +87,8 @@ android {
         applicationId = "io.github.potsdam_pnp.initiative_tracker"
         minSdk = 26 //libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 9
-        versionName = "1.8"
+        versionCode = 10
+        versionName = "1.9"
     }
     packaging {
         resources {
