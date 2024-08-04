@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Initiative Tracker</title>
+</head>
+<body>
+<!-- This page is queried to catch the Android link, so it can be opened in the App
+If we're in the browser, the link couldn't be opened, so we need to forward to the
+correct location
+-->
+<script>
+    var host = window.location.hash.substring(1).split("&").filter(x => x.startsWith("server="))[0].substring(7);
+    window.location.href = "http://" + host + "/app" + window.location.hash;
+</script>
+</body>
+</html>
