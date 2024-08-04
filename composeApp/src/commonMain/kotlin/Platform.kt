@@ -17,10 +17,8 @@ val unsupportedPlatformFlow = MutableStateFlow(ServerStatus(false, "Server not s
 interface Platform {
     val name: String
 
-    @Composable
-    fun DropdownMenuItemPlayerShortcut(enabled: Boolean, playerList: () -> List<String>) {
-
-    }
+    fun isGeneratePlayerShortcutSupported(): Boolean = false
+    fun generatePlayerShortcut(context: PlatformContext, playerList: List<String>) {}
 
     fun toggleServer(model: Model, context: PlatformContext) {}
     val serverStatus: StateFlow<ServerStatus> get() { return unsupportedPlatformFlow }

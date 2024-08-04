@@ -47,6 +47,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
@@ -96,9 +97,14 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.github.aakira.napier.Napier
 import kotlinproject.composeapp.generated.resources.Res
+import kotlinproject.composeapp.generated.resources.baseline_file_download_24
+import kotlinproject.composeapp.generated.resources.baseline_file_download_off_24
+import kotlinproject.composeapp.generated.resources.baseline_file_upload_24
+import kotlinproject.composeapp.generated.resources.baseline_file_upload_off_24
 import kotlinproject.composeapp.generated.resources.baseline_sync_24
 import kotlinproject.composeapp.generated.resources.baseline_sync_disabled_24
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.vectorResource
@@ -338,23 +344,6 @@ materialIcon(name = "death") {
     }
 }
 
-@Composable
-fun SettingsMenu(characterList: List<Character>) {
-    var showMenu by remember { mutableStateOf(false) }
-    IconButton(onClick = { showMenu = !showMenu }) {
-        Icon(Icons.Filled.MoreVert, contentDescription = "More")
-    }
-    DropdownMenu(
-        expanded = showMenu,
-        onDismissRequest = { showMenu = false }
-    ) {
-        val characters = characterList.mapNotNull { it.name }
-        getPlatform().DropdownMenuItemPlayerShortcut(enabled = characters.isNotEmpty()) {
-            characters
-        }
-    }
-}
-
 enum class Screens(val title: String) {
     MainScreen("Initiative Tracker"),
     ListActions("List Actions"),
@@ -409,24 +398,7 @@ fun App(data: String? = null) {
                     HorizontalDivider()
                     NavigationDrawerItem(
                         label = { Text("Connection Settings") },
-                        badge = {
-                            val clientStatus by ClientConsumer.clientStatus.collectAsState()
-                            val serverStatus by getPlatform().serverStatus.collectAsState()
-                            BadgedBox(badge = {
-                                if (serverStatus.isRunning) {
-                                    Badge { Text(serverStatus.connections.toString()) }
-                                }
-                            }) {
-                                if (clientStatus.isRunning || serverStatus.isRunning) {
-                                    val vector = painterResource(Res.drawable.baseline_sync_24)
-                                    Icon(painter = vector, contentDescription = "Synced")
-                                } else {
-                                    val vector =
-                                        painterResource(Res.drawable.baseline_sync_disabled_24)
-                                    Icon(painter = vector, contentDescription = "Not Synced")
-                                }
-                            }
-                        },
+                        badge = { ConnectionState() },
                         selected = backStackEntry?.destination?.route == Screens.ConnectionSettings.name,
                         onClick = {
                             navController.navigate(Screens.ConnectionSettings.name) {
@@ -472,6 +444,27 @@ fun App(data: String? = null) {
                             scope.launch { drawerState.close() }
                         }
                     )
+                    if (getPlatform().isGeneratePlayerShortcutSupported()) {
+                        val context = getPlatform().getContext()
+                        NavigationDrawerItem(
+                            label = { Text("Add players to home screen") },
+                            selected = false,
+                            onClick = {
+                                val characters = state.characters.mapNotNull { it.name }
+                                if (characters.isNotEmpty()) {
+                                    getPlatform().generatePlayerShortcut(context, characters)
+                                } else {
+                                    scope.launch {
+                                        snackBarHostState.showSnackbar(
+                                            message = "No characters to add",
+                                            withDismissAction = true
+                                        )
+                                    }
+                                }
+                                scope.launch { drawerState.close() }
+                            }
+                        )
+                    }
                 }
             }
         ) {
@@ -507,7 +500,8 @@ fun App(data: String? = null) {
                             Text(currentScreen.title)
                         },
                         actions = {
-                            SettingsMenu(state.characters)
+                            UpDownloadState()
+                            ConnectionState(modifier = Modifier.padding(end = 10.dp))
                         },
                         navigationIcon = {
                             IconButton(onClick = {
@@ -537,6 +531,66 @@ fun App(data: String? = null) {
                         ConnectionSettings(innerPadding, model, globalCoroutineScope)
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun UpDownloadState() {
+    val _sendUpdates by sendUpdates.collectAsState()
+    val _receiveUpdates by receiveUpdates.collectAsState()
+    val sendResource = if (_sendUpdates) {
+        Res.drawable.baseline_file_upload_24
+    } else {
+        Res.drawable.baseline_file_upload_off_24
+    }
+    val receiveResource = if (_receiveUpdates) {
+        Res.drawable.baseline_file_download_24
+    } else {
+        Res.drawable.baseline_file_download_off_24
+    }
+
+    IconToggleButton(
+        checked = _sendUpdates,
+        onCheckedChange = { checked ->
+            sendUpdates.update { checked }
+        },
+        content = {
+            val vector = vectorResource(sendResource)
+            Icon(imageVector = vector, contentDescription = "Not Synced")
+
+        }
+    )
+
+    IconToggleButton(
+        checked = _receiveUpdates,
+        onCheckedChange = { checked ->
+            receiveUpdates.update { checked }
+        },
+        content = {
+            val vector = vectorResource(receiveResource)
+            Icon(imageVector = vector, contentDescription = "Not Synced")
+        }
+    )
+}
+
+@Composable
+fun ConnectionState(modifier: Modifier = Modifier, transform: @Composable (@Composable () -> Unit) -> Unit = { it() }) {
+    val clientStatus by ClientConsumer.clientStatus.collectAsState()
+    val serverStatus by getPlatform().serverStatus.collectAsState()
+    BadgedBox(modifier = modifier,badge = {
+        if (serverStatus.isRunning) {
+            Badge { Text(serverStatus.connections.toString()) }
+        }
+    }) {
+        transform {
+            if (clientStatus.isRunning || serverStatus.isRunning) {
+                val vector = vectorResource(Res.drawable.baseline_sync_24)
+                Icon(imageVector = vector, contentDescription = "Synced")
+            } else {
+                val vector = vectorResource(Res.drawable.baseline_sync_disabled_24)
+                Icon(imageVector = vector, contentDescription = "Not Synced")
             }
         }
     }

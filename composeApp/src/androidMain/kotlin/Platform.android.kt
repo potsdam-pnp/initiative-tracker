@@ -205,29 +205,25 @@ object Server {
 class AndroidPlatform : Platform {
     override val name: String = "Android ${Build.VERSION.SDK_INT}"
 
-    @Composable
-    override fun DropdownMenuItemPlayerShortcut(enabled: Boolean, playerList: () -> List<String>) {
-        val context = LocalContext.current
-        DropdownMenuItem(onClick = {
-            val shortcutManager = context.getSystemService(ShortcutManager::class.java)
 
-            if (shortcutManager!!.isRequestPinShortcutSupported) {
-                val players = playerList()
-                val uri = Uri.Builder().scheme("https").authority("potsdam-pnp.github.io").path("/initiative-tracker").fragment(players.joinToString(",")).build()
-                val intent =  Intent(ACTION_VIEW, uri)
+    override fun isGeneratePlayerShortcutSupported(): Boolean = true
 
-                val pinShortcutInfo = ShortcutInfo.Builder(context, "party-${players.joinToString(",")}")
-                    .setShortLabel("${players.first()}+${players.size-1}")
-                    .setLongLabel("Start initiative tracker for party of ${players.size} players: ${players.joinToString()}")
-                    .setIntent(intent)
-                    .setIcon(Icon.createWithResource(context, R.drawable.ic_launcher_background))
-                    .build()
+    override fun generatePlayerShortcut(context: PlatformContext, players: List<String>) {
+        val shortcutManager = context.context.getSystemService(ShortcutManager::class.java)
 
-                shortcutManager.requestPinShortcut(pinShortcutInfo, null)
-            }
-        }, enabled = enabled, text = {
-            Text("Add players to home screen")
-        })
+        if (shortcutManager!!.isRequestPinShortcutSupported) {
+            val uri = Uri.Builder().scheme("https").authority("potsdam-pnp.github.io").path("/initiative-tracker").fragment(players.joinToString(",")).build()
+            val intent =  Intent(ACTION_VIEW, uri)
+
+            val pinShortcutInfo = ShortcutInfo.Builder(context.context, "party-${players.joinToString(",")}")
+                .setShortLabel("${players.first()}+${players.size-1}")
+                .setLongLabel("Start initiative tracker for party of ${players.size} players: ${players.joinToString()}")
+                .setIntent(intent)
+                .setIcon(Icon.createWithResource(context.context, R.drawable.ic_launcher_background))
+                .build()
+
+            shortcutManager.requestPinShortcut(pinShortcutInfo, null)
+        }
     }
 
     override val serverStatus: StateFlow<ServerStatus>
