@@ -63,7 +63,9 @@ object ClientConsumer {
                                 if (!alreadyDroppedFirstMessage) {
                                     alreadyDroppedFirstMessage = true
                                 } else {
-                                    send(Frame.Text(serializeActions(it.actions)))
+                                    if (sendUpdates.value) {
+                                        send(Frame.Text(serializeActions(it.actions)))
+                                    }
                                 }
                             }
                         }
@@ -84,7 +86,9 @@ object ClientConsumer {
                             if (othersMessage != null) {
                                 val actions = deserializeActions(othersMessage.readText())
                                 if (actions != null) {
-                                    model.receiveActions(actions)
+                                    if (receiveUpdates.value) {
+                                        model.receiveActions(actions)
+                                    }
                                     _clientStatus.update {
                                         it.copy(
                                             receivedSuccesfulFrames = it.receivedSuccesfulFrames + 1
@@ -152,3 +156,6 @@ data class ClientStatus(
     val host: String = "127.0.0.1",
     val receivedSuccesfulFrames: Int = 0,
     val receivedFailedFrames: Int = 0)
+
+val sendUpdates = MutableStateFlow<Boolean>(true)
+val receiveUpdates = MutableStateFlow<Boolean>(true)

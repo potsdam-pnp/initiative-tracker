@@ -94,7 +94,9 @@ object Server {
                 webSocket("/ws") {
                     val job = launch {
                         model.state.collect {
-                            send(Frame.Text(serializeActions(it.actions)))
+                            if (sendUpdates.value) {
+                                send(Frame.Text(serializeActions(it.actions)))
+                            }
                         }
                     }
 
@@ -121,7 +123,9 @@ object Server {
                                 if (frameText != null) {
                                     val actions = deserializeActions(frameText)
                                     if (actions != null) {
-                                        model.receiveActions(actions)
+                                        if (receiveUpdates.value) {
+                                            model.receiveActions(actions)
+                                        }
                                     }
                                 }
                             }

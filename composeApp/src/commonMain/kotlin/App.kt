@@ -600,6 +600,25 @@ fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope
                 Text(clientStatus.message)
             }
         )
+        HorizontalDivider()
+        ListItem(
+            headlineContent = { Text("Send updates") },
+            trailingContent = {
+                val x by receiveUpdates.collectAsState()
+                Switch(checked = x, onCheckedChange = {
+                    receiveUpdates.value = it
+                })
+            }
+        )
+        ListItem(
+            headlineContent = { Text("Apply received updates") },
+            trailingContent = {
+                val x by sendUpdates.collectAsState()
+                Switch(checked = x, onCheckedChange = {
+                    sendUpdates.value = it
+                })
+            }
+        )
     }
 }
 
