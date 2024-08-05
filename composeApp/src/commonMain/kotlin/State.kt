@@ -50,16 +50,24 @@ class Model private constructor(s: State2) : ViewModel(), Actions {
     }
 
     constructor(data: String?) : this(State2(listOf())) {
+        addCharacters(data)
+    }
+
+    fun addCharacters(data: String?) {
         val characterData = data?.split("&")?.firstOrNull { !it.contains('=') }
         val characterNames = characterData?.split(",") ?: emptyList()
         addActions(
             *characterNames.flatMap {
-                val key = nextKey()
-                listOf(
-                    AddCharacter(key),
-                    ChangeName(key, it),
-                    ChangePlayerCharacter(key, true)
-                )
+                val key = it
+                if (!_state.value.actions.contains(AddCharacter(key))) {
+                    listOf(
+                        AddCharacter(key),
+                        ChangeName(key, it),
+                        ChangePlayerCharacter(key, true)
+                    )
+                } else {
+                    listOf()
+                }
             }.toTypedArray()
         )
     }
