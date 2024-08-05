@@ -196,7 +196,7 @@ object Server {
                 ).toString()
             } else if (it is Inet6Address) {
                 val result = "[${it.toString().substring(1)}]"
-                if (result.startsWith("fe80")) {
+                if (result.startsWith("[fe80")) {
                     // Link-local addresses aren't usable
                     null
                 } else {
