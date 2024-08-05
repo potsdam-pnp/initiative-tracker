@@ -3,12 +3,24 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
+data class JoinLink(
+    val host: String
+) {
+    fun toUrl(): String {
+        val safeHost =
+            if (host.contains(":") && !host.contains("["))
+                "[$host]"
+            else
+                host
+        return "https://potsdam-pnp.github.io/initiative-tracker/app#server=$safeHost"
+    }
+}
 
 data class ServerStatus(
     val isRunning: Boolean,
     val message: String,
     val isSupported: Boolean,
-    val joinLinks: List<String> = emptyList(),
+    val joinLinks: List<JoinLink> = emptyList(),
     val connections: Int
 )
 
@@ -26,7 +38,7 @@ interface Platform {
     @Composable
     fun getContext(): PlatformContext
 
-    fun shareLink(context: PlatformContext, link: String) {}
+    fun shareLink(context: PlatformContext, link: JoinLink, allLinks: List<JoinLink>) {}
 }
 
 expect fun getPlatform(): Platform

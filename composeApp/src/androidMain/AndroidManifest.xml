@@ -30,6 +30,8 @@
                 <data android:pathPrefix="/initiative-tracker" />
             </intent-filter>
         </activity>
+
+        <receiver android:name=".ShareLinkReceiver" />
     </application>
 
 </manifest>

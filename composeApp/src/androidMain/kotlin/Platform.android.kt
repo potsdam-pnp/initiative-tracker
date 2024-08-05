@@ -1,3 +1,4 @@
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.Intent.ACTION_VIEW
@@ -9,6 +10,7 @@ import android.net.NetworkCapabilities
 import android.net.Uri
 import android.net.wifi.WifiManager
 import android.os.Build
+import android.service.chooser.ChooserAction
 import android.view.Choreographer.FrameData
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
@@ -17,6 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat.startActivity
 import io.github.aakira.napier.Napier
 import io.github.potsdam_pnp.initiative_tracker.R
+import io.github.potsdam_pnp.initiative_tracker.ShareLinkReceiver
 import io.ktor.http.ContentType
 import kotlinx.coroutines.flow.Flow
 
@@ -181,7 +184,7 @@ object Server {
         val linkProperties = connectivityManager.getLinkProperties(currentNetwork)
         val ipAddress = linkProperties?.linkAddresses?.mapNotNull { it.address }.orEmpty()
 
-        val addressStrings = ipAddress.map {
+        val addressStrings = ipAddress.mapNotNull {
             // Convert IP address to a readable string (if needed)
             if (it is Inet4Address) {
                 Formatter().format(
@@ -192,14 +195,20 @@ object Server {
                     it.address[3].toInt() and 0xff
                 ).toString()
             } else if (it is Inet6Address) {
-                "[${it.toString().substring(1)}]"
+                val result = "[${it.toString().substring(1)}]"
+                if (result.startsWith("fe80")) {
+                    // Link-local addresses aren't usable
+                    null
+                } else {
+                    result
+                }
             } else {
                 it.toString()
             }
         }
 
         status.update {
-            it.copy(joinLinks = addressStrings.map { "https://potsdam-pnp.github.io/initiative-tracker/app#server=$it" })
+            it.copy(joinLinks = addressStrings.map { JoinLink(it) })
         }
     }
 }
@@ -242,14 +251,34 @@ class AndroidPlatform : Platform {
         return PlatformContext(LocalContext.current)
     }
 
-    override fun shareLink(context: PlatformContext, link: String) {
+    override fun shareLink(context: PlatformContext, link: JoinLink, allLinks: List<JoinLink>) {
         val sendIntent: Intent = Intent().apply {
             action = Intent.ACTION_SEND
-            putExtra(Intent.EXTRA_TEXT, link)
+            putExtra(Intent.EXTRA_TEXT, link.toUrl())
+            putExtra(Intent.EXTRA_TITLE, "Connection link - Join via ${link.host}")
             type = "text/plain"
         }
 
-        val shareIntent = Intent.createChooser(sendIntent, null)
+        val shareIntent = Intent.createChooser(sendIntent, "Share Connection Link to Initiative Tracker")
+
+        val otherLinks = allLinks.filter { it != link }
+        if (otherLinks.isNotEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val customActions = otherLinks.map { otherJoinLink ->
+                ChooserAction.Builder(
+                    Icon.createWithResource(context.context, R.drawable.ic_launcher_foreground),
+                    "Share via ${otherJoinLink.host} instead",
+                    PendingIntent.getBroadcast(
+                        context.context,
+                        1,
+                        Intent(context.context, ShareLinkReceiver::class.java).putExtra("host", otherJoinLink.host),
+                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_CANCEL_CURRENT
+                    )
+                ).build()
+            }.toTypedArray()
+            shareIntent.putExtra(Intent.EXTRA_CHOOSER_CUSTOM_ACTIONS, customActions)
+            shareIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
         startActivity(context.context, shareIntent, null)
     }
 }

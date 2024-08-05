@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.materialIcon
 import androidx.compose.material.icons.materialPath
 import androidx.compose.material3.Badge
@@ -89,6 +90,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
@@ -497,11 +499,24 @@ fun App(data: String? = null) {
                             val currentScreen = Screens.valueOf(
                                 backStackEntry?.destination?.route ?: Screens.MainScreen.name
                             )
-                            Text(currentScreen.title)
+                            Text(currentScreen.title, maxLines = 1,overflow = TextOverflow.Ellipsis)
                         },
                         actions = {
                             UpDownloadState()
-                            ConnectionState(modifier = Modifier.padding(end = 10.dp))
+                            ConnectionState()
+                            val serverStatus by getPlatform().serverStatus.collectAsState()
+                            val clientStatus by ClientConsumer.clientStatus.collectAsState()
+                            val context = getPlatform().getContext()
+                            IconButton(enabled = serverStatus.isRunning && serverStatus.joinLinks.isNotEmpty() || !serverStatus.isRunning && clientStatus.isRunning, onClick = {
+                                val links = if (serverStatus.isRunning && serverStatus.joinLinks.isNotEmpty()) {
+                                    Pair(serverStatus.joinLinks[0], serverStatus.joinLinks)
+                                } else {
+                                    Pair(JoinLink(clientStatus.host), listOf())
+                                }
+                                getPlatform().shareLink(context, links.first, links.second)
+                            }) {
+                                Icon(Icons.Default.Share, contentDescription = "Share join link")
+                            }
                         },
                         navigationIcon = {
                             IconButton(onClick = {
@@ -624,10 +639,10 @@ fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope
             ListItem(
                 headlineContent = { Text("Join Link") },
                 supportingContent = {
-                    Text(joinLink)
+                    Text(joinLink.toUrl())
                 },
                 modifier = Modifier.clickable {
-                    getPlatform().shareLink(context, joinLink)
+                    getPlatform().shareLink(context, joinLink, serverStatus.joinLinks)
                 }
             )
         }
