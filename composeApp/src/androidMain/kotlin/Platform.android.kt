@@ -48,12 +48,14 @@ import java.util.Formatter
 
 
 object Server {
-    val status = MutableStateFlow(ServerStatus(
-        isRunning = false,
-        message = "Server not running",
-        isSupported = true,
-        connections = 0
-    ))
+    val status = MutableStateFlow(
+        ServerStatus(
+            isRunning = false,
+            message = "Server not running",
+            isSupported = true,
+            connections = 0
+        )
+    )
 
     var server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>? = null
 
@@ -77,18 +79,19 @@ object Server {
                     call.respondText(
                         contentType = ContentType.Text.Html,
                         text = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n"
-                        + "    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n"
-                        + "    <title>KotlinProject</title>\n"
-                        + "    <link type=\"text/css\" rel=\"stylesheet\" href=\"$website/styles.css\">\n"
-                        + "    <script type=\"application/javascript\" src=\"$website/composeApp.js\"></script>\n"
-                        + "</head>\n<body>\n</body>\n</html>"
+                                + "    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n"
+                                + "    <title>KotlinProject</title>\n"
+                                + "    <link type=\"text/css\" rel=\"stylesheet\" href=\"$website/styles.css\">\n"
+                                + "    <script type=\"application/javascript\" src=\"$website/composeApp.js\"></script>\n"
+                                + "</head>\n<body>\n</body>\n</html>"
                     )
                 }
                 get("/composeApp.wasm") {
                     call.respondRedirect("https://potsdam-pnp.github.io/initiative-tracker/composeApp.wasm")
                 }
                 get("/composeResources/{...}") {
-                    val newPath = "https://potsdam-pnp.github.io/initiative-tracker" + call.request.origin.uri
+                    val newPath =
+                        "https://potsdam-pnp.github.io/initiative-tracker" + call.request.origin.uri
                     call.respondRedirect(newPath)
                 }
                 webSocket("/ws") {
@@ -150,7 +153,8 @@ object Server {
 
             thread {
                 runBlocking {
-                    val connectors = it.engine.resolvedConnectors().joinToString { it.host + ":" + it.port }
+                    val connectors =
+                        it.engine.resolvedConnectors().joinToString { it.host + ":" + it.port }
                     status.update {
                         it.copy(message = "Server running on $connectors")
                     }
@@ -169,37 +173,37 @@ object Server {
     }
 
     private fun ipAddressFromWifi(context: Context) {
-        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val connectivityManager =
+            context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val currentNetwork = connectivityManager.activeNetwork
         val capabilities = connectivityManager.getNetworkCapabilities(currentNetwork)
 
-        if (capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
-            val linkProperties = connectivityManager.getLinkProperties(currentNetwork)
-            val ipAddress = linkProperties?.linkAddresses?.mapNotNull { it.address }.orEmpty()
+        val linkProperties = connectivityManager.getLinkProperties(currentNetwork)
+        val ipAddress = linkProperties?.linkAddresses?.mapNotNull { it.address }.orEmpty()
 
-            val addressStrings = ipAddress.map {
-                // Convert IP address to a readable string (if needed)
-                if (it is Inet4Address) {
-                    Formatter().format(
-                        "%d.%d.%d.%d",
-                        it.address[0].toInt() and 0xff,
-                        it.address[1].toInt() and 0xff,
-                        it.address[2].toInt() and 0xff,
-                        it.address[3].toInt() and 0xff
-                    ).toString()
-                } else if (it is Inet6Address) {
-                    "[${it.toString().substring(1)}]"
-                } else {
-                    it.toString()
-                }
+        val addressStrings = ipAddress.map {
+            // Convert IP address to a readable string (if needed)
+            if (it is Inet4Address) {
+                Formatter().format(
+                    "%d.%d.%d.%d",
+                    it.address[0].toInt() and 0xff,
+                    it.address[1].toInt() and 0xff,
+                    it.address[2].toInt() and 0xff,
+                    it.address[3].toInt() and 0xff
+                ).toString()
+            } else if (it is Inet6Address) {
+                "[${it.toString().substring(1)}]"
+            } else {
+                it.toString()
             }
+        }
 
-            status.update {
-                it.copy(joinLinks = addressStrings.map { "https://potsdam-pnp.github.io/initiative-tracker/app#server=$it" })
-            }
+        status.update {
+            it.copy(joinLinks = addressStrings.map { "https://potsdam-pnp.github.io/initiative-tracker/app#server=$it" })
         }
     }
 }
+
 
 
 class AndroidPlatform : Platform {
