@@ -18,8 +18,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat.startActivity
 import io.github.aakira.napier.Napier
+import io.github.potsdam_pnp.initiative_tracker.MainActivity
 import io.github.potsdam_pnp.initiative_tracker.R
-import io.github.potsdam_pnp.initiative_tracker.ShareLinkReceiver
 import io.ktor.http.ContentType
 import kotlinx.coroutines.flow.Flow
 
@@ -267,16 +267,15 @@ class AndroidPlatform : Platform {
                 ChooserAction.Builder(
                     Icon.createWithResource(context.context, R.drawable.ic_launcher_foreground),
                     "Share via ${otherJoinLink.host} instead",
-                    PendingIntent.getBroadcast(
+                    PendingIntent.getActivity(
                         context.context,
                         index,
-                        Intent(context.context, ShareLinkReceiver::class.java).putExtra("forward_host", otherJoinLink.host),
+                        Intent(context.context, MainActivity::class.java).putExtra("forward_host", otherJoinLink.host),
                         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_CANCEL_CURRENT
                     )
                 ).build()
             }.toTypedArray()
             shareIntent.putExtra(Intent.EXTRA_CHOOSER_CUSTOM_ACTIONS, customActions)
-            shareIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
         startActivity(context.context, shareIntent, null)

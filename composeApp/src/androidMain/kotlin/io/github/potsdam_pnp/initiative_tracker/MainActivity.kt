@@ -3,7 +3,7 @@ package io.github.potsdam_pnp.initiative_tracker
 import App
 import JoinLink
 import PlatformContext
-import android.content.BroadcastReceiver
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -24,18 +24,21 @@ class MainActivity : ComponentActivity() {
             App(intent.data?.fragment)
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        Napier.i("Received intent with content: ${intent.data?.fragment}")
+
+        val forwardHost = intent.getStringExtra("forward_host")
+        if (forwardHost != null) {
+            val joinLinks = getPlatform().serverStatus.value.joinLinks
+            getPlatform().shareLink(PlatformContext(this), JoinLink(forwardHost), joinLinks)
+        }
+    }
 }
 
 @Preview
 @Composable
 fun AppAndroidPreview() {
     App()
-}
-
-class ShareLinkReceiver: BroadcastReceiver() {
-    override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
-        val joinLink = JoinLink(intent!!.getStringExtra("host")!!)
-        val joinLinks = getPlatform().serverStatus.value.joinLinks
-        getPlatform().shareLink(PlatformContext(context!!), joinLink, joinLinks)
-    }
 }
