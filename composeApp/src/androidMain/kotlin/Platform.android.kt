@@ -263,14 +263,14 @@ class AndroidPlatform : Platform {
 
         val otherLinks = allLinks.filter { it != link }
         if (otherLinks.isNotEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            val customActions = otherLinks.map { otherJoinLink ->
+            val customActions = otherLinks.mapIndexed() { index, otherJoinLink ->
                 ChooserAction.Builder(
                     Icon.createWithResource(context.context, R.drawable.ic_launcher_foreground),
                     "Share via ${otherJoinLink.host} instead",
                     PendingIntent.getBroadcast(
                         context.context,
-                        1,
-                        Intent(context.context, ShareLinkReceiver::class.java).putExtra("host", otherJoinLink.host),
+                        index,
+                        Intent(context.context, ShareLinkReceiver::class.java).putExtra("forward_host", otherJoinLink.host),
                         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_CANCEL_CURRENT
                     )
                 ).build()
