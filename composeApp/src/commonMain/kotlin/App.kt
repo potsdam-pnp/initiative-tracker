@@ -66,6 +66,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxState
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -317,7 +318,7 @@ fun InitOrder(columnScope: ColumnScope, characters: List<Character>, active: Str
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Center
                     ) {
-                        IconButton(onClick = { actions.addCharacter() }) {
+                        FloatingActionButton(modifier = Modifier.padding(top = 4.dp), onClick = { actions.addCharacter() }) {
                             Icon(
                                 imageVector = Icons.Default.AddCircle,
                                 //tint = Color.Green,
@@ -513,6 +514,28 @@ fun App(data: String? = null) {
                             }
                         )
                     }
+                    Spacer(modifier = Modifier.weight(1f))
+                    Row(modifier = Modifier.fillMaxWidth().align(Alignment.CenterHorizontally).padding(all = 10.dp)) {
+                        Column() {
+                            Text("${state.actions.filterIsInstance<StartTurn>().size} turns played so far in current encounter")
+                            Text("${state.characters.filter { !it.dead }.size} characters still alive")
+                            Button(onClick = {
+                                scope.launch {
+                                    drawerState.close()
+                                    val snackbarResult = snackBarHostState.showSnackbar(
+                                        "Really delete current encounter?",
+                                        actionLabel = "Yes",
+                                        withDismissAction = true
+                                    )
+                                    if (snackbarResult == SnackbarResult.ActionPerformed) {
+                                        model.deleteNewerActions(0)
+                                    }
+                                }
+                            }) {
+                                Text("Start new encounter")
+                            }
+                        }
+                    }
                 }
             }
         ) {
@@ -595,7 +618,13 @@ fun App(data: String? = null) {
                     }
 
                     composable(route = Screens.Parties.name) {
-                        Parties(innerPadding, model, partiesState)
+                        Parties(innerPadding, model, partiesState, navigateToCharacters = {
+                            navController.navigate(Screens.MainScreen.name) {
+                                popUpTo(Screens.MainScreen.name)
+                                launchSingleTop = true
+                            }
+                            viewState = viewState.copy(shownView = ShownView.CHARACTERS)
+                        })
                     }
                 }
             }
@@ -791,7 +820,7 @@ fun DismissBackground(dismissState: SwipeToDismissBoxState) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Parties(innerPadding: PaddingValues, model: Model, partiesState: MutableState<Map<String, List<SimpleCharacter>>>) {
+fun Parties(innerPadding: PaddingValues, model: Model, partiesState: MutableState<Map<String, List<SimpleCharacter>>>, navigateToCharacters: () -> Unit) {
     var parties by partiesState
     var nextId by remember { mutableStateOf(0) }
     var currentEditParty by remember { mutableStateOf<Pair<String, List<SimpleCharacter>>?>(null) }
@@ -860,8 +889,10 @@ fun Parties(innerPadding: PaddingValues, model: Model, partiesState: MutableStat
 
             Column(modifier = Modifier.padding(all = 20.dp).align(Alignment.CenterHorizontally)) {
                 ExtendedFloatingActionButton(onClick = {
-                    model.addCharacters(characters.filter { it.name !in unselected }
-                        .joinToString { it.name })
+                    val validCharacters = characters.filter { it.name !in unselected }
+                    val str = validCharacters.ifEmpty { null }?.joinToString { it.name }
+                    model.addCharacters(str)
+                    navigateToCharacters()
                 }) { Text("Add party to encounter") }
             }
         }
