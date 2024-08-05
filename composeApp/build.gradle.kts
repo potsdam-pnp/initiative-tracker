@@ -68,6 +68,7 @@ kotlin {
             implementation(libs.androidx.navigation.compose)
             implementation(libs.ktor.client.core)
             implementation(libs.napier)
+            implementation(libs.multiplatform.settings.no.arg)
         }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)

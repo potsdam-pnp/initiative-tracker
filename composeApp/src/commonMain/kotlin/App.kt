@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -42,9 +45,12 @@ import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.BottomAppBarDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -60,6 +66,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxState
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -68,12 +77,14 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -87,6 +98,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key.Companion.R
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.isDebugInspectorInfoEnabled
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -97,6 +109,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.russhwolf.settings.Settings
 import io.github.aakira.napier.Napier
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.baseline_file_download_24
@@ -107,6 +120,7 @@ import kotlinproject.composeapp.generated.resources.baseline_sync_24
 import kotlinproject.composeapp.generated.resources.baseline_sync_disabled_24
 import kotlinproject.composeapp.generated.resources.baseline_sync_problem_24
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
@@ -140,19 +154,9 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, vie
 
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.width(30.dp)) {
-            //if (editMode) {
-            //    IconButton(modifier = Modifier.padding(0.dp).size(24.dp), onClick = {
-            //        actions.moveCharacterUp(character.key)
-            //    }) {
-            //        Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move up")
-            //}
-            //    IconButton(modifier = Modifier.padding(0.dp).size(24.dp), onClick = {
-            //        actions.moveCharacterDown(character.key)
-
-            //    }) {
-            //        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Move down")
-            //    }
-            //}
+            if (viewState.shownView == ShownView.TURNS && !character.dead) {
+                Text("${character.turn + 1}", )
+            }
         }
         if (!character.dead) {
             Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
@@ -350,7 +354,8 @@ materialIcon(name = "death") {
 enum class Screens(val title: String) {
     MainScreen("Initiative Tracker"),
     ListActions("List Actions"),
-    ConnectionSettings("Connection Settings")
+    ConnectionSettings("Connection Settings"),
+    Parties("Parties")
 }
 
 
@@ -370,6 +375,35 @@ fun App(data: String? = null) {
         }
     }
     val state by model.state.collectAsState(State())
+
+    val partiesStateFlow = remember { MutableStateFlow(mapOf<String, List<SimpleCharacter>>()) }
+    val partiesState = remember { mutableStateOf(mapOf<String, List<SimpleCharacter>>()) }
+    var parties by partiesState
+
+    LaunchedEffect(parties) {
+        partiesStateFlow.value = parties
+    }
+
+    LaunchedEffect(Unit) {
+        val settings = Settings()
+
+        parties = settings.getString("parties", "").split(";").mapNotNull {
+            val parts = it.split(",")
+            val partyName = parts.firstOrNull()
+            val characters = parts.drop(1).map {
+                SimpleCharacter(0, it, true)
+            }
+            if (partyName != null && partyName != "") {
+                partyName to characters
+            } else {
+                null
+            }
+        }.toMap()
+
+        partiesStateFlow.collect {
+            settings.putString("parties", it.entries.joinToString(";") { it.key + "," + it.value.joinToString(",") { it.name } })
+        }
+    }
 
     MaterialTheme {
         val navController = rememberNavController()
@@ -441,6 +475,17 @@ fun App(data: String? = null) {
                         selected = backStackEntry?.destination?.route == Screens.ListActions.name,
                         onClick = {
                             navController.navigate(Screens.ListActions.name) {
+                                popUpTo(Screens.MainScreen.name)
+                                launchSingleTop = true
+                            }
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+                    NavigationDrawerItem(
+                        label = { Text("Parties")},
+                        selected = backStackEntry?.destination?.route == Screens.Parties.name,
+                        onClick = {
+                            navController.navigate(Screens.Parties.name) {
                                 popUpTo(Screens.MainScreen.name)
                                 launchSingleTop = true
                             }
@@ -547,6 +592,10 @@ fun App(data: String? = null) {
 
                     composable(route = Screens.ConnectionSettings.name) {
                         ConnectionSettings(innerPadding, model, globalCoroutineScope)
+                    }
+
+                    composable(route = Screens.Parties.name) {
+                        Parties(innerPadding, model, partiesState)
                     }
                 }
             }
@@ -705,6 +754,166 @@ fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope
                 })
             }
         )
+    }
+}
+
+data class SimpleCharacter(val id: Int, val name: String, val playerCharacter: Boolean)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DismissBackground(dismissState: SwipeToDismissBoxState) {
+    val color = when (dismissState.dismissDirection) {
+        SwipeToDismissBoxValue.StartToEnd -> Color(0xFFFF1744)
+        SwipeToDismissBoxValue.EndToStart -> Color(0xFF1DE9B6)
+        SwipeToDismissBoxValue.Settled -> Color.Transparent
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(color)
+            .padding(12.dp, 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Icon(
+            Icons.Default.Delete,
+            contentDescription = "delete"
+        )
+        Spacer(modifier = Modifier)
+        Icon(
+            // make sure add baseline_archive_24 resource to drawable folder
+            Icons.Default.Edit,
+            contentDescription = "Archive"
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun Parties(innerPadding: PaddingValues, model: Model, partiesState: MutableState<Map<String, List<SimpleCharacter>>>) {
+    var parties by partiesState
+    var nextId by remember { mutableStateOf(0) }
+    var currentEditParty by remember { mutableStateOf<Pair<String, List<SimpleCharacter>>?>(null) }
+    var currentShowParty by remember { mutableStateOf<String?>(null) }
+
+    if (currentEditParty == null && currentShowParty == null) {
+        Column(modifier = Modifier.padding(innerPadding).fillMaxWidth().fillMaxHeight()) {
+            ListItem(headlineContent = { Text("Manage characters") })
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(items = parties.entries.toList(), key = { it.key }) { party ->
+                    val dismissState = rememberSwipeToDismissBoxState(
+                        confirmValueChange = {
+                            when (it) {
+                                SwipeToDismissBoxValue.StartToEnd -> {
+                                    parties = parties - party.key
+                                    true
+                                }
+                                SwipeToDismissBoxValue.EndToStart -> {
+                                    currentEditParty = party.key to parties[party.key].orEmpty().map { it.copy(id = ++nextId) }
+                                    parties = parties - party.key
+                                    true
+                                }
+                                SwipeToDismissBoxValue.Settled -> false
+                            }
+                        }
+                    )
+                    SwipeToDismissBox(state = dismissState, backgroundContent = { DismissBackground(dismissState) } ) {
+                        ListItem(
+                            modifier = Modifier.clickable { currentShowParty = party.key },
+                            headlineContent = { Text(party.key) },
+                            supportingContent = {
+                                Text(party.value.joinToString(", ") { it.name })
+                            }
+                        )
+                    }
+                }
+            }
+            ExtendedFloatingActionButton(
+                modifier = Modifier.padding(all = 20.dp).align(Alignment.End),
+                onClick = { currentEditParty = "" to listOf(SimpleCharacter(++nextId, "", true)) }
+            ) { Text("Add new party") }
+        }
+    } else if (currentShowParty != null) {
+        Column(modifier = Modifier.padding(innerPadding)) {
+            val characters = parties[currentShowParty].orEmpty()
+            var unselected by remember { mutableStateOf(emptySet<String>()) }
+
+            Column(modifier = Modifier.weight(1f)) {
+                for (character in characters) {
+                    key(character) {
+                        ListItem(headlineContent = { Text(character.name) },
+                            leadingContent = {
+                                Checkbox(
+                                    checked = character.name !in unselected,
+                                    onCheckedChange = {
+                                        if (!it) {
+                                            unselected = unselected + character.name
+                                        } else {
+                                            unselected = unselected - character.name
+                                        }
+                                    })
+                            })
+                    }
+                }
+            }
+
+            Column(modifier = Modifier.padding(all = 20.dp).align(Alignment.CenterHorizontally)) {
+                ExtendedFloatingActionButton(onClick = {
+                    model.addCharacters(characters.filter { it.name !in unselected }
+                        .joinToString { it.name })
+                }) { Text("Add party to encounter") }
+            }
+        }
+    } else if (currentEditParty != null) {
+        Column(modifier = Modifier.padding(innerPadding)) {
+            Column(modifier = Modifier.weight(1f)) {
+                ListItem(headlineContent = {
+                    TextField(
+                        value = currentEditParty!!.first,
+                        label = { Text("Name of party") },
+                        onValueChange = {
+                            currentEditParty = it to currentEditParty!!.second
+                        },
+                        singleLine = true
+                    )
+                })
+                ListItem(headlineContent = { Text("Characters") })
+                for (character in currentEditParty!!.second) {
+                    key(character.id) {
+                        ListItem(headlineContent = {
+                            TextField(
+                                value = character.name,
+                                singleLine = true,
+                                onValueChange = {
+                                    Napier.i("Value Change to '$it' in $character")
+                                    currentEditParty = currentEditParty!!.copy(
+                                        second = currentEditParty!!.second.toMutableList().apply {
+                                            val index = currentEditParty!!.second.indexOfFirst { it.id == character.id }
+                                            if (it.isNotBlank() || it.isBlank() && index == currentEditParty!!.second.size - 1) {
+                                                this[index] =
+                                                    this[index].copy(name = it)
+                                            } else if (it.isBlank()) {
+                                                this.removeAt(index)
+                                            }
+                                            if (index == currentEditParty!!.second.size - 1 && it.isNotBlank()) {
+                                                nextId += 1
+                                                this.add(SimpleCharacter(id = nextId, name = "", playerCharacter = true))
+                                            }
+                                        }
+                                    )
+                                }
+                            )
+                        })
+                    }
+                }
+            }
+            ExtendedFloatingActionButton(modifier = Modifier.padding(all = 20.dp).align(Alignment.End), onClick = {
+                if (currentEditParty!!.first != "" && currentEditParty!!.first !in parties.keys && currentEditParty!!.second.filter { it.name.isNotBlank() }.isNotEmpty())
+                parties = parties + (currentEditParty!!.first to currentEditParty!!.second.filter { it.name.isNotBlank() }.toList())
+                currentEditParty = null
+            }) { Text("Add this party") }
+        }
     }
 }
 
