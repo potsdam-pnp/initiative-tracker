@@ -1,3 +1,4 @@
+import io.github.aakira.napier.Napier
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
@@ -26,10 +27,11 @@ object ClientConsumer {
     var job: Job? = null
 
     fun toggleClient(model: Model, coroutineScope: CoroutineScope) {
-        if (clientStatus.value.isRunning) {
-            stop()
-        } else {
-            start(model, coroutineScope)
+        when (clientStatus.value.status) {
+            is ClientStatusState.Stopped -> start(model, coroutineScope)
+            is ClientStatusState.Running -> stop()
+            is ClientStatusState.Starting -> {}
+            is ClientStatusState.ConnectionError -> start(model, coroutineScope)
         }
     }
 
@@ -41,7 +43,9 @@ object ClientConsumer {
 
     fun start(model: Model, coroutineScope: kotlinx.coroutines.CoroutineScope) {
         _clientStatus.update {
-            it.copy(isRunning = true, message = "Starting", receivedSuccesfulFrames = 0, receivedFailedFrames = 0)
+            val result = it.copy(status = ClientStatusState.Starting)
+            Napier.i("Starting client - previous: $it next: $result")
+            result
         }
         if (httpClient == null) {
             httpClient = HttpClient() {
@@ -49,14 +53,20 @@ object ClientConsumer {
             }
         }
         httpClient!!.also { client ->
+            val previousJob = job
             job = coroutineScope.launch {
                 try {
+                    previousJob?.join()
                     client.webSocket(
                         method = HttpMethod.Get,
                         host = clientStatus.value.host,
                         port = 8080,
                         path = "/ws"
                     ) {
+                        _clientStatus.update {
+                            it.copy(status = ClientStatusState.Running(0, 0))
+                        }
+
                         launch {
                             var alreadyDroppedFirstMessage = false
                             model.state.collect {
@@ -90,19 +100,11 @@ object ClientConsumer {
                                         model.receiveActions(actions)
                                     }
                                     _clientStatus.update {
-                                        it.copy(
-                                            receivedSuccesfulFrames = it.receivedSuccesfulFrames + 1
-                                        ).let {
-                                            it.copy(message = runningMessage(it))
-                                        }
+                                        it.copy(status = it.status.receivedSuccesfulFrame())
                                     }
                                 } else {
                                     _clientStatus.update {
-                                        it.copy(
-                                            receivedFailedFrames = it.receivedFailedFrames + 1
-                                        ).let {
-                                            it.copy(message = runningMessage(it))
-                                        }
+                                        it.copy(status = it.status.receivedFailedFrame())
                                     }
                                 }
                             }
@@ -116,18 +118,19 @@ object ClientConsumer {
                         }
 
                         _clientStatus.update {
-                            it.copy(isRunning = false, message = stopMessage)
+                            it.copy(status = ClientStatusState.ConnectionError(stopMessage))
                         }
                     }
                 } catch (e: CancellationException) {
                     _clientStatus.update {
-                        it.copy(isRunning = false, message = "Stopped")
+                        val result = it.copy(status = ClientStatusState.Stopped)
+                        Napier.i("Update stopped: previous $it next $result")
+                        result
                     }
                 } catch (e: Exception) {
                     _clientStatus.update {
                         it.copy(
-                            isRunning = false,
-                            message = "Error: $e"
+                            status = ClientStatusState.ConnectionError("Error: $e")
                         )
                     }
                 }
@@ -135,27 +138,33 @@ object ClientConsumer {
         }
     }
 
-    private fun runningMessage(clientStatus: ClientStatus): String {
-        return "Running - ${clientStatus.receivedSuccesfulFrames} states received so far, ${clientStatus.receivedFailedFrames} failed transmissions"
-    }
-
     fun stop() {
         httpClient?.close()
         httpClient = null
         job?.cancel()
-        _clientStatus.update {
-            it.copy(isRunning = false, message = "Stopping")
-        }
     }
 
 }
 
+sealed class ClientStatusState {
+    open fun receivedSuccesfulFrame() = this
+    open fun receivedFailedFrame() = this
+
+    object Stopped : ClientStatusState()
+    object Starting : ClientStatusState()
+    data class Running(
+        val receivedSuccesfulFrames: Int = 0,
+        val receivedFailedFrames: Int = 0) : ClientStatusState() {
+            override fun receivedSuccesfulFrame() = copy(receivedSuccesfulFrames = receivedSuccesfulFrames + 1)
+            override fun receivedFailedFrame() = copy(receivedFailedFrames = receivedFailedFrames + 1)
+    }
+    data class ConnectionError(val errorMessage: String) : ClientStatusState()
+}
+
 data class ClientStatus(
-    val isRunning: Boolean = false,
-    val message: String = "Not running",
-    val host: String = "127.0.0.1",
-    val receivedSuccesfulFrames: Int = 0,
-    val receivedFailedFrames: Int = 0)
+    val status: ClientStatusState = ClientStatusState.Stopped,
+    val host: String = "127.0.0.1"
+)
 
 val sendUpdates = MutableStateFlow<Boolean>(true)
 val receiveUpdates = MutableStateFlow<Boolean>(true)

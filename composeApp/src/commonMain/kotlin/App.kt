@@ -105,6 +105,7 @@ import kotlinproject.composeapp.generated.resources.baseline_file_upload_24
 import kotlinproject.composeapp.generated.resources.baseline_file_upload_off_24
 import kotlinproject.composeapp.generated.resources.baseline_sync_24
 import kotlinproject.composeapp.generated.resources.baseline_sync_disabled_24
+import kotlinproject.composeapp.generated.resources.baseline_sync_problem_24
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -477,18 +478,20 @@ fun App(data: String? = null) {
                     Napier.i("hello from Napier")
 
                     LaunchedEffect(Unit) {
-                        var previous = false
                         ClientConsumer.clientStatus.collect {
-                            Napier.i("collect client status: " + it.message + " ")
-                            if (previous && !it.isRunning) {
+                            when (it.status) {
+                                is ClientStatusState.ConnectionError -> {
                                     Napier.i("want to show snackbar ")
                                     snackBarHostState.showSnackbar(
-                                        "Client disconnected: " + it.message,
+                                        "Client disconnected: " + it.status.errorMessage,
                                         withDismissAction = true,
                                         duration = SnackbarDuration.Long
                                     )
+                                }
+                                else -> {}
                             }
-                            previous = it.isRunning
+
+                            Napier.i("collect client status: " + it + " ")
                         }
                     }
                 },
@@ -507,7 +510,7 @@ fun App(data: String? = null) {
                             val serverStatus by getPlatform().serverStatus.collectAsState()
                             val clientStatus by ClientConsumer.clientStatus.collectAsState()
                             val context = getPlatform().getContext()
-                            IconButton(enabled = serverStatus.isRunning && serverStatus.joinLinks.isNotEmpty() || !serverStatus.isRunning && clientStatus.isRunning, onClick = {
+                            IconButton(enabled = serverStatus.isRunning && serverStatus.joinLinks.isNotEmpty() || !serverStatus.isRunning && clientStatus.status is ClientStatusState.Running, onClick = {
                                 val links = if (serverStatus.isRunning && serverStatus.joinLinks.isNotEmpty()) {
                                     Pair(serverStatus.joinLinks[0], serverStatus.joinLinks)
                                 } else {
@@ -600,7 +603,10 @@ fun ConnectionState(modifier: Modifier = Modifier, transform: @Composable (@Comp
         }
     }) {
         transform {
-            if (clientStatus.isRunning || serverStatus.isRunning) {
+            if (clientStatus.status is ClientStatusState.ConnectionError) {
+                val vector = vectorResource(Res.drawable.baseline_sync_problem_24)
+                Icon(imageVector = vector, contentDescription = "Sync problem")
+            } else if (clientStatus.status is ClientStatusState.Running || serverStatus.isRunning) {
                 val vector = vectorResource(Res.drawable.baseline_sync_24)
                 Icon(imageVector = vector, contentDescription = "Synced")
             } else {
@@ -649,14 +655,14 @@ fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope
         ListItem(
             headlineContent = { Text("Function as Client") },
             trailingContent = {
-                Switch(checked = clientStatus.isRunning, onCheckedChange = {
+                Switch(checked = clientStatus.status is ClientStatusState.Running, enabled = clientStatus.status !is ClientStatusState.Starting, onCheckedChange = {
                     ClientConsumer.toggleClient(model, coroutineScope)
                 })
             }
         )
         ListItem(
             headlineContent = {
-                if (clientStatus.isRunning) {
+                if (clientStatus.status is ClientStatusState.Running || clientStatus.status is ClientStatusState.Starting) {
                     Text("Host: ${clientStatus.host}")
                 } else {
                     TextField(
@@ -672,7 +678,12 @@ fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope
         ListItem(
             headlineContent = { Text("Client status") },
             supportingContent = {
-                Text(clientStatus.message)
+                Text(when (val status = clientStatus.status) {
+                    is ClientStatusState.ConnectionError -> "Connection error: ${status.errorMessage}"
+                    is ClientStatusState.Running -> "Running (${status.receivedSuccesfulFrames} updates received so far)"
+                    is ClientStatusState.Starting -> "Starting"
+                    is ClientStatusState.Stopped -> "Stopped"
+                })
             }
         )
         HorizontalDivider()
