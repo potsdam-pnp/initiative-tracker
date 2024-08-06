@@ -287,49 +287,75 @@ fun ShowPlayerVsNonPlayerCharacter(viewState: ViewState, character: Character, a
 }
 
 
-@Composable
 @OptIn(ExperimentalFoundationApi::class)
-fun InitOrder(columnScope: ColumnScope, characters: List<Character>, active: String?, actions: Actions, listState: LazyListState, viewState: ViewState, toggleEditCharacter: (String) -> Unit) {
-    val listItems = characters.let {
-        if (viewState.shownView == ShownView.CHARACTERS) {
-            it + null
-        } else {
-            val first = it.firstOrNull()
-            if (first != null) {
-                it + first.copy(turn = first.turn + 1, dead = true)
-            } else {
-                it
+@Composable
+fun ListCharacters(
+    columnScope: ColumnScope,
+    characters: List<Character>,
+    actions: Actions,
+    listState: LazyListState,
+    currentlyEditedCharacter: String?,
+    toggleEditCharacter: (String) -> Unit) {
+    LazyColumn(state = listState, modifier = with(columnScope) { Modifier.fillMaxWidth().weight(1f) }) {
+        items(characters, key = { it.key }) { character ->
+            Box(modifier = Modifier.animateItemPlacement()) {
+                ShowCharacter(
+                    character,
+                    isActive = false,
+                    actions,
+                    ViewState(ShownView.CHARACTERS, currentlyEditedCharacter),
+                    toggleEditCharacter
+                )
+            }
+        }
+        item(key = "") {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                FloatingActionButton(modifier = Modifier.padding(top = 4.dp), onClick = { actions.addCharacter() }) {
+                    Icon(
+                        imageVector = Icons.Default.AddCircle,
+                        //tint = Color.Green,
+                        modifier = Modifier.size(40.dp),
+                        contentDescription = "Add character"
+                    )
+                }
             }
         }
     }
-    LazyColumn(state = listState, modifier = with(columnScope) { Modifier.fillMaxWidth().weight(1f) }) {
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun ListTurns(columnScope: ColumnScope, listState: LazyListState, characters: List<Character>, active: String?, actions: Actions) {
+    val listItems = characters.let {
+        val first = it.firstOrNull()
+        if (first != null) {
+            it + first.copy(turn = first.turn + 1, dead = true)
+        } else {
+            it
+        }
+    }
+    LazyColumn(state = listState, modifier = with(columnScope) { androidx.compose.ui.Modifier.fillMaxWidth().weight(1f) }) {
         items(
             listItems,
-            key = { (it?.key ?: "") + "-" + (it?.turn ?: "") }
+            key = { it.key + "-" + it.turn }
         ) { character ->
-            if (character != null) {
-                @Suppress("EXPERIMENTAL_FOUNDATION_API_USAGE")
-                Box(modifier = Modifier.animateItemPlacement()) {
-                    ShowCharacter(character, isActive = character.key == active && !character.dead, actions, viewState, toggleEditCharacter)
-                }
-            } else {
-                if (viewState.shownView == ShownView.CHARACTERS) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        FloatingActionButton(modifier = Modifier.padding(top = 4.dp), onClick = { actions.addCharacter() }) {
-                            Icon(
-                                imageVector = Icons.Default.AddCircle,
-                                //tint = Color.Green,
-                                modifier = Modifier.size(40.dp),
-                                contentDescription = "Add character"
-                            )
-                        }
-                    }
-                }
+            Box(modifier = Modifier.animateItemPlacement()) {
+                ShowCharacter(character, isActive = character.key == active && !character.dead, actions, ViewState(ShownView.TURNS, null)) {}
             }
         }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalFoundationApi::class)
+fun InitOrder(columnScope: ColumnScope, characters: List<Character>, active: String?, actions: Actions, listState: LazyListState, viewState: ViewState, toggleEditCharacter: (String) -> Unit) {
+    if (viewState.shownView == ShownView.CHARACTERS) {
+        ListCharacters(columnScope, characters, actions, listState, viewState.currentlyEditedCharacter, toggleEditCharacter)
+    } else {
+        ListTurns(columnScope, listState, characters, active, actions)
     }
 }
 
