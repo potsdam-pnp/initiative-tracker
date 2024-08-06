@@ -1,9 +1,14 @@
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.animateIntSizeAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.BoxWithConstraintsScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -92,18 +98,25 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key.Companion.R
+import androidx.compose.ui.layout.Placeable
+import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.isDebugInspectorInfoEnabled
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
@@ -328,22 +341,69 @@ fun ListCharacters(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ListTurns(columnScope: ColumnScope, listState: LazyListState, characters: List<Character>, active: String?, actions: Actions) {
-    val listItems = characters.let {
-        val first = it.firstOrNull()
-        if (first != null) {
-            it + first.copy(turn = first.turn + 1, dead = true)
-        } else {
-            it
+fun ListTurns(columnScope: ColumnScope, characters: List<Character>, active: String?, actions: Actions) {
+    SubcomposeLayout(modifier = with(columnScope) {
+        Modifier.fillMaxWidth().weight(1f)
+    }) { constraints ->
+        if (characters.isEmpty()) {
+            return@SubcomposeLayout layout(0, 0) {}
         }
-    }
-    LazyColumn(state = listState, modifier = with(columnScope) { androidx.compose.ui.Modifier.fillMaxWidth().weight(1f) }) {
-        items(
-            listItems,
-            key = { it.key + "-" + it.turn }
-        ) { character ->
-            Box(modifier = Modifier.animateItemPlacement()) {
-                ShowCharacter(character, isActive = character.key == active && !character.dead, actions, ViewState(ShownView.TURNS, null)) {}
+
+        var currentAddTurn = 0
+        var currentIndex = 0
+        var currentHeight = 0
+
+        var oneRoundHeight = 0
+
+        val placeables = mutableListOf<Pair<Int, Placeable>>()
+
+        while (currentHeight < constraints.maxHeight) {
+            val currentCharacter = characters[currentIndex]
+            val currentTurn = currentCharacter.turn + currentAddTurn
+            val slotKey = currentCharacter.key + "-" + currentTurn
+
+            val alpha = if (currentAddTurn == 0) 1.0f else {
+                0.5f - 0.5f * (currentHeight - oneRoundHeight) / (constraints.maxHeight - oneRoundHeight)
+            }
+            val currentAddTurnCopy = currentAddTurn
+            val currentHeightCopy = currentHeight
+            val s = subcompose(slotId = slotKey) {
+                val actualAlpha by animateFloatAsState(alpha, finishedListener = { Napier.i("animation for $slotKey finished at $it (goal: $alpha)") })
+                val position by animateIntAsState(currentHeightCopy)
+                Box(modifier = Modifier.offset { IntOffset(0, position) }) {
+                    Box(modifier = Modifier.alpha(actualAlpha)) {
+                        ShowCharacter(
+                            currentCharacter.copy(turn = currentTurn),
+                            isActive = currentAddTurnCopy == 0 && active == currentCharacter.key,
+                            actions,
+                            ViewState(ShownView.TURNS, null)
+                        ) {}
+                    }
+                }
+            }
+            val measured = s[0].measure(
+                constraints = Constraints(
+                    minWidth = constraints.minWidth,
+                    maxWidth = constraints.maxWidth,
+                    minHeight = 0,
+                    maxHeight = constraints.maxHeight - currentHeight
+                )
+            )
+            placeables.add(currentHeight to measured)
+            currentHeight += measured.height
+            currentIndex++
+            if (currentIndex == characters.size) {
+                currentIndex = 0
+                if (currentAddTurn == 0) {
+                    oneRoundHeight = currentHeight
+                }
+                currentAddTurn++
+            }
+        }
+
+        layout(constraints.maxWidth, constraints.maxHeight) {
+            placeables.forEach {
+                it.second.placeRelative(0, 0)
             }
         }
     }
@@ -355,7 +415,7 @@ fun InitOrder(columnScope: ColumnScope, characters: List<Character>, active: Str
     if (viewState.shownView == ShownView.CHARACTERS) {
         ListCharacters(columnScope, characters, actions, listState, viewState.currentlyEditedCharacter, toggleEditCharacter)
     } else {
-        ListTurns(columnScope, listState, characters, active, actions)
+        ListTurns(columnScope, characters, active, actions)
     }
 }
 
