@@ -154,7 +154,7 @@ data class ViewState(
 
 
 @Composable
-fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, viewState: ViewState, toggleEditCharacter: (String) -> Unit) {
+fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, viewState: ViewState, isGreyed: Boolean = false, toggleEditCharacter: (String) -> Unit) {
     val focusRequester = remember { FocusRequester() }
 
     var modifier: Modifier = Modifier.fillMaxWidth()
@@ -269,7 +269,7 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, vie
                         }
                     } else {
                         if (character.playerCharacter == true) {
-                            IconButton(onClick = { actions.die(character.key) }) {
+                            IconButton(enabled = !isGreyed, onClick = { actions.die(character.key) }) {
                                 Icon(
                                     imageVector = deathIcon,
                                     tint = Color.Black,
@@ -277,7 +277,7 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, vie
                                 )
                             }
                         } else {
-                            IconButton(onClick = { actions.deleteCharacter(character.key) }) {
+                            IconButton(enabled = !isGreyed, onClick = { actions.deleteCharacter(character.key) }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Delete")
                             }
                         }
@@ -317,6 +317,7 @@ fun ListCharacters(
                     isActive = false,
                     actions,
                     ViewState(ShownView.CHARACTERS, currentlyEditedCharacter),
+                    false,
                     toggleEditCharacter
                 )
             }
@@ -373,10 +374,11 @@ fun ListTurns(columnScope: ColumnScope, characters: List<Character>, active: Str
                 Box(modifier = Modifier.offset { IntOffset(0, position) }) {
                     Box(modifier = Modifier.alpha(actualAlpha)) {
                         ShowCharacter(
-                            currentCharacter.copy(turn = currentTurn),
-                            isActive = currentAddTurnCopy == 0 && active == currentCharacter.key,
+                            currentCharacter.copy(turn = currentTurn, isDelayed = currentCharacter.isDelayed && currentAddTurnCopy == 0),
+                            isActive = currentAddTurnCopy == 0 && active == currentCharacter.key && position == 0,
                             actions,
-                            ViewState(ShownView.TURNS, null)
+                            ViewState(ShownView.TURNS, null),
+                            isGreyed = currentAddTurnCopy >= 1
                         ) {}
                     }
                 }
