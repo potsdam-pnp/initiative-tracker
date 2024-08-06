@@ -89,8 +89,9 @@ data class State2(
                 is Delay -> {
                     if (!alreadyPlayedCharactersSet.contains(action.id)) {
                         characters[action.id] =
-                            characters.getOrPut(action.id) { Character(action.id) }
-                                .copy(isDelayed = true)
+                            characters.getOrPut(action.id) { Character(action.id) }.let {
+                                it.copy(isDelayed = true, turn = it.turn - 1)
+                            }
                     }
                 }
                 is Die -> {
