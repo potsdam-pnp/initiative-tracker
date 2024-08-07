@@ -1,4 +1,7 @@
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.animateIntSizeAsState
@@ -100,6 +103,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -108,7 +112,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key.Companion.R
 import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.isDebugInspectorInfoEnabled
 import androidx.compose.ui.text.font.FontStyle
@@ -140,6 +146,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import kotlin.math.roundToInt
 
 
 enum class ShownView {
@@ -158,8 +165,9 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, vie
     val focusRequester = remember { FocusRequester() }
 
     var modifier: Modifier = Modifier.fillMaxWidth()
-    if (isActive && viewState.shownView == ShownView.TURNS) {
-        modifier = modifier.then(Modifier.background(color = Color.Yellow))
+    if (viewState.shownView == ShownView.TURNS) {
+        val isActiveAlpha by animateFloatAsState(if (isActive) 1f else 0f)
+        modifier = modifier.then(Modifier.background(color = Color.Yellow.copy(alpha = isActiveAlpha)))
     }
     modifier =
         modifier.then(Modifier.padding(vertical = 10.dp, horizontal = 20.dp).heightIn(min = 60.dp))
@@ -344,14 +352,14 @@ fun ListCharacters(
 @Composable
 fun ListTurns(columnScope: ColumnScope, characters: List<Character>, active: String?, actions: Actions) {
     SubcomposeLayout(modifier = with(columnScope) {
-        Modifier.fillMaxWidth().weight(1f)
+        Modifier.fillMaxWidth().weight(1f).clipToBounds()
     }) { constraints ->
         if (characters.isEmpty()) {
             return@SubcomposeLayout layout(0, 0) {}
         }
 
-        var currentAddTurn = 0
-        var currentIndex = 0
+        var currentAddTurn = -1
+        var currentIndex = characters.size - 1
         var currentHeight = 0
 
         var oneRoundHeight = 0
@@ -363,23 +371,37 @@ fun ListTurns(columnScope: ColumnScope, characters: List<Character>, active: Str
             val currentTurn = currentCharacter.turn + currentAddTurn
             val slotKey = currentCharacter.key + "-" + currentTurn
 
-            val alpha = if (currentAddTurn == 0) 1.0f else {
+            val alpha = if (currentAddTurn <= 0) 1.0f else {
                 0.5f - 0.5f * (currentHeight - oneRoundHeight) / (constraints.maxHeight - oneRoundHeight)
             }
+
             val currentAddTurnCopy = currentAddTurn
-            val currentHeightCopy = currentHeight
             val s = subcompose(slotId = slotKey) {
                 val actualAlpha by animateFloatAsState(alpha, finishedListener = { Napier.i("animation for $slotKey finished at $it (goal: $alpha)") })
-                val position by animateIntAsState(currentHeightCopy)
-                Box(modifier = Modifier.offset { IntOffset(0, position) }) {
-                    Box(modifier = Modifier.alpha(actualAlpha)) {
+
+                var targetOffset by remember { mutableStateOf(0) }
+                var anim by remember { mutableStateOf<Animatable<Int, AnimationVector1D>?>(null) }
+                val scope = rememberCoroutineScope()
+
+                Box(modifier = Modifier.onPlaced { layoutCoordinates ->
+                    targetOffset = layoutCoordinates.positionInParent().y.roundToInt()
+                }.offset {
+                    val animatable = anim ?: Animatable(targetOffset, Int.VectorConverter)
+                        .also { anim = it }
+                    if (animatable.targetValue != targetOffset) {
+                        scope.launch { animatable.animateTo(targetOffset) }
+                    }
+                    IntOffset(0, animatable.value - targetOffset)
+                }) {
+                     Box(modifier = Modifier.alpha(actualAlpha)) {
+                         val isActive = active == currentCharacter.key && currentAddTurnCopy == 0 && anim?.isRunning != true
                         ShowCharacter(
                             currentCharacter.copy(turn = currentTurn, isDelayed = currentCharacter.isDelayed && currentAddTurnCopy == 0),
-                            isActive = currentAddTurnCopy == 0 && active == currentCharacter.key && position == 0,
+                            isActive = isActive,
                             actions,
                             ViewState(ShownView.TURNS, null),
-                            isGreyed = currentAddTurnCopy >= 1
-                        ) {}
+                            isGreyed = currentAddTurnCopy >= 1, {},
+                        )
                     }
                 }
             }
@@ -391,21 +413,24 @@ fun ListTurns(columnScope: ColumnScope, characters: List<Character>, active: Str
                     maxHeight = constraints.maxHeight - currentHeight
                 )
             )
+            if (currentAddTurn == -1) {
+                currentHeight = -measured.height
+            }
             placeables.add(currentHeight to measured)
             currentHeight += measured.height
             currentIndex++
             if (currentIndex == characters.size) {
-                currentIndex = 0
                 if (currentAddTurn == 0) {
                     oneRoundHeight = currentHeight
                 }
                 currentAddTurn++
+                currentIndex = 0
             }
         }
 
         layout(constraints.maxWidth, constraints.maxHeight) {
             placeables.forEach {
-                it.second.placeRelative(0, 0)
+                it.second.placeRelative(0, it.first)
             }
         }
     }
