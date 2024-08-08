@@ -38,8 +38,8 @@ jobs:
         if: success() || failure()    # run this step even if previous step failed
         with:
           name: Test Results
-          path: build/test-results/**/*.xml
-          reporter: junit
+          path: composeApp/build/test-results/**/*.xml
+          reporter: java-junit
       - name: Build and website
         run: ./gradlew wasmJsBrowserDistribution
       - name: Upload website artifact
