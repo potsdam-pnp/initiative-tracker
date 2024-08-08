@@ -71,6 +71,9 @@ kotlin {
             implementation(libs.napier)
             implementation(libs.multiplatform.settings.no.arg)
         }
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+        }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.ktor.client.cio)

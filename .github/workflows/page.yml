@@ -31,7 +31,8 @@ jobs:
         with:
           java-version: '21' # Or your desired JDKversion
           distribution: 'temurin'
-
+      - name: Tests
+        run: ./gradlew allTests -x wasmJsBrowserTest
       - name: Build and website
         run: ./gradlew wasmJsBrowserDistribution
       - name: Upload website artifact
