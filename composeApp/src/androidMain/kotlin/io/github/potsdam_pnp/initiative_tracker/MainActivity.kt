@@ -42,7 +42,6 @@ class MainActivity : ComponentActivity() {
             val model = ViewModelProvider.create(viewModelStore)[Model::class]
 
             val data = intent.data?.fragment
-            // TODO Handle this intent
             Napier.i("Received intent with content: $data")
 
             model.addCharacters(data)
