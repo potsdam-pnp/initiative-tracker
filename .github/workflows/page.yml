@@ -8,6 +8,8 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  checks: write
+  actions: read
 
 jobs:
   build-and-deploy:
