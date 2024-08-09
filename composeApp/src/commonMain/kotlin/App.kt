@@ -688,7 +688,7 @@ fun App(data: String? = null) {
                         actions = {
                             UpDownloadState()
                             ConnectionState()
-                            val serverStatus by getPlatform().serverStatus.collectAsState()
+                            val serverStatus by getPlatform().serverStatus
                             val clientStatus by ClientConsumer.clientStatus.collectAsState()
                             val context = getPlatform().getContext()
                             IconButton(enabled = serverStatus.isRunning && serverStatus.joinLinks.isNotEmpty() || !serverStatus.isRunning && clientStatus.status is ClientStatusState.Running, onClick = {
@@ -787,7 +787,7 @@ fun UpDownloadState() {
 @Composable
 fun ConnectionState(modifier: Modifier = Modifier, transform: @Composable (@Composable () -> Unit) -> Unit = { it() }) {
     val clientStatus by ClientConsumer.clientStatus.collectAsState()
-    val serverStatus by getPlatform().serverStatus.collectAsState()
+    val serverStatus by getPlatform().serverStatus
     BadgedBox(modifier = modifier,badge = {
         if (serverStatus.isRunning) {
             Badge { Text(serverStatus.connections.toString()) }
@@ -815,7 +815,7 @@ fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope
     Column(modifier = Modifier.padding(innerPadding).verticalScroll(
         scrollState
     )) {
-        val serverStatus by getPlatform().serverStatus.collectAsState()
+        val serverStatus by getPlatform().serverStatus
         val clientStatus by ClientConsumer.clientStatus.collectAsState()
         val context = getPlatform().getContext()
         ListItem(
