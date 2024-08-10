@@ -157,10 +157,30 @@ class State(
             val initiative = it.value.initiative.value.let {
                 if (it.size == 1) it.first().first else null
             }
+
+            val playerCharacter = it.value.playerCharacter.value.let {
+                when {
+                    it.isEmpty() -> null
+                    it.all { it.first } -> true
+                    it.all { !it.first } -> false
+                    else -> null
+                }
+            }
+
+            val isDead = it.value.dead.value.let {
+                when {
+                    it.isEmpty() -> null
+                    it.any { it.first } -> true
+                    else -> false
+                }
+            }
+
             listOfNotNull(
                 AddCharacter(it.value.id.id),
-                _ChangeName(it.value.id.id, it.value.name.textField()),
+                if (it.value.name.value.isNotEmpty()) ChangeName(it.value.id.id, it.value.name.textField()) else null,
                 if (initiative != null) ChangeInitiative(it.value.id.id, initiative) else null,
+                if (playerCharacter != null) ChangePlayerCharacter(it.value.id.id, playerCharacter) else null,
+                if (isDead == true) DeleteCharacter(it.value.id.id) else null
             )
         }
 
