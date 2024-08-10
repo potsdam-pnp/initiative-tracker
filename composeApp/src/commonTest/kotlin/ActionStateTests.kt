@@ -5,7 +5,7 @@ import kotlin.test.assertNull
 class ActionStateTests {
     @Test
     fun emptyActions() {
-        val state = State2(emptyList())
+        val state = State2(emptyList(), turnActions = emptyList())
         val predicted = state.predictNextTurns(withCurrent = false)
         assertEquals(emptyList(), predicted)
         assertNull(state.currentTurn())
@@ -17,7 +17,8 @@ class ActionStateTests {
             listOf(
                 ChangeInitiative("character1", 5),
                 ChangeInitiative("character2", 10)
-            )
+            ),
+            turnActions = listOf()
         )
         val predicted = state.predictNextTurns(withCurrent = false)
         assertEquals(listOf("character2", "character1"), predicted.map { it.key })
@@ -31,7 +32,8 @@ class ActionStateTests {
                 ChangeInitiative("character1", 5),
                 ChangeInitiative("character2", 10),
                 StartTurn("character1")
-            )
+            ),
+            turnActions = listOf()
         )
         val predicted = state.predictNextTurns(withCurrent = false)
         assertEquals(listOf("character2", "character1"), predicted.map { it.key })
