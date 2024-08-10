@@ -896,6 +896,22 @@ fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope
                 })
             }
         )
+        HorizontalDivider()
+        Text("Connected clients: ${serverStatus.discoveredClients.size}")
+        for (connectedClient in serverStatus.discoveredClients) {
+            key(connectedClient.name) {
+                ListItem(
+                    headlineContent = { Text(connectedClient.name) },
+                    supportingContent = {
+                        Column {
+                            for (host in connectedClient.hosts) {
+                                Text(text = host)
+                            }
+                        }
+                    }
+                )
+            }
+        }
     }
 }
 

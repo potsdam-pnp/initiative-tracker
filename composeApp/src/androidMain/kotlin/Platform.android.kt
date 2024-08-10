@@ -24,7 +24,6 @@ import io.github.potsdam_pnp.initiative_tracker.R
 class AndroidPlatform : Platform {
     override val name: String = "Android ${Build.VERSION.SDK_INT}"
 
-
     override fun isGeneratePlayerShortcutSupported(): Boolean = true
 
     override fun generatePlayerShortcut(context: PlatformContext, players: List<String>) {

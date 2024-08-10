@@ -14,15 +14,22 @@ data class JoinLink(
     }
 }
 
+data class DiscoveredClient(
+    val name: String,
+    val hosts: List<String>,
+    val port: Int
+)
+
 data class ServerStatus(
     val isRunning: Boolean,
     val message: String,
     val isSupported: Boolean,
     val joinLinks: List<JoinLink> = emptyList(),
-    val connections: Int
+    val connections: Int,
+    val discoveredClients: List<DiscoveredClient>
 )
 
-val unsupportedPlatform = ServerStatus(false, "Server not supported on ${getPlatform().name}", isSupported = false, connections = 0)
+val unsupportedPlatform = ServerStatus(false, "Server not supported on ${getPlatform().name}", isSupported = false, connections = 0, discoveredClients = listOf())
 
 interface Platform {
     val name: String

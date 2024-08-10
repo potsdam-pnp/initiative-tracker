@@ -1,5 +1,6 @@
 package io.github.potsdam_pnp.initiative_tracker
 
+import DiscoveredClient
 import JoinLink
 import Model
 import ServerStatus
@@ -7,6 +8,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
+import android.os.Build
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.LocalContext
@@ -33,6 +35,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -96,19 +99,28 @@ class Server(val context: Context, val model: Model) {
     private val state = MutableStateFlow<ServerState>(ServerState.Stopped)
     private val actions = Channel<Actions>()
 
-    private val f = { state: ServerState ->
+    private val f = { state: ServerState, clients: List<NsdServiceInfo> ->
         ServerStatus(
             isRunning = state.isTargetRunning(),
             message = state.message(),
             isSupported = state.isChangeEnabled(),
-            connections = state.connectedClients()
+            connections = state.connectedClients(),
+            discoveredClients = clients.map {
+                val hosts = when {
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ->
+                        it.hostAddresses.map { it.toString().drop(1) }
+                    else ->
+                        listOf(it.host.toString().drop(1))
+                }
+                DiscoveredClient(it.serviceName, hosts, it.port)
+            }
         )
     }
 
-    fun serverState() = f(state.value)
+    fun serverState() = f(state.value, discoveryListener.discoveredServices.value)
 
     val serverState: androidx.compose.runtime.State<ServerStatus> @Composable get() {
-        return state.map(f).collectAsState(f(state.value))
+        return state.combine(discoveryListener.discoveredServices, f).collectAsState(f(state.value, discoveryListener.discoveredServices.value))
     }
 
 
@@ -289,17 +301,18 @@ class Server(val context: Context, val model: Model) {
     }
 
     private val registrationListener = object : NsdManager.RegistrationListener {
+        val registeredServiceName = MutableStateFlow<String?>(null)
 
         override fun onServiceRegistered(p0: NsdServiceInfo?) {
-            serviceName = p0?.serviceName
+            registeredServiceName.update { p0?.serviceName }
         }
 
         override fun onRegistrationFailed(p0: NsdServiceInfo?, p1: Int) {
-
+            registeredServiceName.update { null }
         }
 
         override fun onServiceUnregistered(p0: NsdServiceInfo?) {
-            serviceName = null
+            registeredServiceName.update { null }
         }
 
         override fun onUnregistrationFailed(p0: NsdServiceInfo?, p1: Int) {
@@ -307,14 +320,15 @@ class Server(val context: Context, val model: Model) {
         }
     }
 
-
     private val discoveryListener = object : NsdManager.DiscoveryListener {
-        override fun onDiscoveryStarted(p0: String?) {
+        val discoveredServices = MutableStateFlow<List<NsdServiceInfo>>(listOf())
 
+        override fun onDiscoveryStarted(p0: String?) {
+            discoveredServices.update { listOf() }
         }
 
         override fun onDiscoveryStopped(p0: String?) {
-
+            discoveredServices.update { listOf() }
         }
 
         override fun onServiceFound(service: NsdServiceInfo) {
@@ -322,22 +336,19 @@ class Server(val context: Context, val model: Model) {
                 service.serviceType != "_initiative_tracker._tcp." -> // Service type is the string containing the protocol and
                     // transport layer for this service.
                     Napier.i("Unknown Service Type: ${service.serviceType}")
-                //service.serviceName == mServiceName -> // The name of the service tells the user what they'd be
-                //    // connecting to. It could be "Bob's Chat App".
-                //    Log.d(TAG, "Same machine: $mServiceName")
                 else -> {
                     val nsdManager = (context.getSystemService(Context.NSD_SERVICE) as NsdManager)
 
                     Napier.i("resolving")
 
                     nsdManager.resolveService(service, object : NsdManager.ResolveListener {
-                        override fun onServiceResolved(p0: NsdServiceInfo?) {
-                            Napier.i("service resolved: $p0")
+                        override fun onServiceResolved(service: NsdServiceInfo) {
+                            Napier.i("service resolved: $service")
+                            discoveredServices.update { it + service }
                         }
 
                         override fun onResolveFailed(p0: NsdServiceInfo?, p1: Int) {
                             Napier.i("service resolve failed: $p0, $p1")
-                            p0.toString()
                         }
                     })
                 }
@@ -347,7 +358,8 @@ class Server(val context: Context, val model: Model) {
             Napier.i("service found: $service")
         }
 
-        override fun onServiceLost(p0: NsdServiceInfo?) {
+        override fun onServiceLost(service: NsdServiceInfo) {
+            discoveredServices.update { it.filter { it.serviceName == service.serviceName } }
         }
 
         override fun onStartDiscoveryFailed(p0: String?, p1: Int) {

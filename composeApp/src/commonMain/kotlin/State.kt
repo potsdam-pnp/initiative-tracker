@@ -1,4 +1,6 @@
 import androidx.lifecycle.ViewModel
+import io.github.potsdam_pnp.initiative_tracker.state.CharacterId
+import io.github.potsdam_pnp.initiative_tracker.state.State
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
@@ -37,9 +39,9 @@ interface Actions {
 }
 
 
-class Model private constructor(s: State2) : ViewModel(), Actions {
+class Model private constructor(s: State) : ViewModel(), Actions {
     private val _state = MutableStateFlow(s)
-    val state = _state.map { it.toState() }
+    val state = _state.map { it.toState2().toState() }
 
     @OptIn(ExperimentalStdlibApi::class)
     private val thisDevice = Random.nextInt().toHexString().takeLast(4)
@@ -49,7 +51,7 @@ class Model private constructor(s: State2) : ViewModel(), Actions {
         return "${thisDevice}$lastKey"
     }
 
-    constructor(data: String?) : this(State2(listOf())) {
+    constructor(data: String?) : this(io.github.potsdam_pnp.initiative_tracker.state.State()) {
         addCharacters(data)
     }
 
@@ -59,7 +61,7 @@ class Model private constructor(s: State2) : ViewModel(), Actions {
         addActions(
             *characterNames.flatMap {
                 val key = it
-                if (!_state.value.actions.contains(AddCharacter(key))) {
+                if (!_state.value.toState2().actions.contains(AddCharacter(key))) {
                     listOf(
                         AddCharacter(key),
                         ChangeName(key, it),
@@ -74,9 +76,24 @@ class Model private constructor(s: State2) : ViewModel(), Actions {
 
     private fun addActions(vararg actions: ActionState) {
         _state.update {
-            it.copy(
-                actions = it.actions + actions
-            )
+            for (action in actions) {
+                it.apply(
+                    when (action) {
+                        is AddCharacter -> io.github.potsdam_pnp.initiative_tracker.state.ChangeCharacterName(
+                            metadata, CharacterId(action.id), "")
+                        is ChangeName -> io.github.potsdam_pnp.initiative_tracker.state.ChangeCharacterName(action.id, action.name)
+                        is ChangeInitiative -> io.github.potsdam_pnp.initiative_tracker.state.ChangeCharacterInitiative(action.id, action.initiative)
+                        is ChangePlayerCharacter -> io.github.potsdam_pnp.initiative_tracker.state.ChangePlayerCharacter(action.id, action.playerCharacter)
+                        is DeleteCharacter -> io.github.potsdam_pnp.initiative_tracker.state.DeleteCharacter(action.id)
+                        is StartTurn -> io.github.potsdam_pnp.initiative_tracker.state.DoTurn(action.id)
+                        is Delay -> io.github.potsdam_pnp.initiative_tracker.state.DoTurn(action.id)
+                        is Die -> io.github.potsdam_pnp.initiative_tracker.state.DoTurn(action.id)
+                        is FinishTurn -> io.github.potsdam_pnp.initiative_tracker.state.DoTurn(action.id)
+
+                    }
+                )
+            }
+            it
         }
     }
 
