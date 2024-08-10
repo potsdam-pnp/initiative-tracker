@@ -167,6 +167,7 @@ data class State2(
         State(
             characters = predictNextTurns(withCurrent = true),
             currentlySelectedCharacter = currentTurn(),
-            actions = turnActions
+            actions = turnActions,
+            turnConflicts = turnActions.any { it.second is ConflictState.InTimelines }
         )
 }

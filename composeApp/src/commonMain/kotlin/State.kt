@@ -31,7 +31,8 @@ data class Character(
 data class State(
     val characters: List<Character> = listOf(),
     val currentlySelectedCharacter: String? = null,
-    val actions: List<Triple<Version, ConflictState, ActionState>> = listOf()
+    val actions: List<Triple<Version, ConflictState, ActionState>> = listOf(),
+    val turnConflicts: Boolean
 )
 
 interface Actions {

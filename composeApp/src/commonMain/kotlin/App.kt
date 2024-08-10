@@ -103,6 +103,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
@@ -350,12 +351,33 @@ fun ListCharacters(
     }
 }
 
+@Composable
+fun ListConflictTurns(columnScope: ColumnScope, hasConflict: Boolean, showActionList: () -> Unit, content: @Composable () -> Unit) {
+    Box(modifier = with(columnScope) { Modifier.fillMaxWidth().weight(1f) }) {
+        if (hasConflict) {
+            ExtendedFloatingActionButton(
+                modifier = Modifier.align(Alignment.BottomEnd).padding(all = 20.dp),
+                onClick = {
+                    showActionList()
+                }
+            ) {
+                Text("Resolve conflicts")
+            }
+        }
+        Box(
+            modifier = if (hasConflict) Modifier.background(Color.Transparent)
+                .blur(4.dp) else Modifier
+        ) {
+            content()
+        }
+    }
+}
+
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ListTurns(columnScope: ColumnScope, characters: List<Character>, active: String?, actions: Actions) {
-    SubcomposeLayout(modifier = with(columnScope) {
-        Modifier.fillMaxWidth().weight(1f).clipToBounds()
-    }) { constraints ->
+fun ListTurns(characters: List<Character>, active: String?, actions: Actions) {
+    SubcomposeLayout(modifier = Modifier.clipToBounds()) { constraints ->
         if (characters.isEmpty()) {
             return@SubcomposeLayout layout(0, 0) {}
         }
@@ -440,11 +462,13 @@ fun ListTurns(columnScope: ColumnScope, characters: List<Character>, active: Str
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-fun InitOrder(columnScope: ColumnScope, characters: List<Character>, active: String?, actions: Actions, listState: LazyListState, viewState: ViewState, toggleEditCharacter: (String) -> Unit) {
+fun InitOrder(columnScope: ColumnScope, characters: List<Character>, active: String?, actions: Actions, listState: LazyListState, viewState: ViewState, hasConflict: Boolean, showActionList: () -> Unit, toggleEditCharacter: (String) -> Unit) {
     if (viewState.shownView == ShownView.CHARACTERS) {
         ListCharacters(columnScope, characters, actions, listState, viewState.currentlyEditedCharacter, toggleEditCharacter)
     } else {
-        ListTurns(columnScope, characters, active, actions)
+        ListConflictTurns(columnScope, hasConflict, showActionList) {
+            ListTurns(characters, active, actions)
+        }
     }
 }
 
@@ -490,7 +514,7 @@ fun App(data: String? = null) {
             ClientConsumer.start(model, globalCoroutineScope)
         }
     }
-    val state by model.state.collectAsState(State())
+    val state by model.state.collectAsState(State(turnConflicts = false))
 
     val partiesStateFlow = remember { MutableStateFlow(mapOf<String, List<SimpleCharacter>>()) }
     val partiesState = remember { mutableStateOf(mapOf<String, List<SimpleCharacter>>()) }
@@ -721,7 +745,12 @@ fun App(data: String? = null) {
                     startDestination = Screens.MainScreen.name
                 ) {
                     composable(route = Screens.MainScreen.name) {
-                        MainScreen(innerPadding, state, model, viewStateVar, pagerState)
+                        MainScreen(innerPadding, state, model, viewStateVar, pagerState) {
+                            navController.navigate(Screens.ListActions.name) {
+                                popUpTo(Screens.MainScreen.name)
+                                launchSingleTop = true
+                            }
+                        }
                     }
 
                     composable(route = Screens.ListActions.name) {
@@ -1081,7 +1110,7 @@ fun Parties(innerPadding: PaddingValues, model: Model, partiesState: MutableStat
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(innerPadding: PaddingValues, state: State, model: Model, viewStateVar: MutableState<ViewState>, pagerState: PagerState) {
+fun MainScreen(innerPadding: PaddingValues, state: State, model: Model, viewStateVar: MutableState<ViewState>, pagerState: PagerState, showActionList: () -> Unit) {
     val actions: Actions = model
     var viewState by viewStateVar
 
@@ -1113,7 +1142,9 @@ fun MainScreen(innerPadding: PaddingValues, state: State, model: Model, viewStat
                     state.currentlySelectedCharacter,
                     actions,
                     listState,
-                    thisViewState
+                    thisViewState,
+                    state.turnConflicts,
+                    showActionList,
                 ) {
                     viewState =
                         viewState.copy(currentlyEditedCharacter = if (viewState.currentlyEditedCharacter == it) null else it)
@@ -1126,19 +1157,19 @@ fun MainScreen(innerPadding: PaddingValues, state: State, model: Model, viewStat
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceAround
                         ) {
-                            OutlinedButton( onClick = {
+                            OutlinedButton( enabled = !state.turnConflicts, onClick = {
                                 model.delay()
                             }) {
                                 Text("Delay turn")
                             }
 
-                            Button(onClick = {
+                            Button(enabled = !state.turnConflicts, onClick = {
                                 model.next()
                             }) {
                                 Text("Start next turn")
                             }
 
-                            OutlinedButton(onClick = {
+                            OutlinedButton(enabled = !state.turnConflicts, onClick = {
                                 state.currentlySelectedCharacter.let {
                                     if (it != null)
                                         model.finishTurn(it)
