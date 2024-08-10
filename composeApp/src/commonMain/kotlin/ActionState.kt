@@ -1,3 +1,5 @@
+import io.github.potsdam_pnp.initiative_tracker.state.ConflictState
+
 sealed class ActionState
 
 data class AddCharacter(val id: String): ActionState()
@@ -56,7 +58,8 @@ fun deserializeActions(serialized: String): List<ActionState>? {
 }
 
 data class State2(
-    val actions: List<ActionState>
+    val actions: List<ActionState>,
+    val turnActions: List<Pair<ConflictState, ActionState>>
 ) {
     fun predictNextTurns(withCurrent: Boolean): List<Character> {
         val alreadyPlayedCharactersSet = mutableSetOf<String>()
@@ -165,6 +168,6 @@ data class State2(
         State(
             characters = predictNextTurns(withCurrent = true),
             currentlySelectedCharacter = currentTurn(),
-            actions = actions
+            actions = turnActions
         )
 }

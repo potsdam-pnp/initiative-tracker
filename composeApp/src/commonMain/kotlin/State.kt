@@ -1,5 +1,11 @@
 import androidx.lifecycle.ViewModel
+import io.github.potsdam_pnp.initiative_tracker.state.ActionWrapper
 import io.github.potsdam_pnp.initiative_tracker.state.CharacterId
+import io.github.potsdam_pnp.initiative_tracker.state.ClientIdentifier
+import io.github.potsdam_pnp.initiative_tracker.state.ConflictState
+import io.github.potsdam_pnp.initiative_tracker.state.Operation
+import io.github.potsdam_pnp.initiative_tracker.state.OperationMetadata
+import io.github.potsdam_pnp.initiative_tracker.state.Snapshot
 import io.github.potsdam_pnp.initiative_tracker.state.State
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -19,7 +25,7 @@ data class Character(
 data class State(
     val characters: List<Character> = listOf(),
     val currentlySelectedCharacter: String? = null,
-    val actions: List<ActionState> = listOf()
+    val actions: List<Pair<ConflictState, ActionState>> = listOf()
 )
 
 interface Actions {
@@ -39,9 +45,11 @@ interface Actions {
 }
 
 
-class Model private constructor(s: State) : ViewModel(), Actions {
-    private val _state = MutableStateFlow(s)
-    val state = _state.map { it.toState2().toState() }
+class Model private constructor() : ViewModel(), Actions {
+    @OptIn(ExperimentalStdlibApi::class)
+    private val snapshot = Snapshot(clientIdentifier = ClientIdentifier(Random.nextInt().toHexString().take(6)), state = State())
+    private val _state = MutableStateFlow(State2(listOf(), turnActions = listOf()))
+    val state = _state.map { it.toState() }
 
     @OptIn(ExperimentalStdlibApi::class)
     private val thisDevice = Random.nextInt().toHexString().takeLast(4)
@@ -51,7 +59,7 @@ class Model private constructor(s: State) : ViewModel(), Actions {
         return "${thisDevice}$lastKey"
     }
 
-    constructor(data: String?) : this(io.github.potsdam_pnp.initiative_tracker.state.State()) {
+    constructor(data: String?) : this() {
         addCharacters(data)
     }
 
@@ -61,7 +69,7 @@ class Model private constructor(s: State) : ViewModel(), Actions {
         addActions(
             *characterNames.flatMap {
                 val key = it
-                if (!_state.value.toState2().actions.contains(AddCharacter(key))) {
+                if (!_state.value.actions.contains(AddCharacter(key))) {
                     listOf(
                         AddCharacter(key),
                         ChangeName(key, it),
@@ -75,25 +83,22 @@ class Model private constructor(s: State) : ViewModel(), Actions {
     }
 
     private fun addActions(vararg actions: ActionState) {
-        _state.update {
-            for (action in actions) {
-                it.apply(
-                    when (action) {
-                        is AddCharacter -> io.github.potsdam_pnp.initiative_tracker.state.ChangeCharacterName(
-                            metadata, CharacterId(action.id), "")
-                        is ChangeName -> io.github.potsdam_pnp.initiative_tracker.state.ChangeCharacterName(action.id, action.name)
-                        is ChangeInitiative -> io.github.potsdam_pnp.initiative_tracker.state.ChangeCharacterInitiative(action.id, action.initiative)
-                        is ChangePlayerCharacter -> io.github.potsdam_pnp.initiative_tracker.state.ChangePlayerCharacter(action.id, action.playerCharacter)
-                        is DeleteCharacter -> io.github.potsdam_pnp.initiative_tracker.state.DeleteCharacter(action.id)
-                        is StartTurn -> io.github.potsdam_pnp.initiative_tracker.state.DoTurn(action.id)
-                        is Delay -> io.github.potsdam_pnp.initiative_tracker.state.DoTurn(action.id)
-                        is Die -> io.github.potsdam_pnp.initiative_tracker.state.DoTurn(action.id)
-                        is FinishTurn -> io.github.potsdam_pnp.initiative_tracker.state.DoTurn(action.id)
-
-                    }
-                )
+        snapshot.produce(actions.mapNotNull {
+            if (it is StartTurn || it is FinishTurn || it is Die || it is Delay) {
+                val predecessors = snapshot.state.turnActions.value.map { it.second }
+                if (predecessors.isEmpty()) {
+                    ActionWrapper(it, null)
+                } else if (predecessors.size == 1) {
+                    ActionWrapper(it, predecessors.first().toVersion())
+                } else {
+                    null
+                }
+            } else {
+                ActionWrapper(it, null)
             }
-            it
+        } .toList())
+        _state.update {
+            snapshot.state.toState2(snapshot)
         }
     }
 

@@ -74,7 +74,7 @@ object ClientConsumer {
                                     alreadyDroppedFirstMessage = true
                                 } else {
                                     if (sendUpdates.value) {
-                                        send(Frame.Text(serializeActions(it.actions)))
+                                        //send(Frame.Text(serializeActions(it.actions)))
                                     }
                                 }
                             }

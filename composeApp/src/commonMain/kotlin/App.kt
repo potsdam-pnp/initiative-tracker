@@ -131,6 +131,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.russhwolf.settings.Settings
 import io.github.aakira.napier.Napier
+import io.github.potsdam_pnp.initiative_tracker.state.ConflictState
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.baseline_file_download_24
 import kotlinproject.composeapp.generated.resources.baseline_file_download_off_24
@@ -1226,34 +1227,42 @@ fun ListActions(innerPadding: PaddingValues, state: State, actions: Actions) {
     }
 }
 
-fun descriptionOfAction(action: ActionState): String {
-    when (action) {
+fun descriptionOfAction(action: Pair<ConflictState, ActionState>): String {
+    val conflictStateString =
+        when (val af = action.first) {
+            ConflictState.InAllTimelines -> ""
+            is ConflictState.InTimelines -> "in timelines ${af.timeline.joinToString { it.toString()}}: "
+        }
+
+    val result = when (val a = action.second) {
         is AddCharacter -> {
-            return "Add character ${action.id}"
+            "Add character ${a.id}"
         }
         is ChangeName -> {
-            return "Change name of character ${action.id} to ${action.name}"
+            "Change name of character ${a.id} to ${a.name}"
         }
         is ChangeInitiative -> {
-            return "Change initiative of character ${action.id} to ${action.initiative}"
+            "Change initiative of character ${a.id} to ${a.initiative}"
         }
         is ChangePlayerCharacter -> {
-            return "Change player character of character ${action.id} to ${action.playerCharacter}"
+            "Change player character of character ${a.id} to ${a.playerCharacter}"
         }
         is DeleteCharacter -> {
-            return "Delete character ${action.id}"
+            "Delete character ${a.id}"
         }
         is StartTurn -> {
-            return "Start turn of character ${action.id}"
+            "Start turn of character ${a.id}"
         }
         is Delay -> {
-            return "Delay turn of character ${action.id}"
+            "Delay turn of character ${a.id}"
         }
         is FinishTurn -> {
-            return "Finish turn of character ${action.id}"
+            "Finish turn of character ${a.id}"
         }
         is Die -> {
-            return "Character ${action.id} dies"
+            "Character ${a.id} dies"
         }
     }
+
+    return conflictStateString + result
 }

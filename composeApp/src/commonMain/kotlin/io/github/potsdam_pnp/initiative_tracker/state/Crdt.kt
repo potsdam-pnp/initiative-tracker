@@ -63,6 +63,11 @@ data class VectorClock(
                 key to maxOf(thisValue, otherValue)
             }.toMap()
         )
+
+    fun next(clientIdentifier: ClientIdentifier): VectorClock {
+        val newValue = (clock[clientIdentifier] ?: 0) + 1
+        return copy(clock = clock + (clientIdentifier to newValue))
+    }
 }
 
 
@@ -72,6 +77,9 @@ data class OperationMetadata(
 ) {
     fun clockBefore(): VectorClock =
         VectorClock(clock.clock + (client to ((clock.clock[client] ?: 0) - 1)))
+
+    fun toVersion(): Version =
+        Version(client, clock.clock[client] ?: 0)
 }
 
 
@@ -82,16 +90,17 @@ sealed class CompareResult {
     object Incomparable: CompareResult()
 }
 
-abstract class Operation {
-    abstract val metadata: OperationMetadata
-
+data class Operation<Op>(
+    val metadata: OperationMetadata,
+    val op: Op
+) {
     val version: Version get() {
         return Version(metadata.client, metadata.clock.clock[metadata.client] ?: 0)
     }
 }
 
-abstract class OperationState<Op: Operation> {
-    abstract fun apply(operation: Op)
+abstract class OperationState<Op> {
+    abstract fun apply(operation: Operation<Op>)
 }
 
 data class Version(val clientIdentifier: ClientIdentifier, val position: Int)
@@ -102,17 +111,29 @@ sealed class InsertResult {
 }
 
 
-class Snapshot<Op: Operation, State: OperationState<Op>>(val state: State) {
-    private var currentVersion: VectorClock = VectorClock(mapOf())
+class Snapshot<Op, State: OperationState<Op>>(val state: State, current: VectorClock = VectorClock(mapOf()), val clientIdentifier: ClientIdentifier) {
+    private var currentVersion: VectorClock = current
 
-    private val versions: MutableMap<Version, Op> = mutableMapOf()
+    private val versions: MutableMap<Version, Operation<Op>> = mutableMapOf()
 
     val version: VectorClock get() = currentVersion
 
-    fun insert(version: VectorClock, data: List<Op>): InsertResult {
+    fun produce(versions: List<Op>) {
+        var nextVersion = currentVersion
+        val next = mutableListOf<Operation<Op>>()
+
+        for (version in versions) {
+            nextVersion = nextVersion.next(clientIdentifier)
+            next.add(Operation(OperationMetadata(nextVersion, clientIdentifier), version))
+        }
+
+        insert(nextVersion, next)
+    }
+
+    fun insert(version: VectorClock, data: List<Operation<Op>>): InsertResult {
         val toBeInserted = version.versionsNotIn(currentVersion).toMutableSet()
 
-        val dataInsertions = mutableListOf<Op>()
+        val dataInsertions = mutableListOf<Operation<Op>>()
         for (operation in data) {
             if (operation.version in toBeInserted) {
                 dataInsertions += operation
@@ -137,14 +158,14 @@ class Snapshot<Op: Operation, State: OperationState<Op>>(val state: State) {
         return InsertResult.Success(currentVersion)
     }
 
-    fun fetchVersion(version: Version): Op? = versions[version]
+    fun fetchVersion(version: Version): Operation<Op>? = versions[version]
 }
 
 
 /**
  * Value with newest wins semantics; in case of conflicts, all values are preserved
  */
-data class Value<T>(val value: List<Pair<T, VectorClock>>) {
+data class Value<T>(val value: List<Pair<T, OperationMetadata>>) {
     fun merge(other: Value<T>): Value<T> {
         var result = this
         for (value in other.value) {
@@ -153,10 +174,10 @@ data class Value<T>(val value: List<Pair<T, VectorClock>>) {
         return result
     }
 
-    fun insert(newValue: T, clock: VectorClock): Value<T> {
-        val result = mutableListOf<Pair<T, VectorClock>>()
+    fun insert(newValue: T, clock: OperationMetadata): Value<T> {
+        val result = mutableListOf<Pair<T, OperationMetadata>>()
         for (v in value) {
-            when (v.second.compare(clock)) {
+            when (v.second.clock.compare(clock.clock)) {
                 CompareResult.Equal -> return this
                 CompareResult.Greater -> return this
                 CompareResult.Smaller -> continue
@@ -181,135 +202,73 @@ data class Value<T>(val value: List<Pair<T, VectorClock>>) {
 
 data class GrowingListItem<T>(
     val item: T,
-    val clock: VectorClock,
-    val predecessorUndos: List<VectorClock>
-)
-
-data class ConflictedList<T>(
-    val prefixWithoutConflict: List<T>,
-    val differentConflictSuffixes: List<List<T>>
-)
-
-class ConflictedListBuilder<T>(
-    val prefix: MutableList<Pair<VectorClock, T>> = mutableListOf(),
-    val suffix: MutableList<MutableList<Pair<VectorClock, T>>> = mutableListOf()
+    val predecessor: Version?,
 ) {
-    fun add(clock: VectorClock, item: T) {
-        var index = 0
+    fun asList(fetchVersion: (Version) -> GrowingListItem<T>): List<T> {
+        val result = mutableListOf<T>(item)
 
-        while (prefix.size > index && clock.contains(prefix[index].first)) {
-            index += 1
+        var current = predecessor
+
+        while (current != null) {
+            val i = fetchVersion(current)
+            current = i.predecessor
+            result.add(i.item)
         }
 
-        if (prefix.size > index && prefix[index].first.contains(clock)) {
-            prefix.add(index, clock to item)
-        } else {
-            if (prefix.size == index && suffix.all { it.first().first.contains(clock) }) {
-                prefix.add(clock to item)
-            } else {
-                val newConflictPrefix = prefix.drop(index)
-                while (index < prefix.size) {
-                    prefix.removeLast()
-                }
-
-                for (list in suffix) {
-                    list.addAll(0, newConflictPrefix)
-                }
-
-                var hasBeenAdded = false
-                for (list in suffix) {
-                    if (addToConflict(list, clock, item) { suffix.add(it) }) {
-                        hasBeenAdded = true
-                    }
-                }
-
-                if (!hasBeenAdded) {
-                    suffix.add(mutableListOf(clock to item))
-                }
-            }
-        }
-    }
-
-    private fun addToConflict(list: MutableList<Pair<VectorClock, T>>, clock: VectorClock, item: T, callback: (MutableList<Pair<VectorClock, T>>) -> Unit): Boolean {
-        var index = 0
-
-        while (list.size > index && clock.contains(list[index].first)) {
-            index += 1
-        }
-
-        if (list.size > index && list[index].first.contains(clock)) {
-            list.add(index, clock to item)
-            return true
-        } else {
-            if (index == 0) {
-                return false
-            } else {
-                val newList = list.take(index).toMutableList()
-                newList.add(clock to item)
-                callback(newList)
-                return true
-            }
-        }
-    }
-
-    fun build(): ConflictedList<T> {
-        return ConflictedList(
-            prefixWithoutConflict = prefix.map { it.second },
-            differentConflictSuffixes = suffix.map { it.map { it.second } }
-        )
+        return result.reversed()
     }
 }
 
-/**
- * Value containing a list that only grows in the end
- */
-data class GrowingList<T>(val currentActive: MutableMap<VectorClock, GrowingListItem<T>> = mutableMapOf(), val currentInactive: MutableMap<VectorClock, Pair<Int, GrowingListItem<T>?>> = mutableMapOf()) {
-    fun insert(item: GrowingListItem<T>) {
-        if (currentInactive.containsKey(item.clock)) {
-            currentInactive[item.clock] = currentInactive[item.clock]!!.copy(second = item)
+sealed class ConflictState {
+    object InAllTimelines: ConflictState()
+    data class InTimelines(val timeline: Set<Int>): ConflictState()
+}
+
+fun <T> Value<GrowingListItem<T>>.show(fetchVersion: (Version) -> Pair<GrowingListItem<T>, OperationMetadata>): List<Pair<ConflictState, T>> {
+    if (value.isEmpty()) return emptyList()
+
+    val currentTop = value.mapIndexed { index, v -> setOf(index) to v }.toMap().toMutableMap()
+    val result = mutableListOf<Pair<ConflictState, T>>()
+
+    var inAllTimelines = true
+
+    while (currentTop.size > 1) {
+        var candidate = currentTop.keys.first()
+        var candidateValue = currentTop[candidate]!!
+        var candidateClock = candidateValue.second.clock
+
+        // Find equal values
+        val allEquals = currentTop.filterValues { it.second.clock == candidateClock }
+        if (allEquals.size > 1) {
+            for (key in allEquals.keys) {
+                currentTop.remove(key)
+            }
+            currentTop[allEquals.keys.flatten().toSet()] = candidateValue
+            continue
+        }
+
+        for (key in currentTop.keys) {
+            if (key == candidate) continue
+            val clock = currentTop[key]!!.second.clock
+
+            if (clock.contains(candidateClock)) {
+                candidate = key
+                candidateValue = currentTop[key]!!
+                candidateClock = clock
+            }
+        }
+
+        result.add(ConflictState.InTimelines(candidate) to candidateValue.first.item)
+        val predecessor = candidateValue.first.predecessor
+        if (predecessor == null) {
+            inAllTimelines = false
+            currentTop.remove(candidate)
         } else {
-            currentActive[item.clock] = item
-            for (undo in item.predecessorUndos) {
-                addUndo(undo)
-            }
+            currentTop[candidate] = fetchVersion(predecessor)
         }
     }
 
-    private fun addUndo(clock: VectorClock) {
-        if (currentInactive.containsKey(clock)) {
-            currentInactive[clock] = currentInactive[clock]!!.let { it.copy(first = it.first + 1 )}
-        } else {
-            val active = currentActive[clock]
-            currentInactive[clock] = Pair(1, active)
-            for (undo in active?.predecessorUndos.orEmpty()) {
-                removeUndo(undo)
-            }
-        }
-    }
+    val conflictState = if (inAllTimelines) ConflictState.InAllTimelines else ConflictState.InTimelines(currentTop.keys.first())
 
-    private fun removeUndo(clock: VectorClock) {
-        currentInactive[clock].also {
-            require(it != null)
-            if (it.first - 1 > 0) {
-                currentInactive[clock] = it.copy(first = it.first - 1)
-            } else {
-                val active = it.second
-                currentInactive.remove(clock)
-                if (active != null) {
-                    currentActive[clock] = active
-                    for (undo in active.predecessorUndos) {
-                        addUndo(undo)
-                    }
-                }
-            }
-        }
-    }
-
-    fun ordered(): ConflictedList<T> {
-        val result = ConflictedListBuilder<T>()
-        for (item in currentActive) {
-            result.add(item.key, item.value.item)
-        }
-        return result.build()
-    }
+    return currentTop.values.first().first.asList { fetchVersion(it).first }.map { conflictState to it } + result.reversed()
 }

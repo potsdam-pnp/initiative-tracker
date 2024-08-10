@@ -1,7 +1,15 @@
 package io.github.potsdam_pnp.initiative_tracker.state
 
+import ActionState
 import AddCharacter
 import ChangeInitiative
+import ChangeName
+import ChangePlayerCharacter
+import Delay
+import DeleteCharacter
+import Die
+import FinishTurn
+import StartTurn
 import State2
 
 import StartTurn as _StartTurn
@@ -10,34 +18,7 @@ import Die as _Die
 import FinishTurn as _FinishTurn
 import ChangeName as _ChangeName
 
-sealed class InitiativeOperation: Operation()
 
-data class ChangeCharacterName(
-    override val metadata: OperationMetadata,
-    val id: CharacterId,
-    val to: String): InitiativeOperation()
-
-data class ChangeCharacterInitiative(
-    override val metadata: OperationMetadata,
-    val id: CharacterId,
-    val to: Int): InitiativeOperation()
-
-data class ChangeCharacterPlayerCharacter(
-    override val metadata: OperationMetadata,
-    val id: CharacterId,
-    val to: Boolean): InitiativeOperation()
-
-data class DeleteCharacter(
-    override val metadata: OperationMetadata,
-    val id: CharacterId,
-    val to: Boolean): InitiativeOperation()
-
-
-data class DoTurn(
-    override val metadata: OperationMetadata,
-    val id: CharacterId,
-    val turnAction: TurnAction,
-): InitiativeOperation()
 
 sealed class TurnAction {
     object StartTurn: TurnAction()
@@ -62,10 +43,15 @@ data class Character(
     val dead: Value<Boolean> = Value.empty()
 )
 
+data class ActionWrapper(
+    val action: ActionState,
+    val predecessor: Version? // only used for turn-based actions
+)
+
 class State(
     val characters: MutableMap<CharacterId, Character> = mutableMapOf(),
-    val turnActions: GrowingList<Turn> = GrowingList()
-): OperationState<InitiativeOperation>() {
+    var turnActions: Value<GrowingListItem<Turn>> = Value.empty()
+): OperationState<ActionWrapper>() {
 
     private fun withCharacter(id: CharacterId, op: Character.() -> Character) {
         characters[id] =
@@ -74,37 +60,88 @@ class State(
 
     }
 
-    override fun apply(operation: InitiativeOperation) {
-        when (operation) {
-            is ChangeCharacterName -> {
-                withCharacter(operation.id) {
-                    copy(name = name.insert(operation.to, operation.metadata.clock))
+    override fun apply(operation: Operation<ActionWrapper>) {
+        val op = operation.op.action
+        when (op) {
+            is AddCharacter -> {
+                withCharacter(CharacterId(op.id)) { this }
+            }
+            is ChangeName -> {
+                withCharacter(CharacterId(op.id)) {
+                    copy(name = name.insert(op.name, operation.metadata))
                 }
             }
-            is ChangeCharacterInitiative ->
-                withCharacter(operation.id) {
-                    copy(initiative = initiative.insert(operation.to, operation.metadata.clock))
+
+            is ChangeInitiative ->
+                withCharacter(CharacterId(op.id)) {
+                    copy(initiative = initiative.insert(op.initiative, operation.metadata))
                 }
-            is ChangeCharacterPlayerCharacter ->
-                withCharacter(operation.id) {
-                    copy(playerCharacter = playerCharacter.insert(operation.to, operation.metadata.clock))
-                }
-            is DeleteCharacter ->
-                withCharacter(operation.id) {
-                    copy(dead = dead.insert(true, operation.metadata.clock))
-                }
-            is DoTurn ->
-                turnActions.insert(
-                    GrowingListItem(
-                        Turn(operation.id, operation.turnAction),
-                        operation.metadata.clock,
-                        predecessorUndos = (operation.turnAction as? TurnAction.ResolveConflicts)?.undos ?: listOf()
+
+            is ChangePlayerCharacter ->
+                withCharacter(CharacterId(op.id)) {
+                    copy(
+                        playerCharacter = playerCharacter.insert(
+                            op.playerCharacter,
+                            operation.metadata
+                        )
                     )
-                )
+                }
+
+            is DeleteCharacter ->
+                withCharacter(CharacterId(op.id)) {
+                    copy(dead = dead.insert(true, operation.metadata))
+                }
+
+            is StartTurn ->
+                withTurnActions {
+                    insert(
+                        GrowingListItem(
+                            Turn(CharacterId(op.id), TurnAction.StartTurn),
+                            predecessor = operation.op.predecessor
+                        ),
+                        operation.metadata
+                    )
+                }
+
+            is FinishTurn ->
+                withTurnActions {
+                    insert(
+                        GrowingListItem(
+                            Turn(CharacterId(op.id), TurnAction.FinishTurn),
+                            predecessor = operation.op.predecessor
+                        ),
+                        operation.metadata
+                    )
+                }
+
+            is Die ->
+                withTurnActions {
+                    insert(
+                        GrowingListItem(
+                            Turn(CharacterId(op.id), TurnAction.Die),
+                            predecessor = operation.op.predecessor
+                        ),
+                        operation.metadata
+                    )
+                }
+            is Delay ->
+                withTurnActions {
+                    insert(
+                        GrowingListItem(
+                            Turn(CharacterId(op.id), TurnAction.Delay),
+                            predecessor = operation.op.predecessor
+                        ),
+                        operation.metadata
+                    )
+                }
         }
     }
 
-    fun toState2(): State2 {
+    private fun withTurnActions(f: Value<GrowingListItem<Turn>>.() -> Value<GrowingListItem<Turn>>) {
+        turnActions = turnActions.f()
+    }
+
+    fun toState2(snapshot: Snapshot<ActionWrapper, State>): State2 {
         val characterActions = characters.flatMap {
             val initiative = it.value.initiative.value.let {
                 if (it.size == 1) it.first().first else null
@@ -116,25 +153,47 @@ class State(
             )
         }
 
-        val turnActions = turnActions.ordered().prefixWithoutConflict.mapNotNull {
-            when (it.turnAction) {
+        val fetchVersion = { version: Version ->
+            val v = snapshot.fetchVersion(version)!!
+            val turn =
+                when (v.op.action) {
+                    is StartTurn ->
+                        Turn(CharacterId(v.op.action.id), TurnAction.StartTurn)
+
+                    is FinishTurn ->
+                        Turn(CharacterId(v.op.action.id), TurnAction.FinishTurn)
+
+                    is Die ->
+                        Turn(CharacterId(v.op.action.id), TurnAction.Die)
+
+                    is Delay ->
+                        Turn(CharacterId(v.op.action.id), TurnAction.Delay)
+                    else ->
+                        throw Exception("Not a turn action")
+                }
+            GrowingListItem(turn, v.op.predecessor) to v.metadata
+        }
+
+        val turnActions = turnActions.show(fetchVersion).mapNotNull {
+            val result = when (it.second.turnAction) {
                 is TurnAction.StartTurn ->
-                    _StartTurn(it.id.id)
+                    _StartTurn(it.second.id.id)
 
                 is TurnAction.FinishTurn ->
-                    _FinishTurn(it.id.id)
+                    _FinishTurn(it.second.id.id)
 
                 is TurnAction.Die ->
-                    _Die(it.id.id)
+                    _Die(it.second.id.id)
 
                 is TurnAction.Delay ->
-                    _Delay(it.id.id)
+                    _Delay(it.second.id.id)
 
                 is TurnAction.ResolveConflicts ->
                     null
             }
+            if (result == null) null else it.first to result
         }
 
-        return State2(characterActions + turnActions)
+        return State2(characterActions + turnActions.map { it.second }, turnActions)
     }
 }

@@ -185,7 +185,7 @@ class Server(val context: Context, val model: Model) {
                     val job = launch {
                         model.state.collect {
                             if (sendUpdates.value) {
-                                send(Frame.Text(serializeActions(it.actions)))
+                                //send(Frame.Text(serializeActions(it.actions)))
                             }
                         }
                     }
