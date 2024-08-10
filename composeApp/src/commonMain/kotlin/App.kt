@@ -103,6 +103,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
@@ -131,6 +132,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.russhwolf.settings.Settings
 import io.github.aakira.napier.Napier
+import io.github.potsdam_pnp.initiative_tracker.state.ConflictState
+import io.github.potsdam_pnp.initiative_tracker.state.Version
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.baseline_file_download_24
 import kotlinproject.composeapp.generated.resources.baseline_file_download_off_24
@@ -348,12 +351,33 @@ fun ListCharacters(
     }
 }
 
+@Composable
+fun ListConflictTurns(columnScope: ColumnScope, hasConflict: Boolean, showActionList: () -> Unit, content: @Composable () -> Unit) {
+    Box(modifier = with(columnScope) { Modifier.fillMaxWidth().weight(1f) }) {
+        if (hasConflict) {
+            ExtendedFloatingActionButton(
+                modifier = Modifier.align(Alignment.BottomEnd).padding(all = 20.dp),
+                onClick = {
+                    showActionList()
+                }
+            ) {
+                Text("Resolve conflicts")
+            }
+        }
+        Box(
+            modifier = if (hasConflict) Modifier.background(Color.Transparent)
+                .blur(4.dp) else Modifier
+        ) {
+            content()
+        }
+    }
+}
+
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ListTurns(columnScope: ColumnScope, characters: List<Character>, active: String?, actions: Actions) {
-    SubcomposeLayout(modifier = with(columnScope) {
-        Modifier.fillMaxWidth().weight(1f).clipToBounds()
-    }) { constraints ->
+fun ListTurns(characters: List<Character>, active: String?, actions: Actions) {
+    SubcomposeLayout(modifier = Modifier.clipToBounds()) { constraints ->
         if (characters.isEmpty()) {
             return@SubcomposeLayout layout(0, 0) {}
         }
@@ -438,11 +462,13 @@ fun ListTurns(columnScope: ColumnScope, characters: List<Character>, active: Str
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-fun InitOrder(columnScope: ColumnScope, characters: List<Character>, active: String?, actions: Actions, listState: LazyListState, viewState: ViewState, toggleEditCharacter: (String) -> Unit) {
+fun InitOrder(columnScope: ColumnScope, characters: List<Character>, active: String?, actions: Actions, listState: LazyListState, viewState: ViewState, hasConflict: Boolean, showActionList: () -> Unit, toggleEditCharacter: (String) -> Unit) {
     if (viewState.shownView == ShownView.CHARACTERS) {
         ListCharacters(columnScope, characters, actions, listState, viewState.currentlyEditedCharacter, toggleEditCharacter)
     } else {
-        ListTurns(columnScope, characters, active, actions)
+        ListConflictTurns(columnScope, hasConflict, showActionList) {
+            ListTurns(characters, active, actions)
+        }
     }
 }
 
@@ -488,7 +514,7 @@ fun App(data: String? = null) {
             ClientConsumer.start(model, globalCoroutineScope)
         }
     }
-    val state by model.state.collectAsState(State())
+    val state by model.state.collectAsState(State(turnConflicts = false))
 
     val partiesStateFlow = remember { MutableStateFlow(mapOf<String, List<SimpleCharacter>>()) }
     val partiesState = remember { mutableStateOf(mapOf<String, List<SimpleCharacter>>()) }
@@ -641,7 +667,7 @@ fun App(data: String? = null) {
                                         withDismissAction = true
                                     )
                                     if (snackbarResult == SnackbarResult.ActionPerformed) {
-                                        model.deleteNewerActions(0)
+                                        model.pickAction(null)
                                     }
                                 }
                             }) {
@@ -688,7 +714,7 @@ fun App(data: String? = null) {
                         actions = {
                             UpDownloadState()
                             ConnectionState()
-                            val serverStatus by getPlatform().serverStatus.collectAsState()
+                            val serverStatus by getPlatform().serverStatus
                             val clientStatus by ClientConsumer.clientStatus.collectAsState()
                             val context = getPlatform().getContext()
                             IconButton(enabled = serverStatus.isRunning && serverStatus.joinLinks.isNotEmpty() || !serverStatus.isRunning && clientStatus.status is ClientStatusState.Running, onClick = {
@@ -719,7 +745,12 @@ fun App(data: String? = null) {
                     startDestination = Screens.MainScreen.name
                 ) {
                     composable(route = Screens.MainScreen.name) {
-                        MainScreen(innerPadding, state, model, viewStateVar, pagerState)
+                        MainScreen(innerPadding, state, model, viewStateVar, pagerState) {
+                            navController.navigate(Screens.ListActions.name) {
+                                popUpTo(Screens.MainScreen.name)
+                                launchSingleTop = true
+                            }
+                        }
                     }
 
                     composable(route = Screens.ListActions.name) {
@@ -787,7 +818,7 @@ fun UpDownloadState() {
 @Composable
 fun ConnectionState(modifier: Modifier = Modifier, transform: @Composable (@Composable () -> Unit) -> Unit = { it() }) {
     val clientStatus by ClientConsumer.clientStatus.collectAsState()
-    val serverStatus by getPlatform().serverStatus.collectAsState()
+    val serverStatus by getPlatform().serverStatus
     BadgedBox(modifier = modifier,badge = {
         if (serverStatus.isRunning) {
             Badge { Text(serverStatus.connections.toString()) }
@@ -815,7 +846,7 @@ fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope
     Column(modifier = Modifier.padding(innerPadding).verticalScroll(
         scrollState
     )) {
-        val serverStatus by getPlatform().serverStatus.collectAsState()
+        val serverStatus by getPlatform().serverStatus
         val clientStatus by ClientConsumer.clientStatus.collectAsState()
         val context = getPlatform().getContext()
         ListItem(
@@ -896,6 +927,22 @@ fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope
                 })
             }
         )
+        HorizontalDivider()
+        Text("Connected clients: ${serverStatus.discoveredClients.size}")
+        for (connectedClient in serverStatus.discoveredClients) {
+            key(connectedClient.name) {
+                ListItem(
+                    headlineContent = { Text(connectedClient.name) },
+                    supportingContent = {
+                        Column {
+                            for (host in connectedClient.hosts) {
+                                Text(text = host)
+                            }
+                        }
+                    }
+                )
+            }
+        }
     }
 }
 
@@ -1063,7 +1110,7 @@ fun Parties(innerPadding: PaddingValues, model: Model, partiesState: MutableStat
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(innerPadding: PaddingValues, state: State, model: Model, viewStateVar: MutableState<ViewState>, pagerState: PagerState) {
+fun MainScreen(innerPadding: PaddingValues, state: State, model: Model, viewStateVar: MutableState<ViewState>, pagerState: PagerState, showActionList: () -> Unit) {
     val actions: Actions = model
     var viewState by viewStateVar
 
@@ -1095,7 +1142,9 @@ fun MainScreen(innerPadding: PaddingValues, state: State, model: Model, viewStat
                     state.currentlySelectedCharacter,
                     actions,
                     listState,
-                    thisViewState
+                    thisViewState,
+                    state.turnConflicts,
+                    showActionList,
                 ) {
                     viewState =
                         viewState.copy(currentlyEditedCharacter = if (viewState.currentlyEditedCharacter == it) null else it)
@@ -1108,19 +1157,19 @@ fun MainScreen(innerPadding: PaddingValues, state: State, model: Model, viewStat
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceAround
                         ) {
-                            OutlinedButton( onClick = {
+                            OutlinedButton( enabled = !state.turnConflicts, onClick = {
                                 model.delay()
                             }) {
                                 Text("Delay turn")
                             }
 
-                            Button(onClick = {
+                            Button(enabled = !state.turnConflicts, onClick = {
                                 model.next()
                             }) {
                                 Text("Start next turn")
                             }
 
-                            OutlinedButton(onClick = {
+                            OutlinedButton(enabled = !state.turnConflicts, onClick = {
                                 state.currentlySelectedCharacter.let {
                                     if (it != null)
                                         model.finishTurn(it)
@@ -1139,26 +1188,26 @@ fun MainScreen(innerPadding: PaddingValues, state: State, model: Model, viewStat
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ListActions(innerPadding: PaddingValues, state: State, actions: Actions) {
-    var showModalDialogOfIndex by remember { mutableStateOf<Int?>(null) }
+    var showModalDialogOfVersion by remember { mutableStateOf<Version?>(null) }
     LazyColumn(contentPadding = innerPadding) {
-        items(state.actions.withIndex().reversed()) { item ->
+        items(state.actions.reversed(), key = { it.first.clientIdentifier.name + "-" + it.first.position }) { item ->
             Row(
                 modifier =
                 Modifier.clickable(onClick = {
-                        showModalDialogOfIndex = item.index
+                        showModalDialogOfVersion = item.first
                     })
             ) {
                 Text(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp),
-                    text = descriptionOfAction(item.value)
+                    text = descriptionOfAction(item)
                 )
             }
         }
     }
-    val modelDialogIndex = showModalDialogOfIndex
-    if (modelDialogIndex != null) {
+    val modelDialogVersion = showModalDialogOfVersion
+    if (modelDialogVersion != null) {
         BasicAlertDialog(
-            onDismissRequest = { showModalDialogOfIndex = null },
+            onDismissRequest = { showModalDialogOfVersion = null },
             content = {
                 Card(
                     modifier = Modifier
@@ -1174,35 +1223,25 @@ fun ListActions(innerPadding: PaddingValues, state: State, actions: Actions) {
                         )
                         HorizontalDivider()
                         Text(
-                            text = descriptionOfAction(state.actions[modelDialogIndex]),
+                            text = descriptionOfAction(state.actions.find { it.first == modelDialogVersion }!!),
                             modifier = Modifier.padding(16.dp)
                         )
 
                         TextButton(
                             modifier = Modifier.align(Alignment.End),
-                            onClick = { showModalDialogOfIndex = null },
+                            onClick = { showModalDialogOfVersion = null },
                         ) {
                             Text("Dismiss")
                         }
                         TextButton(
                             modifier = Modifier.align(Alignment.End),
                             onClick = {
-                                showModalDialogOfIndex = null
-                                actions.deleteAction(modelDialogIndex)
+                                showModalDialogOfVersion = null
+                                actions.pickAction(modelDialogVersion)
                             },
                         ) {
-                            Text("Undo action")
+                            Text("Pick as most recent action")
                         }
-                        TextButton(
-                            modifier = Modifier.align(Alignment.End),
-                            onClick = {
-                                showModalDialogOfIndex = null
-                                actions.deleteNewerActions(modelDialogIndex)
-                            },
-                        ) {
-                            Text("Undo action and all newer actions")
-                        }
-
                     }
                 }
             }
@@ -1210,34 +1249,45 @@ fun ListActions(innerPadding: PaddingValues, state: State, actions: Actions) {
     }
 }
 
-fun descriptionOfAction(action: ActionState): String {
-    when (action) {
+fun descriptionOfAction(action: Triple<Version, ConflictState, ActionState>): String {
+    val conflictStateString =
+        when (val af = action.second) {
+            ConflictState.InAllTimelines -> ""
+            is ConflictState.InTimelines -> "in timelines ${af.timeline.joinToString { it.toString()}}: "
+        }
+
+    val result = when (val a = action.third) {
         is AddCharacter -> {
-            return "Add character ${action.id}"
+            "Add character ${a.id}"
         }
         is ChangeName -> {
-            return "Change name of character ${action.id} to ${action.name}"
+            "Change name of character ${a.id} to ${a.name}"
         }
         is ChangeInitiative -> {
-            return "Change initiative of character ${action.id} to ${action.initiative}"
+            "Change initiative of character ${a.id} to ${a.initiative}"
         }
         is ChangePlayerCharacter -> {
-            return "Change player character of character ${action.id} to ${action.playerCharacter}"
+            "Change player character of character ${a.id} to ${a.playerCharacter}"
         }
         is DeleteCharacter -> {
-            return "Delete character ${action.id}"
+            "Delete character ${a.id}"
         }
         is StartTurn -> {
-            return "Start turn of character ${action.id}"
+            "Start turn of character ${a.id}"
         }
         is Delay -> {
-            return "Delay turn of character ${action.id}"
+            "Delay turn of character ${a.id}"
         }
         is FinishTurn -> {
-            return "Finish turn of character ${action.id}"
+            "Finish turn of character ${a.id}"
         }
         is Die -> {
-            return "Character ${action.id} dies"
+            "Character ${a.id} dies"
+        }
+        is ResolveConflict -> {
+            "Undo some actions"
         }
     }
+
+    return conflictStateString + result
 }

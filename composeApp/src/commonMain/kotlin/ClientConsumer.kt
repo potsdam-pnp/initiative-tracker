@@ -1,4 +1,8 @@
 import io.github.aakira.napier.Napier
+import io.github.potsdam_pnp.initiative_tracker.state.ActionWrapper
+import io.github.potsdam_pnp.initiative_tracker.state.Encoders
+import io.github.potsdam_pnp.initiative_tracker.state.Message
+import io.github.potsdam_pnp.initiative_tracker.state.MessageHandler
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
@@ -10,9 +14,11 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -67,48 +73,31 @@ object ClientConsumer {
                             it.copy(status = ClientStatusState.Running(0, 0))
                         }
 
+
+                        val receiveChannel = Channel<Message<ActionWrapper>>()
+                        val sendChannel = Channel<Message<ActionWrapper>>()
+
                         launch {
-                            var alreadyDroppedFirstMessage = false
-                            model.state.collect {
-                                if (!alreadyDroppedFirstMessage) {
-                                    alreadyDroppedFirstMessage = true
-                                } else {
-                                    if (sendUpdates.value) {
-                                        send(Frame.Text(serializeActions(it.actions)))
-                                    }
-                                }
+                            closeReason.await()
+                            receiveChannel.send(Message.StopConnection(Unit))
+                        }
+
+                        launch {
+                            while (true) {
+                                val msg = incoming.receive()
+                                receiveChannel.send(Encoders.decode((msg as Frame.Text).readText()))
                             }
                         }
 
-                        while (true) {
-                            val nextFrame = async { incoming.receive() }
-
-                            val frame = select<Frame?> {
-                                closeReason.onAwait { null }
-                                nextFrame.onAwait { it }
-                            }
-
-                            if (frame == null) {
-                                break
-                            }
-
-                            val othersMessage = frame as? Frame.Text
-                            if (othersMessage != null) {
-                                val actions = deserializeActions(othersMessage.readText())
-                                if (actions != null) {
-                                    if (receiveUpdates.value) {
-                                        model.receiveActions(actions)
-                                    }
-                                    _clientStatus.update {
-                                        it.copy(status = it.status.receivedSuccesfulFrame())
-                                    }
-                                } else {
-                                    _clientStatus.update {
-                                        it.copy(status = it.status.receivedFailedFrame())
-                                    }
-                                }
+                        launch {
+                            while (true) {
+                                val msg = sendChannel.receive()
+                                send(Frame.Text(Encoders.encode(msg)))
                             }
                         }
+
+
+                        MessageHandler(model.snapshot).run(this, receiveChannel, sendChannel)
 
                         val stopMessage = closeReason.await().let {
                             when (it) {

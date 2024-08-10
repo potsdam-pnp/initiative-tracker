@@ -1,3 +1,6 @@
+import io.github.potsdam_pnp.initiative_tracker.state.ConflictState
+import io.github.potsdam_pnp.initiative_tracker.state.Version
+
 sealed class ActionState
 
 data class AddCharacter(val id: String): ActionState()
@@ -10,53 +13,51 @@ data class StartTurn(val id: String): ActionState()
 data class Delay(val id: String): ActionState()
 data class Die(val id: String): ActionState()
 data class FinishTurn(val id: String): ActionState()
+object ResolveConflict: ActionState()
 
-fun serializeActions(actions: List<ActionState>): String {
-    return actions.joinToString(",") {
-        when (it) {
-            is AddCharacter -> "a${it.id}"
-            is ChangeName -> "n${it.id}:${it.name}"
-            is ChangeInitiative -> "i${it.id}:${it.initiative}"
-            is ChangePlayerCharacter -> "${if (it.playerCharacter) "p" else "P"}${it.id}"
-            is DeleteCharacter -> "c${it.id}"
-            is StartTurn -> "s${it.id}"
-            is Delay -> "D${it.id}"
-            is Die -> "d${it.id}"
-            is FinishTurn -> "f${it.id}"
-        }
+fun serializeAction(it: ActionState): String {
+    return when (it) {
+        is AddCharacter -> "a${it.id}"
+        is ChangeName -> "n${it.id}:${it.name}"
+        is ChangeInitiative -> "i${it.id}:${it.initiative}"
+        is ChangePlayerCharacter -> "${if (it.playerCharacter) "p" else "P"}${it.id}"
+        is DeleteCharacter -> "c${it.id}"
+        is StartTurn -> "s${it.id}"
+        is Delay -> "D${it.id}"
+        is Die -> "d${it.id}"
+        is FinishTurn -> "f${it.id}"
+        is ResolveConflict -> "r"
     }
 }
 
-fun deserializeActions(serialized: String): List<ActionState>? {
+fun deserializeAction(it: String): ActionState? {
     try {
-        if (serialized == "") {
-            return listOf()
-        }
-        return serialized.split(",").map {
-            when (it[0]) {
-                'a' -> AddCharacter(it.substring(1))
-                'n' -> ChangeName(it.substring(1).split(":")[0], it.substring(1).split(":")[1])
-                'i' -> ChangeInitiative(
-                    it.substring(1).split(":")[0],
-                    it.substring(1).split(":")[1].toInt()
-                )
-                'p' -> ChangePlayerCharacter(it.substring(1), true)
-                'P' -> ChangePlayerCharacter(it.substring(1), false)
-                'c' -> DeleteCharacter(it.substring(1))
-                's' -> StartTurn(it.substring(1))
-                'D' -> Delay(it.substring(1))
-                'd' -> Die(it.substring(1))
-                'f' -> FinishTurn(it.substring(1))
-                else -> return null
-            }
+        return when (it[0]) {
+            'a' -> AddCharacter(it.substring(1))
+            'n' -> ChangeName(it.substring(1).split(":")[0], it.substring(1).split(":", limit = 2)[1])
+            'i' -> ChangeInitiative(
+                it.substring(1).split(":")[0],
+                it.substring(1).split(":")[1].toInt()
+            )
+
+            'p' -> ChangePlayerCharacter(it.substring(1), true)
+            'P' -> ChangePlayerCharacter(it.substring(1), false)
+            'c' -> DeleteCharacter(it.substring(1))
+            's' -> StartTurn(it.substring(1))
+            'D' -> Delay(it.substring(1))
+            'd' -> Die(it.substring(1))
+            'f' -> FinishTurn(it.substring(1))
+            'r' -> ResolveConflict
+            else -> return null
         }
     } catch (e: Exception) {
-        throw Exception("Error deserializing \"$serialized\"", e)
+        throw Exception("Error deserializing \"$it\"", e)
     }
 }
 
 data class State2(
-    val actions: List<ActionState>
+    val actions: List<ActionState>,
+    val turnActions: List<Triple<Version, ConflictState, ActionState>>
 ) {
     fun predictNextTurns(withCurrent: Boolean): List<Character> {
         val alreadyPlayedCharactersSet = mutableSetOf<String>()
@@ -134,6 +135,7 @@ data class State2(
                     characters[action.id] = characters.getOrPut(action.id) { Character(action.id) }
                         .copy(dead = true)
                 }
+                is ResolveConflict -> {}
             }
         }
 
@@ -165,6 +167,7 @@ data class State2(
         State(
             characters = predictNextTurns(withCurrent = true),
             currentlySelectedCharacter = currentTurn(),
-            actions = actions
+            actions = turnActions,
+            turnConflicts = turnActions.any { it.second is ConflictState.InTimelines }
         )
 }
