@@ -1,4 +1,6 @@
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import io.github.potsdam_pnp.initiative_tracker.state.ActionWrapper
 import io.github.potsdam_pnp.initiative_tracker.state.CharacterId
 import io.github.potsdam_pnp.initiative_tracker.state.ClientIdentifier
@@ -7,9 +9,13 @@ import io.github.potsdam_pnp.initiative_tracker.state.Operation
 import io.github.potsdam_pnp.initiative_tracker.state.OperationMetadata
 import io.github.potsdam_pnp.initiative_tracker.state.Snapshot
 import io.github.potsdam_pnp.initiative_tracker.state.State
+import io.github.potsdam_pnp.initiative_tracker.state.Version
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlin.random.Random
 
 data class Character(
@@ -25,7 +31,7 @@ data class Character(
 data class State(
     val characters: List<Character> = listOf(),
     val currentlySelectedCharacter: String? = null,
-    val actions: List<Pair<ConflictState, ActionState>> = listOf()
+    val actions: List<Triple<Version, ConflictState, ActionState>> = listOf()
 )
 
 interface Actions {
@@ -39,15 +45,13 @@ interface Actions {
     fun togglePlayerCharacter(characterKey: String, playerCharacter: Boolean)
     fun startTurn(characterKey: String)
     fun finishTurn(characterKey: String)
-    fun deleteAction(index: Int)
-    fun deleteNewerActions(index: Int)
-    fun receiveActions(actions: List<ActionState>)
+    fun pickAction(version: Version?)
 }
 
 
 class Model private constructor() : ViewModel(), Actions {
     @OptIn(ExperimentalStdlibApi::class)
-    private val snapshot = Snapshot(clientIdentifier = ClientIdentifier(Random.nextInt().toHexString().take(6)), state = State())
+    val snapshot = Snapshot(clientIdentifier = ClientIdentifier(Random.nextInt().toHexString().take(6)), state = State())
     private val _state = MutableStateFlow(State2(listOf(), turnActions = listOf()))
     val state = _state.map { it.toState() }
 
@@ -61,6 +65,21 @@ class Model private constructor() : ViewModel(), Actions {
 
     constructor(data: String?) : this() {
         addCharacters(data)
+
+        val scope =
+            if (getPlatform().name.startsWith("Android")) {
+                viewModelScope
+            } else {
+                CoroutineScope(Dispatchers.Unconfined)
+            }
+
+        scope.launch {
+            snapshot.version.collect {
+                _state.update {
+                    snapshot.state.toState2(snapshot)
+                }
+            }
+        }
     }
 
     fun addCharacters(data: String?) {
@@ -96,10 +115,7 @@ class Model private constructor() : ViewModel(), Actions {
             } else {
                 ActionWrapper(it, null)
             }
-        } .toList())
-        _state.update {
-            snapshot.state.toState2(snapshot)
-        }
+        }.toList())
     }
 
     override fun deleteCharacter(characterKey: String) {
@@ -151,29 +167,11 @@ class Model private constructor() : ViewModel(), Actions {
         addActions(FinishTurn(characterKey))
     }
 
-    override fun deleteAction(index: Int) {
-        _state.update {
-            it.copy(
-                actions = it.actions.toMutableList().also {
-                    it.removeAt(index)
-                }
+    override fun pickAction(version: Version?) {
+        snapshot.produce(
+            listOf(
+                ActionWrapper(ResolveConflict, version)
             )
-        }
-    }
-
-    override fun deleteNewerActions(index: Int) {
-        _state.update {
-            it.copy(
-                actions = it.actions.dropLast(it.actions.size - index)
-            )
-        }
-    }
-
-    override fun receiveActions(actions: List<ActionState>) {
-        _state.update {
-            it.copy(
-                actions = actions
-            )
-        }
+        )
     }
 }

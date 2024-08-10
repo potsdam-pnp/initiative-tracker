@@ -132,6 +132,7 @@ import androidx.navigation.compose.rememberNavController
 import com.russhwolf.settings.Settings
 import io.github.aakira.napier.Napier
 import io.github.potsdam_pnp.initiative_tracker.state.ConflictState
+import io.github.potsdam_pnp.initiative_tracker.state.Version
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.baseline_file_download_24
 import kotlinproject.composeapp.generated.resources.baseline_file_download_off_24
@@ -642,7 +643,7 @@ fun App(data: String? = null) {
                                         withDismissAction = true
                                     )
                                     if (snackbarResult == SnackbarResult.ActionPerformed) {
-                                        model.deleteNewerActions(0)
+                                        model.pickAction(null)
                                     }
                                 }
                             }) {
@@ -1156,26 +1157,26 @@ fun MainScreen(innerPadding: PaddingValues, state: State, model: Model, viewStat
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ListActions(innerPadding: PaddingValues, state: State, actions: Actions) {
-    var showModalDialogOfIndex by remember { mutableStateOf<Int?>(null) }
+    var showModalDialogOfVersion by remember { mutableStateOf<Version?>(null) }
     LazyColumn(contentPadding = innerPadding) {
-        items(state.actions.withIndex().reversed()) { item ->
+        items(state.actions.reversed(), key = { it.first.clientIdentifier.name + "-" + it.first.position }) { item ->
             Row(
                 modifier =
                 Modifier.clickable(onClick = {
-                        showModalDialogOfIndex = item.index
+                        showModalDialogOfVersion = item.first
                     })
             ) {
                 Text(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp),
-                    text = descriptionOfAction(item.value)
+                    text = descriptionOfAction(item)
                 )
             }
         }
     }
-    val modelDialogIndex = showModalDialogOfIndex
-    if (modelDialogIndex != null) {
+    val modelDialogVersion = showModalDialogOfVersion
+    if (modelDialogVersion != null) {
         BasicAlertDialog(
-            onDismissRequest = { showModalDialogOfIndex = null },
+            onDismissRequest = { showModalDialogOfVersion = null },
             content = {
                 Card(
                     modifier = Modifier
@@ -1191,35 +1192,25 @@ fun ListActions(innerPadding: PaddingValues, state: State, actions: Actions) {
                         )
                         HorizontalDivider()
                         Text(
-                            text = descriptionOfAction(state.actions[modelDialogIndex]),
+                            text = descriptionOfAction(state.actions.find { it.first == modelDialogVersion }!!),
                             modifier = Modifier.padding(16.dp)
                         )
 
                         TextButton(
                             modifier = Modifier.align(Alignment.End),
-                            onClick = { showModalDialogOfIndex = null },
+                            onClick = { showModalDialogOfVersion = null },
                         ) {
                             Text("Dismiss")
                         }
                         TextButton(
                             modifier = Modifier.align(Alignment.End),
                             onClick = {
-                                showModalDialogOfIndex = null
-                                actions.deleteAction(modelDialogIndex)
+                                showModalDialogOfVersion = null
+                                actions.pickAction(modelDialogVersion)
                             },
                         ) {
-                            Text("Undo action")
+                            Text("Pick as most recent action")
                         }
-                        TextButton(
-                            modifier = Modifier.align(Alignment.End),
-                            onClick = {
-                                showModalDialogOfIndex = null
-                                actions.deleteNewerActions(modelDialogIndex)
-                            },
-                        ) {
-                            Text("Undo action and all newer actions")
-                        }
-
                     }
                 }
             }
@@ -1227,14 +1218,14 @@ fun ListActions(innerPadding: PaddingValues, state: State, actions: Actions) {
     }
 }
 
-fun descriptionOfAction(action: Pair<ConflictState, ActionState>): String {
+fun descriptionOfAction(action: Triple<Version, ConflictState, ActionState>): String {
     val conflictStateString =
-        when (val af = action.first) {
+        when (val af = action.second) {
             ConflictState.InAllTimelines -> ""
             is ConflictState.InTimelines -> "in timelines ${af.timeline.joinToString { it.toString()}}: "
         }
 
-    val result = when (val a = action.second) {
+    val result = when (val a = action.third) {
         is AddCharacter -> {
             "Add character ${a.id}"
         }
@@ -1261,6 +1252,9 @@ fun descriptionOfAction(action: Pair<ConflictState, ActionState>): String {
         }
         is Die -> {
             "Character ${a.id} dies"
+        }
+        is ResolveConflict -> {
+            "Undo some actions"
         }
     }
 

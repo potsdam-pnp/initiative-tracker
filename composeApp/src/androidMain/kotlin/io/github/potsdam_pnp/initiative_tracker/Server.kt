@@ -12,8 +12,11 @@ import android.os.Build
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.LocalContext
-import deserializeActions
 import io.github.aakira.napier.Napier
+import io.github.potsdam_pnp.initiative_tracker.state.ActionWrapper
+import io.github.potsdam_pnp.initiative_tracker.state.Encoders
+import io.github.potsdam_pnp.initiative_tracker.state.Message
+import io.github.potsdam_pnp.initiative_tracker.state.MessageHandler
 import io.ktor.http.ContentType
 import io.ktor.server.application.install
 import io.ktor.server.engine.EmbeddedServer
@@ -45,7 +48,6 @@ import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
 import receiveUpdates
 import sendUpdates
-import serializeActions
 import java.net.Inet4Address
 import java.net.Inet6Address
 import java.util.Formatter
@@ -182,49 +184,33 @@ class Server(val context: Context, val model: Model) {
                     call.respondRedirect(newPath)
                 }
                 webSocket("/ws") {
-                    val job = launch {
-                        model.state.collect {
-                            if (sendUpdates.value) {
-                                //send(Frame.Text(serializeActions(it.actions)))
-                            }
-                        }
-                    }
-
                     state.update { (it as ServerState.Running).let { it.copy(connectedClients = it.connectedClients + 1) } }
 
                     try {
-                        val finish = launch {
+                        val receiveChannel = Channel<Message<ActionWrapper>>()
+                        val sendChannel = Channel<Message<ActionWrapper>>()
+
+                        launch {
                             state.first { it !is ServerState.Running }
+                            receiveChannel.send(Message.StopConnection(Unit))
                         }
 
-                        while (true) {
-                            Napier.i("receiving next message")
-                            val nextFrame = async { incoming.receive() }
-
-                            val frame = select<Frame?> {
-                                finish.onJoin { null }
-                                nextFrame.onAwait { it }
-                            }
-                            Napier.i("received ${frame == null}")
-
-                            if (frame == null) {
-                                break
-                            } else {
-                                val frameText = (frame as? Frame.Text)?.readText()
-                                if (frameText != null) {
-                                    val actions = deserializeActions(frameText)
-                                    if (actions != null) {
-                                        if (receiveUpdates.value) {
-                                            model.receiveActions(actions)
-                                        }
-                                    }
-                                }
+                        launch {
+                            while (true) {
+                                val msg = incoming.receive()
+                                receiveChannel.send(Encoders.decode((msg as Frame.Text).readText()))
                             }
                         }
 
-                        Napier.w("Closing connection")
+                        launch {
+                            while (true) {
+                                val msg = sendChannel.receive()
+                                send(Frame.Text(Encoders.encode(msg)))
+                            }
+                        }
 
-                        job.cancelAndJoin()
+
+                        MessageHandler(model.snapshot).run(this, receiveChannel, sendChannel)
                     } finally {
                         state.update {
                             Napier.w("Updating connections")

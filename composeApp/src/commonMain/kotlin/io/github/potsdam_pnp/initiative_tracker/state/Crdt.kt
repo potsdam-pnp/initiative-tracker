@@ -1,6 +1,9 @@
 package io.github.potsdam_pnp.initiative_tracker.state
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 
 data class ClientIdentifier(val name: String)
 
@@ -112,14 +115,14 @@ sealed class InsertResult {
 
 
 class Snapshot<Op, State: OperationState<Op>>(val state: State, current: VectorClock = VectorClock(mapOf()), val clientIdentifier: ClientIdentifier) {
-    private var currentVersion: VectorClock = current
+    private val currentVersion: MutableStateFlow<VectorClock> = MutableStateFlow(current)
 
     private val versions: MutableMap<Version, Operation<Op>> = mutableMapOf()
 
-    val version: VectorClock get() = currentVersion
+    val version: StateFlow<VectorClock> get() = currentVersion
 
     fun produce(versions: List<Op>) {
-        var nextVersion = currentVersion
+        var nextVersion = currentVersion.value
         val next = mutableListOf<Operation<Op>>()
 
         for (version in versions) {
@@ -131,7 +134,7 @@ class Snapshot<Op, State: OperationState<Op>>(val state: State, current: VectorC
     }
 
     fun insert(version: VectorClock, data: List<Operation<Op>>): InsertResult {
-        val toBeInserted = version.versionsNotIn(currentVersion).toMutableSet()
+        val toBeInserted = version.versionsNotIn(currentVersion.value).toMutableSet()
 
         val dataInsertions = mutableListOf<Operation<Op>>()
         for (operation in data) {
@@ -153,9 +156,9 @@ class Snapshot<Op, State: OperationState<Op>>(val state: State, current: VectorC
             state.apply(it)
         }
 
-        currentVersion = currentVersion.merge(version)
+        currentVersion.update { it.merge(version) }
 
-        return InsertResult.Success(currentVersion)
+        return InsertResult.Success(currentVersion.value)
     }
 
     fun fetchVersion(version: Version): Operation<Op>? = versions[version]
@@ -204,15 +207,15 @@ data class GrowingListItem<T>(
     val item: T,
     val predecessor: Version?,
 ) {
-    fun asList(fetchVersion: (Version) -> GrowingListItem<T>): List<T> {
-        val result = mutableListOf<T>(item)
+    fun asList(version: Version, fetchVersion: (Version) -> Pair<Version, GrowingListItem<T>>): List<Pair<Version, T>> {
+        val result = mutableListOf<Pair<Version, T>>(version to item)
 
         var current = predecessor
 
         while (current != null) {
             val i = fetchVersion(current)
-            current = i.predecessor
-            result.add(i.item)
+            current = i.second.predecessor
+            result.add(i.first to i.second.item)
         }
 
         return result.reversed()
@@ -224,11 +227,11 @@ sealed class ConflictState {
     data class InTimelines(val timeline: Set<Int>): ConflictState()
 }
 
-fun <T> Value<GrowingListItem<T>>.show(fetchVersion: (Version) -> Pair<GrowingListItem<T>, OperationMetadata>): List<Pair<ConflictState, T>> {
+fun <T> Value<GrowingListItem<T>>.show(fetchVersion: (Version) -> Pair<GrowingListItem<T>, OperationMetadata>): List<Triple<Version, ConflictState, T>> {
     if (value.isEmpty()) return emptyList()
 
     val currentTop = value.mapIndexed { index, v -> setOf(index) to v }.toMap().toMutableMap()
-    val result = mutableListOf<Pair<ConflictState, T>>()
+    val result = mutableListOf<Triple<Version, ConflictState, T>>()
 
     var inAllTimelines = true
 
@@ -258,7 +261,7 @@ fun <T> Value<GrowingListItem<T>>.show(fetchVersion: (Version) -> Pair<GrowingLi
             }
         }
 
-        result.add(ConflictState.InTimelines(candidate) to candidateValue.first.item)
+        result.add(Triple(candidateValue.second.toVersion(), ConflictState.InTimelines(candidate), candidateValue.first.item))
         val predecessor = candidateValue.first.predecessor
         if (predecessor == null) {
             inAllTimelines = false
@@ -270,5 +273,10 @@ fun <T> Value<GrowingListItem<T>>.show(fetchVersion: (Version) -> Pair<GrowingLi
 
     val conflictState = if (inAllTimelines) ConflictState.InAllTimelines else ConflictState.InTimelines(currentTop.keys.first())
 
-    return currentTop.values.first().first.asList { fetchVersion(it).first }.map { conflictState to it } + result.reversed()
+    val rest = currentTop.values.first()
+
+    return rest.first.asList(rest.second.toVersion()) {
+        val v = fetchVersion(it)
+        v.second.toVersion() to v.first
+    }.map { Triple(it.first,conflictState, it.second) } + result.reversed()
 }
