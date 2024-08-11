@@ -16,6 +16,9 @@ let
     pkgs.libGL
   ];
 
+  # needed for android target
+  androidsdk = pkgs.androidenv.androidPkgs.androidsdk;
+
   gradle = pkgs.writeShellApplication {
     name = "gradle";
     text = ''
@@ -27,7 +30,7 @@ let
       PATH=${bin-path} \
       LD_LIBRARY_PATH=${ld-library-path} \
       JAVA_HOME=${pkgs.jre} \
-      ANDROID_HOME=${pkgs.androidenv.androidPkgs.androidsdk}/libexec/android-sdk \
+      ANDROID_HOME=${androidsdk}/libexec/android-sdk \
       exec "./gradlew" -PnixManaged=true "$@"
     '';
   };
