@@ -17,7 +17,22 @@ let
   ];
 
   # needed for android target
-  androidsdk = pkgs.androidenv.androidPkgs.androidsdk;
+  android = pkgs.androidenv.composeAndroidPackages {
+    toolsVersion = null;
+    includeEmulator = false;
+    platformVersions = [ "34" ];
+    includeSources = false;
+    includeSystemImages = false;
+    systemImageTypes = [];
+    abiVersions = [];
+    cmakeVersions = [];
+    includeNDK = false;
+    ndkVersions = [];
+    useGoogleAPIs = false;
+    useGoogleTVAddOns = false;
+    includeExtras = [];
+  };
+  inherit (android) androidsdk;
 
   gradle = pkgs.writeShellApplication {
     name = "gradle";
