@@ -15,9 +15,12 @@ import android.view.Choreographer.FrameData
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat.startActivity
 import io.github.aakira.napier.Napier
+import io.github.potsdam_pnp.initiative_tracker.InitiativeTrackerApplication
 import io.github.potsdam_pnp.initiative_tracker.MainActivity
 import io.github.potsdam_pnp.initiative_tracker.R
 
@@ -44,13 +47,43 @@ class AndroidPlatform : Platform {
         }
     }
 
-    override val serverStatus: androidx.compose.runtime.State<ServerStatus>
-        @Composable get() = (LocalContext.current as MainActivity).server!!.serverState
-
-    override fun toggleServer(model: Model, context: PlatformContext) {
-        (context.context as MainActivity).server!!.let {
-            it.toggle(!it.serverState().isRunning)
-        }
+    @Composable
+    override fun serverStatus(): ServerStatus {
+        val app = LocalContext.current.applicationContext as InitiativeTrackerApplication
+        val connectionStates by app.connectionManager.connectionStates.collectAsState()
+        val serviceInfoStates by app.connectionManager.serviceInfoState.collectAsState()
+        val name by app.connectionManager.name.collectAsState()
+        val otherCorresponding =
+            connectionStates.filterKeys { key -> serviceInfoStates.all { it.value.clientId != key } }
+        return ServerStatus(
+            isRunning = name != null,
+            message = if (name == null) "Not connected" else "Running as '$name'",
+            isSupported = false,
+            connections = connectionStates.filterValues { it.serverConnected || it.clientConnected }.size,
+            joinLinks = name?.let { serviceInfoStates[it] }?.connectionInformation?.let { it.hosts.map { JoinLink(it) } } ?: emptyList(),
+            discoveredClients = serviceInfoStates.map {
+                val corresponding = connectionStates[it.value.clientId]
+                DiscoveredClient(
+                    name = it.key + " (${it.value.clientId?.name})",
+                    port = it.value.connectionInformation.port,
+                    hosts = it.value.connectionInformation.hosts,
+                    state = corresponding?.state,
+                    isServerConnected = corresponding?.serverConnected == true,
+                    isClientConnected = corresponding?.clientConnected == true,
+                    errorMsg = corresponding?.errorMsg
+                )
+            } + otherCorresponding.map {
+                DiscoveredClient(
+                    name = "(${it.key.name})",
+                    port = null,
+                    hosts = null,
+                    isServerConnected = it.value.serverConnected,
+                    isClientConnected = it.value.clientConnected,
+                    state = it.value.state,
+                    errorMsg = it.value.errorMsg
+                )
+            }
+        )
     }
 
     @Composable

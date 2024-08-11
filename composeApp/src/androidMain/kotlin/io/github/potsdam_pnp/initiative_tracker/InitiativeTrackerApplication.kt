@@ -8,6 +8,7 @@ import io.github.aakira.napier.Napier
 class InitiativeTrackerApplication: Application() {
 
     val model: Model = Model(null)
+    val connectionManager: ConnectionManager = ConnectionManager(this, model.snapshot)
 
     override fun onCreate() {
         super.onCreate()

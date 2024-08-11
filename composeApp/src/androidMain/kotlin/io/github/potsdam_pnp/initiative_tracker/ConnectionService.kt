@@ -13,6 +13,9 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import io.github.aakira.napier.Napier
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 
 class ConnectionService: LifecycleService() {
@@ -40,7 +43,6 @@ class ConnectionService: LifecycleService() {
         val notification = NotificationCompat.Builder(this, channelId()).apply {
             setSmallIcon(R.drawable.ic_launcher_foreground)
             setContentTitle("Server Running")
-            setContentText("Connected to 0 other apps, awaiting other connections")
             setPriority(NotificationCompat.PRIORITY_LOW)
             setOngoing(true)
             setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
@@ -64,23 +66,54 @@ class ConnectionService: LifecycleService() {
 
         Napier.i("Service created")
 
-        server = Server(this, (application as InitiativeTrackerApplication).model)
-        lifecycleScope.launch {
-            server!!.run(lifecycleScope)
+        val app = application as InitiativeTrackerApplication
+
+        clientConnections = ClientConnections(app.model.snapshot, app.connectionManager)
+        server = Server("Unnamed", app.model.snapshot, app.connectionManager)
+        server!!.toggle(true)
+        serverJob = lifecycleScope.launch(Dispatchers.Default) {
+            server!!.run()
+        }
+        clientConnectionJob = lifecycleScope.launch(Dispatchers.Default) {
+            clientConnections!!.run(lifecycleScope)
+        }
+        connectionManagerJob = lifecycleScope.launch(Dispatchers.Default) {
+            app.connectionManager.run()
         }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent!!.getBooleanExtra("stop", false)) {
+        if (intent?.getBooleanExtra("stop", false) == true) {
             Napier.i("stop command")
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
+            if (!isShuttingDown) {
+                isShuttingDown = true
+                server?.toggle(false)
+
+                lifecycleScope.launch {
+                    serverJob?.join()
+                    clientConnectionJob?.cancelAndJoin()
+                    connectionManagerJob?.cancelAndJoin()
+
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf()
+                }
+            }
         } else {
             Napier.i("start command")
+            server?.toggle(true)
         }
         return super.onStartCommand(intent, flags, startId)
     }
 
-    var server: Server? = null
+    override fun onDestroy() {
+        super.onDestroy()
+    }
 
+    private var isShuttingDown = false
+    private var connectionManagerJob: Job? = null
+    private var clientConnectionJob: Job? = null
+    private var serverJob: Job? = null
+
+    var server: Server? = null
+    var clientConnections: ClientConnections? = null
 }

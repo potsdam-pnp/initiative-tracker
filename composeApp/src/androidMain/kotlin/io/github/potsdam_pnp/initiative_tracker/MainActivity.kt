@@ -23,8 +23,6 @@ import kotlinx.coroutines.launch
 import kotlin.coroutines.coroutineContext
 
 class MainActivity : ComponentActivity() {
-    var server: Server? = null
-
     override fun onCreate(savedInstanceState: Bundle?) {
         Napier.base(DebugAntilog())
         Napier.w("It works Napier")
@@ -33,13 +31,7 @@ class MainActivity : ComponentActivity() {
 
         val data = intent.data?.fragment
         val factory = viewModelFactory { initializer { (application as InitiativeTrackerApplication).model }}
-        val model = ViewModelProvider.create(viewModelStore, factory)[Model::class]
-        server = Server(this, model).also {
-            lifecycleScope.launch {
-                it.run(lifecycleScope)
-            }
-        }
-
+        ViewModelProvider.create(viewModelStore, factory)[Model::class]
 
         setContent {
             App(data)
@@ -64,7 +56,7 @@ class MainActivity : ComponentActivity() {
 
         val forwardHost = intent.getStringExtra("forward_host")
         if (forwardHost != null) {
-            val joinLinks = server!!.serverState().joinLinks
+            val joinLinks = emptyList<JoinLink>() // TODO Use correct JoinLinks
             getPlatform().shareLink(PlatformContext(this), JoinLink(forwardHost), joinLinks)
         } else if (intent.data?.fragment != null) {
             val model = ViewModelProvider.create(viewModelStore)[Model::class]

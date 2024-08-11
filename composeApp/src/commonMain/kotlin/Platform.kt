@@ -1,5 +1,5 @@
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
+import io.github.potsdam_pnp.initiative_tracker.state.VectorClock
 
 data class JoinLink(
     val host: String
@@ -16,8 +16,12 @@ data class JoinLink(
 
 data class DiscoveredClient(
     val name: String,
-    val hosts: List<String>,
-    val port: Int
+    val hosts: List<String>?,
+    val port: Int?,
+    val state: VectorClock?,
+    val isServerConnected: Boolean,
+    val isClientConnected: Boolean,
+    val errorMsg: String? = null
 )
 
 data class ServerStatus(
@@ -37,9 +41,8 @@ interface Platform {
     fun isGeneratePlayerShortcutSupported(): Boolean = false
     fun generatePlayerShortcut(context: PlatformContext, playerList: List<String>) {}
 
-    fun toggleServer(model: Model, context: PlatformContext) {}
-    val serverStatus: androidx.compose.runtime.State<ServerStatus> @Composable get() {
-        return mutableStateOf(unsupportedPlatform)
+    @Composable fun serverStatus(): ServerStatus {
+        return unsupportedPlatform
     }
 
     @Composable

@@ -712,9 +712,8 @@ fun App(data: String? = null) {
                             Text(currentScreen.title, maxLines = 1,overflow = TextOverflow.Ellipsis)
                         },
                         actions = {
-                            UpDownloadState()
                             ConnectionState()
-                            val serverStatus by getPlatform().serverStatus
+                            val serverStatus = getPlatform().serverStatus()
                             val clientStatus by ClientConsumer.clientStatus.collectAsState()
                             val context = getPlatform().getContext()
                             IconButton(enabled = serverStatus.isRunning && serverStatus.joinLinks.isNotEmpty() || !serverStatus.isRunning && clientStatus.status is ClientStatusState.Running, onClick = {
@@ -777,48 +776,9 @@ fun App(data: String? = null) {
 }
 
 @Composable
-fun UpDownloadState() {
-    val _sendUpdates by sendUpdates.collectAsState()
-    val _receiveUpdates by receiveUpdates.collectAsState()
-    val sendResource = if (_sendUpdates) {
-        Res.drawable.baseline_file_upload_24
-    } else {
-        Res.drawable.baseline_file_upload_off_24
-    }
-    val receiveResource = if (_receiveUpdates) {
-        Res.drawable.baseline_file_download_24
-    } else {
-        Res.drawable.baseline_file_download_off_24
-    }
-
-    IconToggleButton(
-        checked = _sendUpdates,
-        onCheckedChange = { checked ->
-            sendUpdates.update { checked }
-        },
-        content = {
-            val vector = vectorResource(sendResource)
-            Icon(imageVector = vector, contentDescription = "Not Synced")
-
-        }
-    )
-
-    IconToggleButton(
-        checked = _receiveUpdates,
-        onCheckedChange = { checked ->
-            receiveUpdates.update { checked }
-        },
-        content = {
-            val vector = vectorResource(receiveResource)
-            Icon(imageVector = vector, contentDescription = "Not Synced")
-        }
-    )
-}
-
-@Composable
 fun ConnectionState(modifier: Modifier = Modifier, transform: @Composable (@Composable () -> Unit) -> Unit = { it() }) {
     val clientStatus by ClientConsumer.clientStatus.collectAsState()
-    val serverStatus by getPlatform().serverStatus
+    val serverStatus = getPlatform().serverStatus()
     BadgedBox(modifier = modifier,badge = {
         if (serverStatus.isRunning) {
             Badge { Text(serverStatus.connections.toString()) }
@@ -840,42 +800,70 @@ fun ConnectionState(modifier: Modifier = Modifier, transform: @Composable (@Comp
 }
 
 @Composable
+fun ServerConnectionSettings() {
+    val serverStatus = getPlatform().serverStatus()
+
+    ListItem(headlineContent = { Text(serverStatus.message )})
+    for (connectedClient in serverStatus.discoveredClients) {
+        val connectionState = @Composable {
+            if (connectedClient.isClientConnected || connectedClient.isServerConnected) {
+                Icon(
+                    imageVector = vectorResource(Res.drawable.baseline_sync_24),
+                    contentDescription = "Synced"
+                )
+            } else {
+                Icon(
+                    imageVector = vectorResource(Res.drawable.baseline_sync_problem_24),
+                    contentDescription = "Not synced"
+                )
+            }
+        }
+
+        val additional =
+            when {
+                connectedClient.isServerConnected && connectedClient.isClientConnected ->
+                    listOf("as server and client")
+
+                connectedClient.isClientConnected ->
+                    listOf("as server")
+
+                connectedClient.isServerConnected ->
+                    listOf("as client")
+
+                else ->
+                    emptyList()
+            } + connectedClient.errorMsg.orEmpty()
+
+        key(connectedClient.name) {
+            ListItem(
+                headlineContent = { Text(connectedClient.name) },
+                trailingContent = { connectionState() },
+                supportingContent = {
+                    val text = (connectedClient.hosts.orEmpty() + additional).joinToString("\n")
+                    if (text != "") {
+                        Text(text = text)
+                    }
+                },
+            )
+        }
+    }
+    HorizontalDivider()
+}
+
+@Composable
 fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope: CoroutineScope) {
     val scrollState = rememberScrollState()
 
     Column(modifier = Modifier.padding(innerPadding).verticalScroll(
         scrollState
     )) {
-        val serverStatus by getPlatform().serverStatus
+        val serverStatus = getPlatform().serverStatus()
         val clientStatus by ClientConsumer.clientStatus.collectAsState()
         val context = getPlatform().getContext()
+        ServerConnectionSettings()
+        HorizontalDivider()
         ListItem(
-            headlineContent = { Text("Function as Server") },
-            trailingContent = {
-                Switch(checked = serverStatus.isRunning, enabled = serverStatus.isSupported, onCheckedChange = {
-                    getPlatform().toggleServer(model, context)
-                })
-            }
-        )
-        ListItem(
-            headlineContent = { Text("Server status") },
-            supportingContent = {
-                Text(serverStatus.message + "\nConnections: ${serverStatus.connections}")
-            }
-        )
-        serverStatus.joinLinks.forEach { joinLink ->
-            ListItem(
-                headlineContent = { Text("Join Link") },
-                supportingContent = {
-                    Text(joinLink.toUrl())
-                },
-                modifier = Modifier.clickable {
-                    getPlatform().shareLink(context, joinLink, serverStatus.joinLinks)
-                }
-            )
-        }
-        ListItem(
-            headlineContent = { Text("Function as Client") },
+            headlineContent = { Text("Connect manually") },
             trailingContent = {
                 Switch(checked = clientStatus.status is ClientStatusState.Running, enabled = clientStatus.status !is ClientStatusState.Starting, onCheckedChange = {
                     ClientConsumer.toggleClient(model, coroutineScope)
@@ -908,41 +896,18 @@ fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope
                 })
             }
         )
-        HorizontalDivider()
-        ListItem(
-            headlineContent = { Text("Send updates") },
-            trailingContent = {
-                val x by sendUpdates.collectAsState()
-                Switch(checked = x, onCheckedChange = {
-                    sendUpdates.value = it
-                })
-            }
-        )
-        ListItem(
-            headlineContent = { Text("Apply received updates") },
-            trailingContent = {
-                val x by receiveUpdates.collectAsState()
-                Switch(checked = x, onCheckedChange = {
-                    receiveUpdates.value = it
-                })
-            }
-        )
-        HorizontalDivider()
-        Text("Connected clients: ${serverStatus.discoveredClients.size}")
-        for (connectedClient in serverStatus.discoveredClients) {
-            key(connectedClient.name) {
-                ListItem(
-                    headlineContent = { Text(connectedClient.name) },
-                    supportingContent = {
-                        Column {
-                            for (host in connectedClient.hosts) {
-                                Text(text = host)
-                            }
-                        }
-                    }
-                )
-            }
+        serverStatus.joinLinks.forEach { joinLink ->
+            ListItem(
+                headlineContent = { Text("Join Link") },
+                supportingContent = {
+                    Text(joinLink.toUrl())
+                },
+                modifier = Modifier.clickable {
+                    getPlatform().shareLink(context, joinLink, serverStatus.joinLinks)
+                }
+            )
         }
+
     }
 }
 

@@ -67,7 +67,7 @@ object ClientConsumer {
                         method = HttpMethod.Get,
                         host = clientStatus.value.host,
                         port = 8080,
-                        path = "/ws"
+                        path = "/ws/${model.snapshot.clientIdentifier.name}"
                     ) {
                         _clientStatus.update {
                             it.copy(status = ClientStatusState.Running(0, 0))
@@ -154,6 +154,3 @@ data class ClientStatus(
     val status: ClientStatusState = ClientStatusState.Stopped,
     val host: String = "127.0.0.1"
 )
-
-val sendUpdates = MutableStateFlow<Boolean>(true)
-val receiveUpdates = MutableStateFlow<Boolean>(true)

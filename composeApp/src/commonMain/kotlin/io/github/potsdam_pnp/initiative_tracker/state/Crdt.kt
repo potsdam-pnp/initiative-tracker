@@ -71,6 +71,10 @@ data class VectorClock(
         val newValue = (clock[clientIdentifier] ?: 0) + 1
         return copy(clock = clock + (clientIdentifier to newValue))
     }
+
+    companion object {
+        fun empty() = VectorClock(mapOf())
+    }
 }
 
 
