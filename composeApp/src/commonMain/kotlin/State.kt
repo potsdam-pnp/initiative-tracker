@@ -50,9 +50,7 @@ interface Actions {
 }
 
 
-class Model private constructor() : ViewModel(), Actions {
-    @OptIn(ExperimentalStdlibApi::class)
-    val snapshot = Snapshot(clientIdentifier = ClientIdentifier(Random.nextInt().toHexString().take(6)), state = State())
+class Model private constructor (val snapshot: Snapshot<ActionWrapper, State>) : ViewModel(), Actions {
     private val _state = MutableStateFlow(State2(listOf(), turnActions = listOf()))
     val state = _state.map { it.toState() }
 
@@ -64,7 +62,7 @@ class Model private constructor() : ViewModel(), Actions {
         return "${thisDevice}$lastKey"
     }
 
-    constructor(data: String?) : this() {
+    constructor(snapshot: Snapshot<ActionWrapper, State>, data: String?) : this(snapshot) {
         addCharacters(data)
 
         val scope =

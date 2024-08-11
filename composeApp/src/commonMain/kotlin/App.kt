@@ -133,6 +133,7 @@ import androidx.navigation.compose.rememberNavController
 import com.russhwolf.settings.Settings
 import io.github.aakira.napier.Napier
 import io.github.potsdam_pnp.initiative_tracker.state.ConflictState
+import io.github.potsdam_pnp.initiative_tracker.state.Snapshot
 import io.github.potsdam_pnp.initiative_tracker.state.Version
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.baseline_file_download_24
@@ -504,7 +505,7 @@ enum class Screens(val title: String) {
 @Preview
 fun App(data: String? = null) {
     val globalCoroutineScope = rememberCoroutineScope()
-    val model = viewModel { Model(data) }
+    val model = viewModel { Model(Snapshot(io.github.potsdam_pnp.initiative_tracker.state.State()), data) }
     LaunchedEffect(Unit) {
         val predefinedServerHost = data?.split("&")?.firstOrNull { it.startsWith("server=") }?.let {
             it.substring(7)

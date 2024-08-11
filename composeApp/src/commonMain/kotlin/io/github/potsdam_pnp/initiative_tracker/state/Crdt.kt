@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import kotlin.random.Random
 
 data class ClientIdentifier(val name: String)
 
@@ -118,7 +119,12 @@ sealed class InsertResult {
 }
 
 
-class Snapshot<Op, State: OperationState<Op>>(val state: State, current: VectorClock = VectorClock(mapOf()), val clientIdentifier: ClientIdentifier) {
+class Snapshot<Op, State: OperationState<Op>> @OptIn(ExperimentalStdlibApi::class) constructor(
+        val state: State,
+        current: VectorClock = VectorClock(mapOf()),
+        val clientIdentifier: ClientIdentifier = ClientIdentifier(
+            Random.nextInt().toHexString().take(6))
+        ) {
     private val currentVersion: MutableStateFlow<VectorClock> = MutableStateFlow(current)
 
     private val versions: MutableMap<Version, Operation<Op>> = mutableMapOf()

@@ -30,7 +30,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val data = intent.data?.fragment
-        val factory = viewModelFactory { initializer { (application as InitiativeTrackerApplication).model }}
+        val factory = viewModelFactory {
+            initializer {
+                Model((application as InitiativeTrackerApplication).snapshot, null)
+            }
+        }
         ViewModelProvider.create(viewModelStore, factory)[Model::class]
 
         setContent {
