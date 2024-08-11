@@ -5,7 +5,10 @@
   outputs = { self, nixpkgs, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
+        config = import ./config.nix // {
+          inherit system;
+        };
+        pkgs = import nixpkgs config;
       in {
         devShells.default = import ./shell.nix { inherit pkgs; };
       }

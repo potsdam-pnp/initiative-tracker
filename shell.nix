@@ -1,4 +1,4 @@
-{ pkgs ? import <nixpkgs> {} }:
+{ pkgs ? import <nixpkgs> (import ./config.nix) }:
 
 let
   bin-path = pkgs.lib.makeBinPath [
@@ -27,6 +27,7 @@ let
       PATH=${bin-path} \
       LD_LIBRARY_PATH=${ld-library-path} \
       JAVA_HOME=${pkgs.jre} \
+      ANDROID_HOME=${pkgs.androidenv.androidPkgs.androidsdk}/libexec/android-sdk \
       exec "./gradlew" -PnixManaged=true "$@"
     '';
   };
