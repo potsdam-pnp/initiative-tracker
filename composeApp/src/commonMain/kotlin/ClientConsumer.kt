@@ -33,27 +33,27 @@ object ClientConsumer {
     var job: Job? = null
 
     fun toggleClient(model: Model, coroutineScope: CoroutineScope) {
-        when (clientStatus.value.status) {
-            is ClientStatusState.Stopped -> start(model, coroutineScope)
-            is ClientStatusState.Running -> stop()
-            is ClientStatusState.Starting -> {}
-            is ClientStatusState.ConnectionError -> start(model, coroutineScope)
+            when (clientStatus.value.status) {
+                is ClientStatusState.Stopped -> start(model, coroutineScope)
+                is ClientStatusState.Running -> stop()
+                is ClientStatusState.Starting -> {}
+                is ClientStatusState.ConnectionError -> start(model, coroutineScope)
+            }
         }
-    }
 
-    fun changeHost(host: String) {
-        _clientStatus.update {
-            it.copy(host = host)
+        fun changeHost(host: String) {
+            _clientStatus.update {
+                it.copy(host = host)
+            }
         }
-    }
 
-    fun start(model: Model, coroutineScope: kotlinx.coroutines.CoroutineScope) {
-        _clientStatus.update {
-            val result = it.copy(status = ClientStatusState.Starting)
-            Napier.i("Starting client - previous: $it next: $result")
-            result
-        }
-        if (httpClient == null) {
+        fun start(model: Model, coroutineScope: kotlinx.coroutines.CoroutineScope) {
+            _clientStatus.update {
+                val result = it.copy(status = ClientStatusState.Starting)
+                Napier.i("Starting client - previous: $it next: $result")
+                result
+            }
+            if (httpClient == null) {
             httpClient = HttpClient() {
                 install(WebSockets)
             }

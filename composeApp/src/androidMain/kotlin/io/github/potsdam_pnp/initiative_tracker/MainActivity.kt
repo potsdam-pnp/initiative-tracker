@@ -32,7 +32,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val data = intent.data?.fragment
-        val factory = viewModelFactory { initializer { Model(data) }}
+        val factory = viewModelFactory { initializer { (application as InitiativeTrackerApplication).model }}
         val model = ViewModelProvider.create(viewModelStore, factory)[Model::class]
         server = Server(this, model).also {
             lifecycleScope.launch {
@@ -40,9 +40,22 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+
         setContent {
             App(data)
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+
+        startService(Intent(this, ConnectionService::class.java))
+    }
+
+    override fun onResume() {
+        super.onResume()
+
+        startService(Intent(this, ConnectionService::class.java))
     }
 
     override fun onNewIntent(intent: Intent) {

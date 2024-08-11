@@ -90,6 +90,13 @@ sealed class ServerState {
             is Running -> connectedClients
             is Stopping -> 0
         }
+
+    fun joinLinks(): List<JoinLink> {
+        return when (this) {
+            is Running -> this.joinLinks
+            else -> listOf()
+        }
+    }
 }
 
 private sealed class Actions {
@@ -107,6 +114,7 @@ class Server(val context: Context, val model: Model) {
             message = state.message(),
             isSupported = state.isChangeEnabled(),
             connections = state.connectedClients(),
+            joinLinks = state.joinLinks(),
             discoveredClients = clients.map {
                 val hosts = when {
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ->
@@ -115,7 +123,7 @@ class Server(val context: Context, val model: Model) {
                         listOf(it.host.toString().drop(1))
                 }
                 DiscoveredClient(it.serviceName, hosts, it.port)
-            }
+            },
         )
     }
 

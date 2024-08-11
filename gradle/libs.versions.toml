@@ -18,6 +18,7 @@ lifecycleViewmodelCompose = "2.8.0"
 multiplatformSettingsNoArg = "1.1.1"
 napier = "2.7.1"
 navigationCompose = "2.7.0-alpha07"
+lifecycleService = "2.8.4"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -39,6 +40,7 @@ lifecycle-viewmodel-compose = { module = "org.jetbrains.androidx.lifecycle:lifec
 androidx-navigation-compose = { module = "org.jetbrains.androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
 multiplatform-settings-no-arg = { module = "com.russhwolf:multiplatform-settings-no-arg", version.ref = "multiplatformSettingsNoArg" }
 napier = { module = "io.github.aakira:napier", version.ref = "napier" }
+androidx-lifecycle-service = { group = "androidx.lifecycle", name = "lifecycle-service", version.ref = "lifecycleService" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
