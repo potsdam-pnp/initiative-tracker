@@ -8,6 +8,7 @@ data class ChangeName(val id: String, val name: String): ActionState()
 data class ChangeInitiative(val id: String, val initiative: Int): ActionState()
 data class ChangePlayerCharacter(val id: String, val playerCharacter: Boolean): ActionState()
 data class DeleteCharacter(val id: String): ActionState()
+object ResetAllInitiatives: ActionState()
 
 data class StartTurn(val id: String): ActionState()
 data class Delay(val id: String): ActionState()
@@ -27,6 +28,7 @@ fun serializeAction(it: ActionState): String {
         is Die -> "d${it.id}"
         is FinishTurn -> "f${it.id}"
         is ResolveConflict -> "r"
+        is ResetAllInitiatives -> "q"
     }
 }
 
@@ -48,6 +50,7 @@ fun deserializeAction(it: String): ActionState? {
             'd' -> Die(it.substring(1))
             'f' -> FinishTurn(it.substring(1))
             'r' -> ResolveConflict
+            'q' -> ResetAllInitiatives
             else -> return null
         }
     } catch (e: Exception) {
@@ -136,6 +139,7 @@ data class State2(
                         .copy(dead = true)
                 }
                 is ResolveConflict -> {}
+                is ResetAllInitiatives -> {}
             }
         }
 

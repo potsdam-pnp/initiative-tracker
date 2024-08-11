@@ -47,6 +47,7 @@ interface Actions {
     fun startTurn(characterKey: String)
     fun finishTurn(characterKey: String)
     fun pickAction(version: Version?)
+    fun restartEncounter()
 }
 
 
@@ -170,6 +171,15 @@ class Model private constructor (val snapshot: Snapshot<ActionWrapper, State>) :
         snapshot.produce(
             listOf(
                 ActionWrapper(ResolveConflict, version)
+            )
+        )
+    }
+
+    override fun restartEncounter() {
+        snapshot.produce(
+            listOf(
+                ActionWrapper(ResolveConflict, null),
+                ActionWrapper(ResetAllInitiatives, null)
             )
         )
     }

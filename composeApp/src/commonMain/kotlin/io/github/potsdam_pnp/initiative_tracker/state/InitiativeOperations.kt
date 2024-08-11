@@ -9,6 +9,7 @@ import Delay
 import DeleteCharacter
 import Die
 import FinishTurn
+import ResetAllInitiatives
 import ResolveConflict
 import StartTurn
 import State2
@@ -53,7 +54,8 @@ data class ActionWrapper(
 
 class State(
     val characters: MutableMap<CharacterId, Character> = mutableMapOf(),
-    var turnActions: Value<GrowingListItem<Turn>> = Value.empty()
+    var turnActions: Value<GrowingListItem<Turn>> = Value.empty(),
+    var initiativeResets: VectorClock = VectorClock.empty()
 ): OperationState<ActionWrapper>() {
     private fun withCharacter(id: CharacterId, op: Character.() -> Character) {
         characters[id] =
@@ -77,6 +79,9 @@ class State(
                 withCharacter(CharacterId(op.id)) {
                     copy(initiative = initiative.insert(op.initiative, operation.metadata))
                 }
+            is ResetAllInitiatives ->
+                initiativeResets = initiativeResets.merge(operation.metadata.clock)
+
 
             is ChangePlayerCharacter ->
                 withCharacter(CharacterId(op.id)) {
@@ -155,7 +160,10 @@ class State(
     fun toState2(snapshot: Snapshot<ActionWrapper, State>): State2 {
         val characterActions = characters.flatMap {
             val initiative = it.value.initiative.value.let {
-                if (it.size == 1) it.first().first else null
+                if (it.size == 1 && it[0].second.clock.contains(initiativeResets))
+                    it.first().first
+                else
+                    null
             }
 
             val playerCharacter = it.value.playerCharacter.value.let {

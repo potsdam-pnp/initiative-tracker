@@ -668,7 +668,7 @@ fun App(data: String? = null) {
                                         withDismissAction = true
                                     )
                                     if (snackbarResult == SnackbarResult.ActionPerformed) {
-                                        model.pickAction(null)
+                                        model.restartEncounter()
                                     }
                                 }
                             }) {
@@ -1252,6 +1252,9 @@ fun descriptionOfAction(action: Triple<Version, ConflictState, ActionState>): St
         }
         is ResolveConflict -> {
             "Undo some actions"
+        }
+        is ResetAllInitiatives -> {
+            "Reset all initiatives"
         }
     }
 
