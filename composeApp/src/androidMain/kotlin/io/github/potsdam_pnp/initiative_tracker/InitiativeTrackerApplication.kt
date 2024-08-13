@@ -10,7 +10,7 @@ import io.github.potsdam_pnp.initiative_tracker.state.State
 
 class InitiativeTrackerApplication: Application() {
     val snapshot: Snapshot<ActionWrapper, State> = Snapshot(State())
-    val connectionManager: ConnectionManager = ConnectionManager(this, snapshot)
+    val connectionManager: ConnectionManager = ConnectionManagerAndroid(this, snapshot)
 
     override fun onCreate() {
         super.onCreate()

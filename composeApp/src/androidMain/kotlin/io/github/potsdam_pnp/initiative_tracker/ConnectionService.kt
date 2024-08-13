@@ -3,13 +3,10 @@ package io.github.potsdam_pnp.initiative_tracker
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
-import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import io.github.aakira.napier.Napier
@@ -72,7 +69,7 @@ class ConnectionService: LifecycleService() {
         server = Server("Unnamed", app.snapshot, app.connectionManager)
         server!!.toggle(true)
         serverJob = lifecycleScope.launch(Dispatchers.Default) {
-            server!!.run()
+            server!!.runOnce()
         }
         clientConnectionJob = lifecycleScope.launch(Dispatchers.Default) {
             clientConnections!!.run(lifecycleScope)

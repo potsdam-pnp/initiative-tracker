@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.targets.js.dsl.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpackConfig
+import org.jetbrains.kotlin.psi.packageDirectiveVisitor
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -51,11 +52,24 @@ kotlin {
     
     sourceSets {
         val desktopMain by getting
-        
+        val androidMain by getting
+        val commonMain by getting
+
+        val sharedMain by creating {
+            dependsOn(commonMain)
+            androidMain.dependsOn(this)
+            desktopMain.dependsOn(this)
+        }
+
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
             implementation(libs.ktor.client.cio)
+        }
+        sharedMain.dependencies {
+            implementation(libs.ktor.server.core)
+            implementation(libs.ktor.server.netty)
+            implementation(libs.ktor.server.websockets)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -73,10 +87,13 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
         }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.ktor.client.cio)
+            implementation(libs.jmdns)
+            implementation(project(":dnssd"))
         }
     }
 }
@@ -115,9 +132,6 @@ android {
     }
     dependencies {
         debugImplementation(compose.uiTooling)
-        implementation(libs.ktor.server.core)
-        implementation(libs.ktor.server.netty)
-        implementation(libs.ktor.server.websockets)
         implementation(libs.androidx.lifecycle.service)
     }
 }
@@ -130,6 +144,26 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "io.github.potsdam_pnp.initiative_tracker"
             packageVersion = "1.0.0"
+
+            macOS {
+                afterEvaluate {
+                    tasks.named("packageDmg") {
+                        doLast {
+                            copy {
+                                from(project(":dnssd-native").layout.buildDirectory.file("lib/main/debug/libdnssd-native.dylib"))
+                                into(layout.buildDirectory.file("compose/binaries/main/app/io.github.potsdam_pnp.initiative_tracker.app/Contents/app"))
+                            }
+                        }
+                    }
+                }
+
+                //jvmArgs("-Djava.library.path=${'$'}APPDIR")
+            }
+
         }
     }
 }
+
+//tasks.named("packageDmg") {
+//    dependsOn("prepareDylib")
+//}

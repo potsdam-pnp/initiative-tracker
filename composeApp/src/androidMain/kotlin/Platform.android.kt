@@ -23,6 +23,7 @@ import io.github.aakira.napier.Napier
 import io.github.potsdam_pnp.initiative_tracker.InitiativeTrackerApplication
 import io.github.potsdam_pnp.initiative_tracker.MainActivity
 import io.github.potsdam_pnp.initiative_tracker.R
+import io.github.potsdam_pnp.initiative_tracker.toServerStatus
 
 class AndroidPlatform : Platform {
     override val name: String = "Android ${Build.VERSION.SDK_INT}"
@@ -53,37 +54,7 @@ class AndroidPlatform : Platform {
         val connectionStates by app.connectionManager.connectionStates.collectAsState()
         val serviceInfoStates by app.connectionManager.serviceInfoState.collectAsState()
         val name by app.connectionManager.name.collectAsState()
-        val otherCorresponding =
-            connectionStates.filterKeys { key -> serviceInfoStates.all { it.value.clientId != key } }
-        return ServerStatus(
-            isRunning = name != null,
-            message = if (name == null) "Not connected" else "Running as '$name'",
-            isSupported = false,
-            connections = connectionStates.filterValues { it.serverConnected || it.clientConnected }.size,
-            joinLinks = name?.let { serviceInfoStates[it] }?.connectionInformation?.let { it.hosts.map { JoinLink(it) } } ?: emptyList(),
-            discoveredClients = serviceInfoStates.map {
-                val corresponding = connectionStates[it.value.clientId]
-                DiscoveredClient(
-                    name = it.key + " (${it.value.clientId?.name})",
-                    port = it.value.connectionInformation.port,
-                    hosts = it.value.connectionInformation.hosts,
-                    state = corresponding?.state,
-                    isServerConnected = corresponding?.serverConnected == true,
-                    isClientConnected = corresponding?.clientConnected == true,
-                    errorMsg = corresponding?.errorMsg
-                )
-            } + otherCorresponding.map {
-                DiscoveredClient(
-                    name = "(${it.key.name})",
-                    port = null,
-                    hosts = null,
-                    isServerConnected = it.value.serverConnected,
-                    isClientConnected = it.value.clientConnected,
-                    state = it.value.state,
-                    errorMsg = it.value.errorMsg
-                )
-            }
-        )
+        return toServerStatus(connectionStates, serviceInfoStates, name)
     }
 
     @Composable

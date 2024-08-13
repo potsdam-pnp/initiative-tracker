@@ -1,6 +1,5 @@
 package io.github.potsdam_pnp.initiative_tracker
 
-import android.content.Context
 import io.github.potsdam_pnp.initiative_tracker.state.ActionWrapper
 import io.github.potsdam_pnp.initiative_tracker.state.ClientIdentifier
 import io.github.potsdam_pnp.initiative_tracker.state.Encoders
