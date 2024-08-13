@@ -63,7 +63,7 @@ static DWORD    win32_if_nametoindex( const char * nameStr );
 #define index jni_index
 
 #include <jni.h>
-#include "DNSSD.java.h"
+// #include "DNSSD.java.h"
 #undef index
 
 //#include <syslog.h>
