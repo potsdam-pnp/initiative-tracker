@@ -16,6 +16,7 @@ import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
@@ -83,6 +84,7 @@ class ClientConnections(val snapshot: Snapshot<ActionWrapper, State>, val connec
                     }
                 }
             }
+            delay(4000)
         }
     }
 }

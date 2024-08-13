@@ -1,31 +1,5 @@
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.apple.dnssd.BrowseListener
-import io.github.aakira.napier.DebugAntilog
-import io.github.aakira.napier.Napier
-import io.github.potsdam_pnp.initiative_tracker.ClientConnections
-import io.github.potsdam_pnp.initiative_tracker.ConnectionInformation
-import io.github.potsdam_pnp.initiative_tracker.ConnectionManager
-import io.github.potsdam_pnp.initiative_tracker.ConnectionState
-import io.github.potsdam_pnp.initiative_tracker.Server
-import io.github.potsdam_pnp.initiative_tracker.ServiceInfo
-import io.github.potsdam_pnp.initiative_tracker.state.ClientIdentifier
-import io.github.potsdam_pnp.initiative_tracker.state.Snapshot
-import io.github.potsdam_pnp.initiative_tracker.state.State
-import io.github.potsdam_pnp.initiative_tracker.state.VectorClock
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import java.lang.Thread.sleep
-import javax.jmdns.JmDNS
-import javax.jmdns.ServiceEvent
-import javax.jmdns.ServiceListener
-import kotlin.concurrent.thread
 
 import com.apple.dnssd.DNSSD
 import com.apple.dnssd.DNSSDRegistration
@@ -35,11 +9,7 @@ import com.apple.dnssd.ResolveListener
 import com.apple.dnssd.TXTRecord
 
 class ConnectionManagerDesktop(): ConnectionManager() {
-    var jmdns: JmDNS? = null
-    var info: javax.jmdns.ServiceInfo? = null
-
     override fun unregisterService() {
-        jmdns!!.unregisterService(info)
         name.update { null }
     }
     override fun registerService(name: String, resolvedPort: Int) {
