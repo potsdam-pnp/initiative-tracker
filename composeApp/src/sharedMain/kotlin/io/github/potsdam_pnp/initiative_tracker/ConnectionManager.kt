@@ -49,7 +49,6 @@ abstract class ConnectionManager() {
         }
 
         serviceInfoState.collect {
-
             val newClients = mutableListOf<Pair<String, ClientIdentifier>>()
             for (client in it.filterValues { it.clientId == null }) {
                 try {
