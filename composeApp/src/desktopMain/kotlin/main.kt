@@ -1,5 +1,7 @@
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.apple.dnssd.BrowseListener
 
 import com.apple.dnssd.DNSSD
 import com.apple.dnssd.DNSSDRegistration
@@ -7,6 +9,19 @@ import com.apple.dnssd.DNSSDService
 import com.apple.dnssd.RegisterListener
 import com.apple.dnssd.ResolveListener
 import com.apple.dnssd.TXTRecord
+import io.github.aakira.napier.DebugAntilog
+import io.github.aakira.napier.Napier
+import io.github.potsdam_pnp.initiative_tracker.ClientConnections
+import io.github.potsdam_pnp.initiative_tracker.ConnectionInformation
+import io.github.potsdam_pnp.initiative_tracker.ConnectionManager
+import io.github.potsdam_pnp.initiative_tracker.Server
+import io.github.potsdam_pnp.initiative_tracker.ServiceInfo
+import io.github.potsdam_pnp.initiative_tracker.state.Snapshot
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import java.lang.Thread.sleep
+import kotlin.concurrent.thread
 
 class ConnectionManagerDesktop(): ConnectionManager() {
     override fun unregisterService() {
@@ -36,7 +51,7 @@ class ConnectionManagerDesktop(): ConnectionManager() {
 
     val serviceListener = object: BrowseListener {
         override fun serviceFound(
-            browser: DNSSDService?,
+            browser: DNSSDService,
             flags: Int,
             ifIndex: Int,
             serviceName: String?,
@@ -55,6 +70,7 @@ class ConnectionManagerDesktop(): ConnectionManager() {
                     txtRecord: TXTRecord?
                 ) {
                     Napier.i("service resolved $fullName to $hostName:$port")
+                    browser.stop()
                     val info = ServiceInfo(
                         name = serviceName,
                         clientId = null,
@@ -99,7 +115,7 @@ var connectionManager: ConnectionManager? = null
 
 fun main() {
     Napier.base(DebugAntilog())
-    val snapshot = Snapshot(State())
+    val snapshot = Snapshot(io.github.potsdam_pnp.initiative_tracker.state.State())
     connectionManager = ConnectionManagerDesktop()
     val server = Server("Unnamed", snapshot, connectionManager!!)
     val clientConnections = ClientConnections(snapshot, connectionManager!!)
