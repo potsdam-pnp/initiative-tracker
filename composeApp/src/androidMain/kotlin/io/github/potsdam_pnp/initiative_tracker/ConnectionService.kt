@@ -13,6 +13,7 @@ import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class ConnectionService: LifecycleService() {
@@ -76,6 +77,10 @@ class ConnectionService: LifecycleService() {
         }
         connectionManagerJob = lifecycleScope.launch(Dispatchers.Default) {
             app.connectionManager.run()
+        }
+        lifecycleScope.launch {
+            delay(1000)
+            server!!.toggle(true)
         }
     }
 
