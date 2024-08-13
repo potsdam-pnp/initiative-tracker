@@ -80,31 +80,37 @@ class Server(private val name: String,private val snapshot: Snapshot<ActionWrapp
     private val state = MutableStateFlow<ServerState>(ServerState.Stopped)
     private val actions = Channel<Actions>()
 
+    suspend fun runOnce() {
+        Napier.i("waiting to start server")
+        while (actions.receive() != Actions.Start) {
+            Napier.w("Received Stop while server was already stopped")
+        }
+        state.update { ServerState.Starting }
+
+        Napier.i("starting server")
+        val server = startServer()
+        server.start(wait = false)
+        val resolvedPort = server.engine.resolvedConnectors()[0].port
+        connectionManager.registerService(name, resolvedPort)
+
+        state.update { ServerState.Running(resolvedPort, 0) }
+
+        while (actions.receive() != Actions.End) {
+            Napier.w("Received Start while server is already running")
+        }
+
+        state.update { ServerState.Stopping }
+
+        withContext(Dispatchers.IO) {
+            connectionManager.unregisterService()
+            server.stop()
+        }
+    }
+
     suspend fun run() {
-        //while (true) {
-            while (actions.receive() != Actions.Start) {
-                Napier.w("Received Stop while server was already stopped")
-            }
-            state.update { ServerState.Starting }
-
-            val server = startServer()
-            server.start(wait = false)
-            val resolvedPort = server.engine.resolvedConnectors()[0].port
-            connectionManager.registerService(name, resolvedPort)
-
-            state.update { ServerState.Running(resolvedPort, 0) }
-
-            while (actions.receive() != Actions.End) {
-                Napier.w("Received Start while server is already running")
-            }
-
-            state.update { ServerState.Stopping }
-
-            withContext(Dispatchers.IO) {
-                connectionManager.unregisterService()
-                server.stop()
-            }
-        //}
+        while (true) {
+            runOnce()
+        }
     }
 
     private fun startServer(): EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration> {

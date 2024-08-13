@@ -51,11 +51,24 @@ kotlin {
     
     sourceSets {
         val desktopMain by getting
+        val androidMain by getting
+        val commonMain by getting
+
+        val sharedMain by creating {
+            dependsOn(commonMain)
+            androidMain.dependsOn(this)
+            desktopMain.dependsOn(this)
+        }
         
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
             implementation(libs.ktor.client.cio)
+        }
+        sharedMain.dependencies {
+            implementation(libs.ktor.server.core)
+            implementation(libs.ktor.server.netty)
+            implementation(libs.ktor.server.websockets)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -115,9 +128,6 @@ android {
     }
     dependencies {
         debugImplementation(compose.uiTooling)
-        implementation(libs.ktor.server.core)
-        implementation(libs.ktor.server.netty)
-        implementation(libs.ktor.server.websockets)
         implementation(libs.androidx.lifecycle.service)
     }
 }

@@ -22,103 +22,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 
 
-data class ConnectionInformation(
-    val port: Int,
-    val hosts: List<String>
-)
+class ConnectionManagerAndroid(val context: Context, val snapshot: Snapshot<ActionWrapper, State>): ConnectionManager() {
 
-data class ServiceInfo(
-    val name: String,
-    val clientId: ClientIdentifier?,
-    val connectionInformation: ConnectionInformation
-)
-
-
-data class ConnectionState(
-    val clientConnected: Boolean,
-    val serverConnected: Boolean,
-    val errorMsg: String?,
-    val state: VectorClock
-)
-
-class ConnectionManager(val context: Context, val snapshot: Snapshot<ActionWrapper, State>) {
-    val serviceInfoState: MutableStateFlow<Map<String, ServiceInfo>> = MutableStateFlow(mapOf())
-    val connectionStates: MutableStateFlow<Map<ClientIdentifier, ConnectionState>> = MutableStateFlow(mapOf())
-    val name: MutableStateFlow<String?> = MutableStateFlow(null)
-
-    suspend fun run() {
-        val httpClient = HttpClient() {
-            install(WebSockets)
-        }
-
-        serviceInfoState.collect {
-            try {
-                val newClients = mutableListOf<Pair<String, ClientIdentifier>>()
-                for (client in it.filterValues { it.clientId == null }) {
-                    Napier.i("check client id of ${client.value.name}")
-
-                    val url = URLBuilder(
-                        protocol = URLProtocol.HTTP,
-                        host = client.value.connectionInformation.hosts.first(),
-                        port = client.value.connectionInformation.port,
-                        pathSegments = listOf("client")
-                    ).build()
-
-                    val response = httpClient.get(url)
-                    if (response.status == HttpStatusCode.OK) {
-                        newClients.add(client.key to ClientIdentifier(response.bodyAsText()))
-                    }
-                }
-                if (newClients.isNotEmpty()) {
-                    serviceInfoState.update { info ->
-                        info + newClients.mapNotNull { client ->
-                            info[client.first]?.let {
-                                client.first to it.copy(
-                                    clientId = client.second
-                                )
-                            }
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                Napier.e("error in connection manager: $e")
-            }
-        }
-    }
-
-    fun serverInfoUpdate(clientId: ClientIdentifier, state: VectorClock) {
-        connectionStates.update {
-            val current = it[clientId] ?: ConnectionState(clientConnected = false, serverConnected = false, null, VectorClock.empty())
-            val new = current.copy(serverConnected = true, errorMsg = null, state = state)
-
-            it + (clientId to new)
-        }
-    }
-
-    fun serverInfoConnectionStopped(clientId: ClientIdentifier) {
-        connectionStates.update {
-            val next = it[clientId]?.copy(serverConnected = false)
-            if (next == null) it else it + (clientId to next)
-        }
-    }
-
-    fun clientInfoUpdate(clientId: ClientIdentifier, state: VectorClock) {
-        connectionStates.update {
-            val current = it[clientId] ?: ConnectionState(clientConnected = false, serverConnected = false, null, VectorClock.empty())
-            val new = current.copy(clientConnected = true, errorMsg = null,state = state)
-
-            it + (clientId to new)
-        }
-    }
-
-    fun clientInfoConnectionStopped(clientId: ClientIdentifier, errorMsg: String?) {
-        connectionStates.update {
-            val next = it[clientId]?.copy(clientConnected = false, errorMsg = errorMsg)
-            if (next == null) it else it + (clientId to next)
-        }
-    }
-
-    fun registerService(name: String, port: Int) {
+    override fun registerService(name: String, port: Int) {
         // Create the NsdServiceInfo object, and populate it.
         val serviceInfo = NsdServiceInfo().apply {
             // The name is subject to change based on conflicts
@@ -133,7 +39,7 @@ class ConnectionManager(val context: Context, val snapshot: Snapshot<ActionWrapp
         nsdManager.discoverServices("_initiative_tracker._tcp", NsdManager.PROTOCOL_DNS_SD, discoveryListener)
     }
 
-    fun unregisterService() {
+    override fun unregisterService() {
         val nsdManager = (context.getSystemService(Context.NSD_SERVICE) as NsdManager)
         nsdManager.unregisterService(registrationListener)
         nsdManager.stopServiceDiscovery(discoveryListener)
@@ -145,7 +51,7 @@ class ConnectionManager(val context: Context, val snapshot: Snapshot<ActionWrapp
         }
 
         override fun onRegistrationFailed(p0: NsdServiceInfo?, p1: Int) {
-
+            Napier.i("registration failed")
         }
 
         override fun onServiceUnregistered(p0: NsdServiceInfo?) {
@@ -153,7 +59,7 @@ class ConnectionManager(val context: Context, val snapshot: Snapshot<ActionWrapp
         }
 
         override fun onUnregistrationFailed(p0: NsdServiceInfo?, p1: Int) {
-
+            Napier.i("unregistration failed")
         }
     }
 
