@@ -290,3 +290,98 @@ fun <T> Value<GrowingListItem<T>>.show(fetchVersion: (Version) -> Pair<GrowingLi
         v.second.toVersion() to v.first
     }.map { Triple(it.first,conflictState, it.second) } + result.reversed()
 }
+
+sealed class StringOperation {
+    data class InsertAfter(val character: Char, val after: Version?): StringOperation()
+    data class Delete(val version: Version): StringOperation()
+}
+
+data class CharacterStringState(
+    val successors: MutableList<Operation<Char>> = mutableListOf(),
+    var isDeleted: Boolean = false
+) {
+    fun insert(d: Operation<Char>) {
+        val index = successors.indexOfFirst {
+            val cmp = it.metadata.clock.compare(d.metadata.clock)
+            when (cmp) {
+                CompareResult.Smaller -> false
+                CompareResult.Greater -> true
+                CompareResult.Equal -> throw RuntimeException("inserting duplicate - not allowed")
+                CompareResult.Incomparable ->
+                    // Here we need to define an arbitrary but consistent order, so let's pick the client id
+                    it.metadata.client.name.compareTo(d.metadata.client.name) < 0
+            }
+        }
+        if (index != -1) {
+            successors.add(index, d)
+        } else {
+            successors.add(d)
+        }
+    }
+}
+
+class StringRegister(): Iterable<Operation<Char>> {
+    val state: MutableMap<Version?, CharacterStringState> = mutableMapOf()
+
+    override fun iterator(): Iterator<Operation<Char>> {
+        val position: MutableList<Pair<Version?, Int>> = mutableListOf(null to 0)
+
+        return object : Iterator<Operation<Char>> {
+            var _next: Operation<Char>? = null
+
+            override fun hasNext(): Boolean {
+                if (_next != null) return true
+                while (position.isNotEmpty()) {
+                    val (current, index) = position.removeLast()
+                    val next = state[current]?.successors?.getOrNull(index)
+                    if (next != null) {
+                        position.add(current to (index + 1))
+                        position.add(next.version to 0)
+                        if (state[next.version]?.isDeleted != true) {
+                            _next = next
+                            return true
+                        }
+                    }
+                }
+                return false
+            }
+
+            override fun next(): Operation<Char> {
+                hasNext()
+                if (_next != null) {
+                    val result = _next!!
+                    _next = null
+                    return result
+                } else {
+                    throw NoSuchElementException()
+                }
+            }
+        }
+    }
+
+    fun asString(): String {
+        val result = StringBuilder()
+        for (c in this) {
+            result.append(c.op)
+        }
+        return result.toString()
+    }
+
+    fun positionIndex(index: Int): Version? {
+        if (index == 0) return null
+        return withIndex().firstOrNull { it.index + 1 == index }?.value?.version
+    }
+
+
+    fun insert(data: Operation<StringOperation>) {
+        when (data.op) {
+            is StringOperation.Delete -> {
+                state.getOrPut(data.op.version) { CharacterStringState() }.isDeleted = true
+            }
+            is StringOperation.InsertAfter -> {
+                val d = Operation(data.metadata, data.op.character)
+                state.getOrPut(data.op.after) { CharacterStringState() }.insert(d)
+            }
+        }
+    }
+}
