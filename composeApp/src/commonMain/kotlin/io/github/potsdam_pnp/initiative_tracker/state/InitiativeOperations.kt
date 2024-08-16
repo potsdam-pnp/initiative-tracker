@@ -14,6 +14,12 @@ import ResolveConflict
 import StartTurn
 import State2
 import deserializeAction
+import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
+import io.github.potsdam_pnp.initiative_tracker.crdt.Operation
+import io.github.potsdam_pnp.initiative_tracker.crdt.OperationMetadata
+import io.github.potsdam_pnp.initiative_tracker.crdt.OperationState
+import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
+import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 import serializeAction
 
 import StartTurn as _StartTurn

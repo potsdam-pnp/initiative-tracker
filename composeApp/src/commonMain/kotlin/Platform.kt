@@ -1,5 +1,5 @@
 import androidx.compose.runtime.Composable
-import io.github.potsdam_pnp.initiative_tracker.state.VectorClock
+import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 
 data class JoinLink(
     val host: String

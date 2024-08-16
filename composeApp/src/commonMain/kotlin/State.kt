@@ -2,9 +2,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.potsdam_pnp.initiative_tracker.state.ActionWrapper
 import io.github.potsdam_pnp.initiative_tracker.state.ConflictState
-import io.github.potsdam_pnp.initiative_tracker.state.Repository
+import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.state.State
-import io.github.potsdam_pnp.initiative_tracker.state.Dot
+import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow

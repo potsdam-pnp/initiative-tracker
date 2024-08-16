@@ -1,6 +1,12 @@
 package io.github.potsdam_pnp.initiative_tracker.state
 
 import io.github.aakira.napier.Napier
+import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
+import io.github.potsdam_pnp.initiative_tracker.crdt.InsertResult
+import io.github.potsdam_pnp.initiative_tracker.crdt.Operation
+import io.github.potsdam_pnp.initiative_tracker.crdt.OperationState
+import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
+import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel

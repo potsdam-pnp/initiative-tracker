@@ -5,7 +5,7 @@ import JoinLink
 import ServerStatus
 import io.github.aakira.napier.Napier
 import io.github.potsdam_pnp.initiative_tracker.state.ClientIdentifier
-import io.github.potsdam_pnp.initiative_tracker.state.VectorClock
+import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.request.get
@@ -15,7 +15,6 @@ import io.ktor.http.URLBuilder
 import io.ktor.http.URLProtocol
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 
 data class ConnectionInformation(

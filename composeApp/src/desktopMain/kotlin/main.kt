@@ -6,7 +6,7 @@ import io.github.aakira.napier.Napier
 import io.github.potsdam_pnp.initiative_tracker.ClientConnections
 import io.github.potsdam_pnp.initiative_tracker.ConnectionManager
 import io.github.potsdam_pnp.initiative_tracker.Server
-import io.github.potsdam_pnp.initiative_tracker.state.Repository
+import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.state.State
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch

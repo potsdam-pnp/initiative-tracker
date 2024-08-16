@@ -5,9 +5,9 @@ import io.github.potsdam_pnp.initiative_tracker.state.ClientIdentifier
 import io.github.potsdam_pnp.initiative_tracker.state.Encoders
 import io.github.potsdam_pnp.initiative_tracker.state.Message
 import io.github.potsdam_pnp.initiative_tracker.state.MessageHandler
-import io.github.potsdam_pnp.initiative_tracker.state.Repository
+import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.state.State
-import io.github.potsdam_pnp.initiative_tracker.state.VectorClock
+import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
