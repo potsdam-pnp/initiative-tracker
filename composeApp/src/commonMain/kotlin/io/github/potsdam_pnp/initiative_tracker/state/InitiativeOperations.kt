@@ -20,8 +20,6 @@ import StartTurn as _StartTurn
 import Delay as _Delay
 import Die as _Die
 import FinishTurn as _FinishTurn
-import ChangeName as _ChangeName
-
 
 
 sealed class TurnAction {
@@ -49,7 +47,7 @@ data class Character(
 
 data class ActionWrapper(
     val action: ActionState,
-    val predecessor: Version? // only used for turn-based actions
+    val predecessor: Dot? // only used for turn-based actions
 )
 
 class State(
@@ -157,7 +155,7 @@ class State(
         turnActions = turnActions.f()
     }
 
-    fun toState2(snapshot: Snapshot<ActionWrapper, State>): State2 {
+    fun toState2(repository: Repository<ActionWrapper, State>): State2 {
         val characterActions = characters.flatMap {
             val initiative = it.value.initiative.value.let {
                 if (it.size == 1 && it[0].second.clock.contains(initiativeResets))
@@ -192,8 +190,8 @@ class State(
             )
         }
 
-        val fetchVersion = { version: Version ->
-            val v = snapshot.fetchVersion(version)!!
+        val fetchVersion = { dot: Dot ->
+            val v = repository.fetchVersion(dot)!!
             val turn =
                 when (v.op.action) {
                     is StartTurn ->
@@ -262,7 +260,7 @@ object Encoders {
             is Message.StopConnection -> "s"
             is Message.RequestVersions ->
                 "r" + vectorClockEncode(msg.vectorClock) +
-                        "}" + msg.versions.joinToString("}") { it.clientIdentifier.name + ":" + it.position }
+                        "}" + msg.dots.joinToString("}") { it.clientIdentifier.name + ":" + it.position }
             is Message.SendVersions ->
                 "v" + vectorClockEncode(msg.vectorClock) + "}" +
                         msg.versions.joinToString("}") { actionEncode(it) }
@@ -285,11 +283,11 @@ object Encoders {
             'r' -> {
                 val parts = rest.split("}")
                 val clock = vectorClockDecode(parts[0])
-                val versions = parts.drop(1).map {
+                val dots = parts.drop(1).map {
                     val parts = it.split(":")
-                    Version(ClientIdentifier(parts[0]), parts[1].toInt())
+                    Dot(ClientIdentifier(parts[0]), parts[1].toInt())
                 }
-                return Message.RequestVersions(clock, versions)
+                return Message.RequestVersions(clock, dots)
             }
 
             'v' -> {
@@ -318,7 +316,7 @@ object Encoders {
         val client = ClientIdentifier(parts[1])
         val predecessor = if (parts[2] == "") null else {
             val p = parts[2].split(":")
-            Version(ClientIdentifier(p[0]), p[1].toInt())
+            Dot(ClientIdentifier(p[0]), p[1].toInt())
         }
         val action = deserializeAction(parts[3])!!
         return Operation(OperationMetadata(clock, client), ActionWrapper(action, predecessor))

@@ -6,7 +6,7 @@ import io.github.potsdam_pnp.initiative_tracker.state.ClientIdentifier
 import io.github.potsdam_pnp.initiative_tracker.state.Encoders
 import io.github.potsdam_pnp.initiative_tracker.state.Message
 import io.github.potsdam_pnp.initiative_tracker.state.MessageHandler
-import io.github.potsdam_pnp.initiative_tracker.state.Snapshot
+import io.github.potsdam_pnp.initiative_tracker.state.Repository
 import io.github.potsdam_pnp.initiative_tracker.state.State
 import io.ktor.http.ContentType
 import io.ktor.server.application.install
@@ -76,7 +76,7 @@ private sealed class Actions {
     object End: Actions()
 }
 
-class Server(private val name: String,private val snapshot: Snapshot<ActionWrapper, State>, private val connectionManager: ConnectionManager) {
+class Server(private val name: String, private val repository: Repository<ActionWrapper, State>, private val connectionManager: ConnectionManager) {
     private val state = MutableStateFlow<ServerState>(ServerState.Stopped)
     private val actions = Channel<Actions>()
 
@@ -141,7 +141,7 @@ class Server(private val name: String,private val snapshot: Snapshot<ActionWrapp
                     call.respondRedirect(newPath)
                 }
                 get("/client") {
-                    call.respondText(snapshot.clientIdentifier.name)
+                    call.respondText(repository.clientIdentifier.name)
                 }
                 webSocket("/ws/{client}") {
                     val clientId = ClientIdentifier(call.parameters["client"].orEmpty())
@@ -176,7 +176,7 @@ class Server(private val name: String,private val snapshot: Snapshot<ActionWrapp
                         }
 
 
-                        MessageHandler(snapshot).run(this, receiveChannel, sendChannel)
+                        MessageHandler(repository).run(this, receiveChannel, sendChannel)
                     } finally {
                         connectionManager.serverInfoConnectionStopped(clientId)
                         state.update {

@@ -1,6 +1,5 @@
 package io.github.potsdam_pnp.initiative_tracker.state
 
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -44,15 +43,15 @@ data class VectorClock(
     fun contains(other: VectorClock) =
         compare(other).let { it == CompareResult.Equal || it == CompareResult.Greater }
 
-    fun versionsNotIn(other: VectorClock): Set<Version> {
-        val result = mutableSetOf<Version>()
+    fun versionsNotIn(other: VectorClock): Set<Dot> {
+        val result = mutableSetOf<Dot>()
         for (key in clock.keys + other.clock.keys) {
             val thisValue = clock[key] ?: 0
             val otherValue = other.clock[key] ?: 0
 
             if (thisValue > otherValue) {
                 for (i in (otherValue + 1) until (thisValue + 1)) {
-                    result.add(Version(key, i))
+                    result.add(Dot(key, i))
                 }
             }
         }
@@ -86,8 +85,8 @@ data class OperationMetadata(
     fun clockBefore(): VectorClock =
         VectorClock(clock.clock + (client to ((clock.clock[client] ?: 0) - 1)))
 
-    fun toVersion(): Version =
-        Version(client, clock.clock[client] ?: 0)
+    fun toDot(): Dot =
+        Dot(client, clock.clock[client] ?: 0)
 }
 
 
@@ -102,8 +101,8 @@ data class Operation<Op>(
     val metadata: OperationMetadata,
     val op: Op
 ) {
-    val version: Version get() {
-        return Version(metadata.client, metadata.clock.clock[metadata.client] ?: 0)
+    val dot: Dot get() {
+        return Dot(metadata.client, metadata.clock.clock[metadata.client] ?: 0)
     }
 }
 
@@ -111,23 +110,23 @@ abstract class OperationState<Op> {
     abstract fun apply(operation: Operation<Op>)
 }
 
-data class Version(val clientIdentifier: ClientIdentifier, val position: Int)
+data class Dot(val clientIdentifier: ClientIdentifier, val position: Int)
 
 sealed class InsertResult {
-    data class MissingVersions(val missingVersions: List<Version>): InsertResult()
+    data class MissingVersions(val missingDots: List<Dot>): InsertResult()
     data class Success(val newVersion: VectorClock): InsertResult()
 }
 
 
-class Snapshot<Op, State: OperationState<Op>> @OptIn(ExperimentalStdlibApi::class) constructor(
+class Repository<Op, State: OperationState<Op>> @OptIn(ExperimentalStdlibApi::class) constructor(
         val state: State,
-        current: VectorClock = VectorClock(mapOf()),
+        current: VectorClock = VectorClock.empty(),
         val clientIdentifier: ClientIdentifier = ClientIdentifier(
             Random.nextInt().toHexString().take(6))
         ) {
     private val currentVersion: MutableStateFlow<VectorClock> = MutableStateFlow(current)
 
-    private val versions: MutableMap<Version, Operation<Op>> = mutableMapOf()
+    private val versions: MutableMap<Dot, Operation<Op>> = mutableMapOf()
 
     val version: StateFlow<VectorClock> get() = currentVersion
 
@@ -148,9 +147,9 @@ class Snapshot<Op, State: OperationState<Op>> @OptIn(ExperimentalStdlibApi::clas
 
         val dataInsertions = mutableListOf<Operation<Op>>()
         for (operation in data) {
-            if (operation.version in toBeInserted) {
+            if (operation.dot in toBeInserted) {
                 dataInsertions += operation
-                toBeInserted -= operation.version
+                toBeInserted -= operation.dot
             }
         }
 
@@ -159,7 +158,7 @@ class Snapshot<Op, State: OperationState<Op>> @OptIn(ExperimentalStdlibApi::clas
         }
 
         versions.putAll(dataInsertions.map {
-            it.version to it
+            it.dot to it
         })
 
         dataInsertions.forEach {
@@ -171,7 +170,7 @@ class Snapshot<Op, State: OperationState<Op>> @OptIn(ExperimentalStdlibApi::clas
         return InsertResult.Success(currentVersion.value)
     }
 
-    fun fetchVersion(version: Version): Operation<Op>? = versions[version]
+    fun fetchVersion(dot: Dot): Operation<Op>? = versions[dot]
 }
 
 
@@ -215,15 +214,15 @@ data class Value<T>(val value: List<Pair<T, OperationMetadata>>) {
 
 data class GrowingListItem<T>(
     val item: T,
-    val predecessor: Version?,
+    val predecessor: Dot?,
 ) {
-    fun asList(version: Version, fetchVersion: (Version) -> Pair<Version, GrowingListItem<T>>): List<Pair<Version, T>> {
-        val result = mutableListOf<Pair<Version, T>>(version to item)
+    fun asList(dot: Dot, fetchDot: (Dot) -> Pair<Dot, GrowingListItem<T>>): List<Pair<Dot, T>> {
+        val result = mutableListOf<Pair<Dot, T>>(dot to item)
 
         var current = predecessor
 
         while (current != null) {
-            val i = fetchVersion(current)
+            val i = fetchDot(current)
             current = i.second.predecessor
             result.add(i.first to i.second.item)
         }
@@ -237,11 +236,11 @@ sealed class ConflictState {
     data class InTimelines(val timeline: Set<Int>): ConflictState()
 }
 
-fun <T> Value<GrowingListItem<T>>.show(fetchVersion: (Version) -> Pair<GrowingListItem<T>, OperationMetadata>): List<Triple<Version, ConflictState, T>> {
+fun <T> Value<GrowingListItem<T>>.show(fetchVersion: (Dot) -> Pair<GrowingListItem<T>, OperationMetadata>): List<Triple<Dot, ConflictState, T>> {
     if (value.isEmpty()) return emptyList()
 
     val currentTop = value.mapIndexed { index, v -> setOf(index) to v }.toMap().toMutableMap()
-    val result = mutableListOf<Triple<Version, ConflictState, T>>()
+    val result = mutableListOf<Triple<Dot, ConflictState, T>>()
 
     var inAllTimelines = true
 
@@ -271,7 +270,7 @@ fun <T> Value<GrowingListItem<T>>.show(fetchVersion: (Version) -> Pair<GrowingLi
             }
         }
 
-        result.add(Triple(candidateValue.second.toVersion(), ConflictState.InTimelines(candidate), candidateValue.first.item))
+        result.add(Triple(candidateValue.second.toDot(), ConflictState.InTimelines(candidate), candidateValue.first.item))
         val predecessor = candidateValue.first.predecessor
         if (predecessor == null) {
             inAllTimelines = false
@@ -285,15 +284,15 @@ fun <T> Value<GrowingListItem<T>>.show(fetchVersion: (Version) -> Pair<GrowingLi
 
     val rest = currentTop.values.first()
 
-    return rest.first.asList(rest.second.toVersion()) {
+    return rest.first.asList(rest.second.toDot()) {
         val v = fetchVersion(it)
-        v.second.toVersion() to v.first
+        v.second.toDot() to v.first
     }.map { Triple(it.first,conflictState, it.second) } + result.reversed()
 }
 
 sealed class StringOperation {
-    data class InsertAfter(val character: Char, val after: Version?): StringOperation()
-    data class Delete(val version: Version): StringOperation()
+    data class InsertAfter(val character: Char, val after: Dot?): StringOperation()
+    data class Delete(val dot: Dot): StringOperation()
 }
 
 data class CharacterStringState(
@@ -321,10 +320,10 @@ data class CharacterStringState(
 }
 
 class StringRegister(): Iterable<Operation<Char>> {
-    val state: MutableMap<Version?, CharacterStringState> = mutableMapOf()
+    val state: MutableMap<Dot?, CharacterStringState> = mutableMapOf()
 
     override fun iterator(): Iterator<Operation<Char>> {
-        val position: MutableList<Pair<Version?, Int>> = mutableListOf(null to 0)
+        val position: MutableList<Pair<Dot?, Int>> = mutableListOf(null to 0)
 
         return object : Iterator<Operation<Char>> {
             var _next: Operation<Char>? = null
@@ -336,8 +335,8 @@ class StringRegister(): Iterable<Operation<Char>> {
                     val next = state[current]?.successors?.getOrNull(index)
                     if (next != null) {
                         position.add(current to (index + 1))
-                        position.add(next.version to 0)
-                        if (state[next.version]?.isDeleted != true) {
+                        position.add(next.dot to 0)
+                        if (state[next.dot]?.isDeleted != true) {
                             _next = next
                             return true
                         }
@@ -367,16 +366,16 @@ class StringRegister(): Iterable<Operation<Char>> {
         return result.toString()
     }
 
-    fun positionIndex(index: Int): Version? {
+    fun positionIndex(index: Int): Dot? {
         if (index == 0) return null
-        return withIndex().firstOrNull { it.index + 1 == index }?.value?.version
+        return withIndex().firstOrNull { it.index + 1 == index }?.value?.dot
     }
 
 
     fun insert(data: Operation<StringOperation>) {
         when (data.op) {
             is StringOperation.Delete -> {
-                state.getOrPut(data.op.version) { CharacterStringState() }.isDeleted = true
+                state.getOrPut(data.op.dot) { CharacterStringState() }.isDeleted = true
             }
             is StringOperation.InsertAfter -> {
                 val d = Operation(data.metadata, data.op.character)

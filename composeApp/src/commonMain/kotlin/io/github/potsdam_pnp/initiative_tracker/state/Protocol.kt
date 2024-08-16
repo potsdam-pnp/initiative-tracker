@@ -10,17 +10,17 @@ import kotlinx.coroutines.launch
 sealed class Message<Op> {
     data class CurrentState<Op>(val vectorClock: VectorClock): Message<Op>()
 
-    data class RequestVersions<Op>(val vectorClock: VectorClock, val versions: List<Version>): Message<Op>()
+    data class RequestVersions<Op>(val vectorClock: VectorClock, val dots: List<Dot>): Message<Op>()
 
     data class SendVersions<Op>(val vectorClock: VectorClock, val versions: List<Operation<Op>>): Message<Op>()
 
     data class StopConnection<Op>(val unit: Unit): Message<Op>()
 }
 
-class MessageHandler<Op, State: OperationState<Op>>(private val snapshot: Snapshot<Op, State>) {
+class MessageHandler<Op, State: OperationState<Op>>(private val repository: Repository<Op, State>) {
     suspend fun run(scope: CoroutineScope, incoming: Channel<Message<Op>>, outgoing: Channel<Message<Op>>) {
         val job = scope.launch {
-            snapshot.version.collect {
+            repository.version.collect {
                 outgoing.send(Message.CurrentState(it))
             }
         }
@@ -40,9 +40,9 @@ class MessageHandler<Op, State: OperationState<Op>>(private val snapshot: Snapsh
     private fun handleMessage(message: Message<Op>): Message<Op>? {
         when (message) {
             is Message.CurrentState -> {
-                when (snapshot.insert(message.vectorClock, listOf())) {
+                when (repository.insert(message.vectorClock, listOf())) {
                     is InsertResult.MissingVersions -> {
-                        return Message.RequestVersions(message.vectorClock, (snapshot.insert(message.vectorClock, listOf()) as InsertResult.MissingVersions).missingVersions)
+                        return Message.RequestVersions(message.vectorClock, (repository.insert(message.vectorClock, listOf()) as InsertResult.MissingVersions).missingDots)
                     }
                     is InsertResult.Success ->
                         return null
@@ -50,14 +50,14 @@ class MessageHandler<Op, State: OperationState<Op>>(private val snapshot: Snapsh
             }
 
             is Message.SendVersions -> {
-                val result = snapshot.insert(message.vectorClock, message.versions)
+                val result = repository.insert(message.vectorClock, message.versions)
                 Napier.i("received and inserted versions: $result")
                 return null
             }
 
             is Message.RequestVersions -> {
-                val versions = message.versions.mapNotNull {
-                    snapshot.fetchVersion(it)
+                val versions = message.dots.mapNotNull {
+                    repository.fetchVersion(it)
                 }
                 return Message.SendVersions(message.vectorClock, versions)
             }

@@ -6,23 +6,12 @@ import android.net.nsd.NsdServiceInfo
 import android.os.Build
 import io.github.aakira.napier.Napier
 import io.github.potsdam_pnp.initiative_tracker.state.ActionWrapper
-import io.github.potsdam_pnp.initiative_tracker.state.ClientIdentifier
-import io.github.potsdam_pnp.initiative_tracker.state.Snapshot
+import io.github.potsdam_pnp.initiative_tracker.state.Repository
 import io.github.potsdam_pnp.initiative_tracker.state.State
-import io.github.potsdam_pnp.initiative_tracker.state.VectorClock
-import io.ktor.client.HttpClient
-import io.ktor.client.plugins.websocket.WebSockets
-import io.ktor.client.request.get
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.URLBuilder
-import io.ktor.http.URLProtocol
-import io.ktor.http.Url
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 
 
-class ConnectionManagerAndroid(val context: Context, val snapshot: Snapshot<ActionWrapper, State>): ConnectionManager() {
+class ConnectionManagerAndroid(val context: Context, val repository: Repository<ActionWrapper, State>): ConnectionManager() {
 
     override fun registerService(name: String, port: Int) {
         // Create the NsdServiceInfo object, and populate it.

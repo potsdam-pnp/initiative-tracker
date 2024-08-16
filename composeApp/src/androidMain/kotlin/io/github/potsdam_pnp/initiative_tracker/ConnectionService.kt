@@ -66,8 +66,8 @@ class ConnectionService: LifecycleService() {
 
         val app = application as InitiativeTrackerApplication
 
-        clientConnections = ClientConnections(app.snapshot, app.connectionManager)
-        server = Server("Unnamed", app.snapshot, app.connectionManager)
+        clientConnections = ClientConnections(app.repository, app.connectionManager)
+        server = Server("Unnamed", app.repository, app.connectionManager)
         server!!.toggle(true)
         serverJob = lifecycleScope.launch(Dispatchers.Default) {
             server!!.runOnce()

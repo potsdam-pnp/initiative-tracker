@@ -7,22 +7,16 @@ import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.http.HttpMethod
-import io.ktor.utils.io.core.use
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.selects.select
 
 object ClientConsumer {
     private val _clientStatus = MutableStateFlow(ClientStatus())
@@ -67,7 +61,7 @@ object ClientConsumer {
                         method = HttpMethod.Get,
                         host = clientStatus.value.host,
                         port = 8080,
-                        path = "/ws/${model.snapshot.clientIdentifier.name}"
+                        path = "/ws/${model.repository.clientIdentifier.name}"
                     ) {
                         _clientStatus.update {
                             it.copy(status = ClientStatusState.Running(0, 0))
@@ -97,7 +91,7 @@ object ClientConsumer {
                         }
 
 
-                        MessageHandler(model.snapshot).run(this, receiveChannel, sendChannel)
+                        MessageHandler(model.repository).run(this, receiveChannel, sendChannel)
 
                         val stopMessage = closeReason.await().let {
                             when (it) {

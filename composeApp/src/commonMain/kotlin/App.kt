@@ -3,15 +3,11 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.animateIntAsState
-import androidx.compose.animation.core.animateIntSizeAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.BoxWithConstraintsScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -43,7 +39,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.materialIcon
 import androidx.compose.material.icons.materialPath
@@ -56,14 +51,12 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
@@ -101,7 +94,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
@@ -110,14 +102,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.key.Key.Companion.R
 import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.layout.onPlaced
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.isDebugInspectorInfoEnabled
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -133,21 +122,15 @@ import androidx.navigation.compose.rememberNavController
 import com.russhwolf.settings.Settings
 import io.github.aakira.napier.Napier
 import io.github.potsdam_pnp.initiative_tracker.state.ConflictState
-import io.github.potsdam_pnp.initiative_tracker.state.Snapshot
-import io.github.potsdam_pnp.initiative_tracker.state.Version
+import io.github.potsdam_pnp.initiative_tracker.state.Repository
+import io.github.potsdam_pnp.initiative_tracker.state.Dot
 import kotlinproject.composeapp.generated.resources.Res
-import kotlinproject.composeapp.generated.resources.baseline_file_download_24
-import kotlinproject.composeapp.generated.resources.baseline_file_download_off_24
-import kotlinproject.composeapp.generated.resources.baseline_file_upload_24
-import kotlinproject.composeapp.generated.resources.baseline_file_upload_off_24
 import kotlinproject.composeapp.generated.resources.baseline_sync_24
 import kotlinproject.composeapp.generated.resources.baseline_sync_disabled_24
 import kotlinproject.composeapp.generated.resources.baseline_sync_problem_24
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.math.roundToInt
@@ -505,7 +488,7 @@ enum class Screens(val title: String) {
 @Preview
 fun App(data: String? = null) {
     val globalCoroutineScope = rememberCoroutineScope()
-    val model = viewModel { Model(Snapshot(io.github.potsdam_pnp.initiative_tracker.state.State()), data) }
+    val model = viewModel { Model(Repository(io.github.potsdam_pnp.initiative_tracker.state.State()), data) }
     LaunchedEffect(Unit) {
         val predefinedServerHost = data?.split("&")?.firstOrNull { it.startsWith("server=") }?.let {
             it.substring(7)
@@ -1154,13 +1137,13 @@ fun MainScreen(innerPadding: PaddingValues, state: State, model: Model, viewStat
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ListActions(innerPadding: PaddingValues, state: State, actions: Actions) {
-    var showModalDialogOfVersion by remember { mutableStateOf<Version?>(null) }
+    var showModalDialogOfDot by remember { mutableStateOf<Dot?>(null) }
     LazyColumn(contentPadding = innerPadding) {
         items(state.actions.reversed(), key = { it.first.clientIdentifier.name + "-" + it.first.position }) { item ->
             Row(
                 modifier =
                 Modifier.clickable(onClick = {
-                        showModalDialogOfVersion = item.first
+                        showModalDialogOfDot = item.first
                     })
             ) {
                 Text(
@@ -1170,10 +1153,10 @@ fun ListActions(innerPadding: PaddingValues, state: State, actions: Actions) {
             }
         }
     }
-    val modelDialogVersion = showModalDialogOfVersion
+    val modelDialogVersion = showModalDialogOfDot
     if (modelDialogVersion != null) {
         BasicAlertDialog(
-            onDismissRequest = { showModalDialogOfVersion = null },
+            onDismissRequest = { showModalDialogOfDot = null },
             content = {
                 Card(
                     modifier = Modifier
@@ -1195,14 +1178,14 @@ fun ListActions(innerPadding: PaddingValues, state: State, actions: Actions) {
 
                         TextButton(
                             modifier = Modifier.align(Alignment.End),
-                            onClick = { showModalDialogOfVersion = null },
+                            onClick = { showModalDialogOfDot = null },
                         ) {
                             Text("Dismiss")
                         }
                         TextButton(
                             modifier = Modifier.align(Alignment.End),
                             onClick = {
-                                showModalDialogOfVersion = null
+                                showModalDialogOfDot = null
                                 actions.pickAction(modelDialogVersion)
                             },
                         ) {
@@ -1215,7 +1198,7 @@ fun ListActions(innerPadding: PaddingValues, state: State, actions: Actions) {
     }
 }
 
-fun descriptionOfAction(action: Triple<Version, ConflictState, ActionState>): String {
+fun descriptionOfAction(action: Triple<Dot, ConflictState, ActionState>): String {
     val conflictStateString =
         when (val af = action.second) {
             ConflictState.InAllTimelines -> ""

@@ -11,16 +11,12 @@ import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import getPlatform
 import io.github.aakira.napier.DebugAntilog
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.MainScope
-import kotlinx.coroutines.launch
-import kotlin.coroutines.coroutineContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -32,7 +28,7 @@ class MainActivity : ComponentActivity() {
         val data = intent.data?.fragment
         val factory = viewModelFactory {
             initializer {
-                Model((application as InitiativeTrackerApplication).snapshot, null)
+                Model((application as InitiativeTrackerApplication).repository, null)
             }
         }
         ViewModelProvider.create(viewModelStore, factory)[Model::class]

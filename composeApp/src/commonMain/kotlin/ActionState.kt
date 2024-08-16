@@ -1,5 +1,5 @@
 import io.github.potsdam_pnp.initiative_tracker.state.ConflictState
-import io.github.potsdam_pnp.initiative_tracker.state.Version
+import io.github.potsdam_pnp.initiative_tracker.state.Dot
 
 sealed class ActionState
 
@@ -60,7 +60,7 @@ fun deserializeAction(it: String): ActionState? {
 
 data class State2(
     val actions: List<ActionState>,
-    val turnActions: List<Triple<Version, ConflictState, ActionState>>
+    val turnActions: List<Triple<Dot, ConflictState, ActionState>>
 ) {
     fun predictNextTurns(withCurrent: Boolean): List<Character> {
         val alreadyPlayedCharactersSet = mutableSetOf<String>()

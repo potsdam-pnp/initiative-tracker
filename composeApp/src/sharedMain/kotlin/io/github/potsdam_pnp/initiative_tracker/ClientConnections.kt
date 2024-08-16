@@ -5,7 +5,7 @@ import io.github.potsdam_pnp.initiative_tracker.state.ClientIdentifier
 import io.github.potsdam_pnp.initiative_tracker.state.Encoders
 import io.github.potsdam_pnp.initiative_tracker.state.Message
 import io.github.potsdam_pnp.initiative_tracker.state.MessageHandler
-import io.github.potsdam_pnp.initiative_tracker.state.Snapshot
+import io.github.potsdam_pnp.initiative_tracker.state.Repository
 import io.github.potsdam_pnp.initiative_tracker.state.State
 import io.github.potsdam_pnp.initiative_tracker.state.VectorClock
 import io.ktor.client.HttpClient
@@ -20,7 +20,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
-class ClientConnections(val snapshot: Snapshot<ActionWrapper, State>, val connectionManager: ConnectionManager) {
+class ClientConnections(val repository: Repository<ActionWrapper, State>, val connectionManager: ConnectionManager) {
     suspend fun run(scope: CoroutineScope) {
         val httpClient = HttpClient() {
             install(WebSockets)
@@ -44,7 +44,7 @@ class ClientConnections(val snapshot: Snapshot<ActionWrapper, State>, val connec
                             method = HttpMethod.Get,
                             host = connectionInformation.hosts.first(),
                             port = connectionInformation.port,
-                            path = "/ws/${snapshot.clientIdentifier.name}"
+                            path = "/ws/${repository.clientIdentifier.name}"
                         ) {
                             val receiveChannel = Channel<Message<ActionWrapper>>()
                             val sendChannel = Channel<Message<ActionWrapper>>()
@@ -75,7 +75,7 @@ class ClientConnections(val snapshot: Snapshot<ActionWrapper, State>, val connec
                                 }
                             }
 
-                            MessageHandler(snapshot).run(this, receiveChannel, sendChannel)
+                            MessageHandler(repository).run(this, receiveChannel, sendChannel)
                         }
                     } catch (e: Exception) {
                         errorMsg = e.toString()

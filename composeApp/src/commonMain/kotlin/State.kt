@@ -1,15 +1,10 @@
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.potsdam_pnp.initiative_tracker.state.ActionWrapper
-import io.github.potsdam_pnp.initiative_tracker.state.CharacterId
-import io.github.potsdam_pnp.initiative_tracker.state.ClientIdentifier
 import io.github.potsdam_pnp.initiative_tracker.state.ConflictState
-import io.github.potsdam_pnp.initiative_tracker.state.Operation
-import io.github.potsdam_pnp.initiative_tracker.state.OperationMetadata
-import io.github.potsdam_pnp.initiative_tracker.state.Snapshot
+import io.github.potsdam_pnp.initiative_tracker.state.Repository
 import io.github.potsdam_pnp.initiative_tracker.state.State
-import io.github.potsdam_pnp.initiative_tracker.state.Version
+import io.github.potsdam_pnp.initiative_tracker.state.Dot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,7 +26,7 @@ data class Character(
 data class State(
     val characters: List<Character> = listOf(),
     val currentlySelectedCharacter: String? = null,
-    val actions: List<Triple<Version, ConflictState, ActionState>> = listOf(),
+    val actions: List<Triple<Dot, ConflictState, ActionState>> = listOf(),
     val turnConflicts: Boolean
 )
 
@@ -46,12 +41,12 @@ interface Actions {
     fun togglePlayerCharacter(characterKey: String, playerCharacter: Boolean)
     fun startTurn(characterKey: String)
     fun finishTurn(characterKey: String)
-    fun pickAction(version: Version?)
+    fun pickAction(dot: Dot?)
     fun restartEncounter()
 }
 
 
-class Model private constructor (val snapshot: Snapshot<ActionWrapper, State>) : ViewModel(), Actions {
+class Model private constructor (val repository: Repository<ActionWrapper, State>) : ViewModel(), Actions {
     private val _state = MutableStateFlow(State2(listOf(), turnActions = listOf()))
     val state = _state.map { it.toState() }
 
@@ -63,7 +58,7 @@ class Model private constructor (val snapshot: Snapshot<ActionWrapper, State>) :
         return "${thisDevice}$lastKey"
     }
 
-    constructor(snapshot: Snapshot<ActionWrapper, State>, data: String?) : this(snapshot) {
+    constructor(repository: Repository<ActionWrapper, State>, data: String?) : this(repository) {
         addCharacters(data)
 
         val scope =
@@ -74,9 +69,9 @@ class Model private constructor (val snapshot: Snapshot<ActionWrapper, State>) :
             }
 
         scope.launch {
-            snapshot.version.collect {
+            repository.version.collect {
                 _state.update {
-                    snapshot.state.toState2(snapshot)
+                    repository.state.toState2(repository)
                 }
             }
         }
@@ -102,13 +97,13 @@ class Model private constructor (val snapshot: Snapshot<ActionWrapper, State>) :
     }
 
     private fun addActions(vararg actions: ActionState) {
-        snapshot.produce(actions.mapNotNull {
+        repository.produce(actions.mapNotNull {
             if (it is StartTurn || it is FinishTurn || it is Die || it is Delay) {
-                val predecessors = snapshot.state.turnActions.value.map { it.second }
+                val predecessors = repository.state.turnActions.value.map { it.second }
                 if (predecessors.isEmpty()) {
                     ActionWrapper(it, null)
                 } else if (predecessors.size == 1) {
-                    ActionWrapper(it, predecessors.first().toVersion())
+                    ActionWrapper(it, predecessors.first().toDot())
                 } else {
                     null
                 }
@@ -167,16 +162,16 @@ class Model private constructor (val snapshot: Snapshot<ActionWrapper, State>) :
         addActions(FinishTurn(characterKey))
     }
 
-    override fun pickAction(version: Version?) {
-        snapshot.produce(
+    override fun pickAction(dot: Dot?) {
+        repository.produce(
             listOf(
-                ActionWrapper(ResolveConflict, version)
+                ActionWrapper(ResolveConflict, dot)
             )
         )
     }
 
     override fun restartEncounter() {
-        snapshot.produce(
+        repository.produce(
             listOf(
                 ActionWrapper(ResolveConflict, null),
                 ActionWrapper(ResetAllInitiatives, null)
