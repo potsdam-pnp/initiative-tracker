@@ -4,7 +4,7 @@ import io.github.aakira.napier.Napier
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
 import io.github.potsdam_pnp.initiative_tracker.crdt.InsertResult
 import io.github.potsdam_pnp.initiative_tracker.crdt.Operation
-import io.github.potsdam_pnp.initiative_tracker.crdt.OperationState
+import io.github.potsdam_pnp.initiative_tracker.crdt.AbstractState
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 import kotlinx.coroutines.CoroutineScope
@@ -23,7 +23,7 @@ sealed class Message<Op> {
     data class StopConnection<Op>(val unit: Unit): Message<Op>()
 }
 
-class MessageHandler<Op, State: OperationState<Op>>(private val repository: Repository<Op, State>) {
+class MessageHandler<Op, State: AbstractState<Op>>(private val repository: Repository<Op, State>) {
     suspend fun run(scope: CoroutineScope, incoming: Channel<Message<Op>>, outgoing: Channel<Message<Op>>) {
         val job = scope.launch {
             repository.version.collect {

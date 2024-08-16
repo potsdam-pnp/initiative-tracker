@@ -6,16 +6,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlin.random.Random
 
-abstract class OperationState<Op> {
-    abstract fun apply(operation: Operation<Op>)
-}
-
 sealed class InsertResult {
     data class MissingVersions(val missingDots: List<Dot>): InsertResult()
     data class Success(val newVersion: VectorClock): InsertResult()
 }
 
-class Repository<Op, State: OperationState<Op>> @OptIn(ExperimentalStdlibApi::class) constructor(
+class Repository<Op, State: AbstractState<Op>> @OptIn(ExperimentalStdlibApi::class) constructor(
     val state: State,
     current: VectorClock = VectorClock.empty(),
     val clientIdentifier: ClientIdentifier = ClientIdentifier(

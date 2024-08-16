@@ -17,7 +17,7 @@ import deserializeAction
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
 import io.github.potsdam_pnp.initiative_tracker.crdt.Operation
 import io.github.potsdam_pnp.initiative_tracker.crdt.OperationMetadata
-import io.github.potsdam_pnp.initiative_tracker.crdt.OperationState
+import io.github.potsdam_pnp.initiative_tracker.crdt.AbstractState
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 import serializeAction
@@ -60,14 +60,14 @@ class State(
     val characters: MutableMap<CharacterId, Character> = mutableMapOf(),
     var turnActions: Value<GrowingListItem<Turn>> = Value.empty(),
     var initiativeResets: VectorClock = VectorClock.empty()
-): OperationState<ActionWrapper>() {
+): AbstractState<ActionWrapper>() {
     private fun withCharacter(id: CharacterId, op: Character.() -> Character) {
         characters[id] =
             characters.getOrPut(id) { Character(id, Value.empty(), Value.empty(), Value.empty()) }
                 .let { it.op() }
     }
 
-    override fun apply(operation: Operation<ActionWrapper>) {
+    override fun apply(operation: Operation<ActionWrapper>): List<Dot> {
         val op = operation.op.action
         when (op) {
             is AddCharacter -> {
@@ -155,7 +155,11 @@ class State(
                     )
                 }
         }
+        return listOf()
     }
+
+    override fun predecessors(op: ActionWrapper): List<Dot> =
+        op.predecessor.let { if (it == null) listOf() else listOf(it) }
 
     private fun withTurnActions(f: Value<GrowingListItem<Turn>>.() -> Value<GrowingListItem<Turn>>) {
         turnActions = turnActions.f()
