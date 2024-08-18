@@ -104,25 +104,6 @@ class Model private constructor (val repository: Repository<Action, State>) : Vi
             }
         )
     }
-/*
-    private fun addActions(vararg actions: Action) {
-        repository.produce(actions)
-
-            /*.mapNotNull {
-            if (it is StartTurn || it is FinishTurn || it is Die || it is Delay) {
-                val predecessors = repository.state.turnActions.value.map { it.second }
-                if (predecessors.isEmpty()) {
-                    ActionWrapper(it, null)
-                } else if (predecessors.size == 1) {
-                    ActionWrapper(it, predecessors.first().toDot())
-                } else {
-                    null
-                }
-            } else {
-                ActionWrapper(it, null)
-            }
-        }.toList())*/
-    }*/
 
     fun addTurn(turnAction: TurnAction) {
         val predecessors = repository.state.turnActions.value.map { it.second }
