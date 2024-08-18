@@ -1,9 +1,8 @@
-import io.github.potsdam_pnp.initiative_tracker.Action
 import io.github.potsdam_pnp.initiative_tracker.ChangeInitiative
 import io.github.potsdam_pnp.initiative_tracker.Turn
 import io.github.potsdam_pnp.initiative_tracker.TurnAction
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
-import io.github.potsdam_pnp.initiative_tracker.state.State
+import io.github.potsdam_pnp.initiative_tracker.State
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

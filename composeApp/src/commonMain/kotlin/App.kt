@@ -121,14 +121,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.russhwolf.settings.Settings
 import io.github.aakira.napier.Napier
-import io.github.potsdam_pnp.initiative_tracker.Action
-import io.github.potsdam_pnp.initiative_tracker.AddCharacter
-import io.github.potsdam_pnp.initiative_tracker.ChangeInitiative
-import io.github.potsdam_pnp.initiative_tracker.ChangeName
-import io.github.potsdam_pnp.initiative_tracker.ChangePlayerCharacter
-import io.github.potsdam_pnp.initiative_tracker.DeleteCharacter
-import io.github.potsdam_pnp.initiative_tracker.ResetAllInitiatives
-import io.github.potsdam_pnp.initiative_tracker.Turn
+import io.github.potsdam_pnp.initiative_tracker.State
 import io.github.potsdam_pnp.initiative_tracker.TurnAction
 import io.github.potsdam_pnp.initiative_tracker.crdt.ConflictState
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
@@ -497,7 +490,7 @@ enum class Screens(val title: String) {
 @Preview
 fun App(data: String? = null) {
     val globalCoroutineScope = rememberCoroutineScope()
-    val model = viewModel { Model(Repository(io.github.potsdam_pnp.initiative_tracker.state.State()), data) }
+    val model = viewModel { Model(Repository(State()), data) }
     LaunchedEffect(Unit) {
         val predefinedServerHost = data?.split("&")?.firstOrNull { it.startsWith("server=") }?.let {
             it.substring(7)
@@ -1118,7 +1111,7 @@ fun MainScreen(innerPadding: PaddingValues, uiState: UiState, model: Model, view
                             OutlinedButton( enabled = !uiState.turnConflicts, onClick = {
                                 model.delay()
                             }) {
-                                Text("io.github.potsdam_pnp.initiative_tracker.Delay turn")
+                                Text("Delay turn")
                             }
 
                             Button(enabled = !uiState.turnConflicts, onClick = {
@@ -1219,7 +1212,7 @@ fun descriptionOfAction(action: Triple<Dot, ConflictState, TurnAction>): String 
             "Start turn of character ${a.characterId}"
         }
         is TurnAction.Delay -> {
-            "io.github.potsdam_pnp.initiative_tracker.Delay turn of character ${a.characterId}"
+            "Delay turn of character ${a.characterId}"
         }
         is TurnAction.FinishTurn -> {
             "Finish turn of character ${a.characterId}"

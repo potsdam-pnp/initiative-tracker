@@ -7,7 +7,7 @@ import io.github.potsdam_pnp.initiative_tracker.ClientConnections
 import io.github.potsdam_pnp.initiative_tracker.ConnectionManager
 import io.github.potsdam_pnp.initiative_tracker.Server
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
-import io.github.potsdam_pnp.initiative_tracker.state.State
+import io.github.potsdam_pnp.initiative_tracker.State
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking

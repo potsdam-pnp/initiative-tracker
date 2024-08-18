@@ -11,13 +11,12 @@ import io.github.potsdam_pnp.initiative_tracker.Turn
 import io.github.potsdam_pnp.initiative_tracker.TurnAction
 import io.github.potsdam_pnp.initiative_tracker.crdt.ConflictState
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
-import io.github.potsdam_pnp.initiative_tracker.state.State
+import io.github.potsdam_pnp.initiative_tracker.State
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.random.Random
