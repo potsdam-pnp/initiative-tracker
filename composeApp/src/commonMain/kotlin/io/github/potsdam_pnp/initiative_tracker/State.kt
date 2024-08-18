@@ -107,9 +107,9 @@ class State(
             when (val action = turn.turnAction) {
                 is TurnAction.StartTurn -> {
                     if (!alreadyPlayedCharactersSet.contains(action.characterId)) {
-                        updatePlayedCharacters(action.characterId) { it.copy(turns = it.turns + 1) }
                         alreadyPlayedCharacters.add(alreadyPlayedCharacters.size - dying, action.characterId)
                     }
+                    updatePlayedCharacters(action.characterId) { it.copy(turns = it.turns + 1) }
                     dying = 0
                 }
                 is TurnAction.Delay -> {
