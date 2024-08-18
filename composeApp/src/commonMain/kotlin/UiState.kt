@@ -1,18 +1,14 @@
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import io.github.potsdam_pnp.initiative_tracker.ActionState
-import io.github.potsdam_pnp.initiative_tracker.ActionWrapper
+import io.github.potsdam_pnp.initiative_tracker.Action
 import io.github.potsdam_pnp.initiative_tracker.AddCharacter
 import io.github.potsdam_pnp.initiative_tracker.ChangeInitiative
 import io.github.potsdam_pnp.initiative_tracker.ChangeName
 import io.github.potsdam_pnp.initiative_tracker.ChangePlayerCharacter
-import io.github.potsdam_pnp.initiative_tracker.Delay
 import io.github.potsdam_pnp.initiative_tracker.DeleteCharacter
-import io.github.potsdam_pnp.initiative_tracker.Die
-import io.github.potsdam_pnp.initiative_tracker.FinishTurn
 import io.github.potsdam_pnp.initiative_tracker.ResetAllInitiatives
-import io.github.potsdam_pnp.initiative_tracker.ResolveConflict
-import io.github.potsdam_pnp.initiative_tracker.StartTurn
+import io.github.potsdam_pnp.initiative_tracker.Turn
+import io.github.potsdam_pnp.initiative_tracker.TurnAction
 import io.github.potsdam_pnp.initiative_tracker.crdt.ConflictState
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.state.State
@@ -20,12 +16,13 @@ import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 
-data class Character(
+data class UiCharacter(
     val key: String,
     val name: String? = null,
     val initiative: Int? = null,
@@ -35,11 +32,11 @@ data class Character(
     val turn: Int = 0
 )
 
-data class State(
-    val characters: List<Character> = listOf(),
+data class UiState(
+    val characters: List<UiCharacter> = listOf(),
     val currentlySelectedCharacter: String? = null,
-    val actions: List<Triple<Dot, ConflictState, ActionState>> = listOf(),
-    val turnConflicts: Boolean
+    val actions: List<Triple<Dot, ConflictState, TurnAction>> = listOf(),
+    val turnConflicts: Boolean = false
 )
 
 interface Actions {
@@ -58,9 +55,9 @@ interface Actions {
 }
 
 
-class Model private constructor (val repository: Repository<ActionWrapper, State>) : ViewModel(), Actions {
-    private val _state = MutableStateFlow(State2(listOf(), turnActions = listOf()))
-    val state = _state.map { it.toState() }
+class Model private constructor (val repository: Repository<Action, State>) : ViewModel(), Actions {
+    private val _state = MutableStateFlow(UiState())
+    val state: StateFlow<UiState> = _state
 
     @OptIn(ExperimentalStdlibApi::class)
     private val thisDevice = Random.nextInt().toHexString().takeLast(4)
@@ -70,7 +67,7 @@ class Model private constructor (val repository: Repository<ActionWrapper, State
         return "${thisDevice}$lastKey"
     }
 
-    constructor(repository: Repository<ActionWrapper, State>, data: String?) : this(repository) {
+    constructor(repository: Repository<Action, State>, data: String?) : this(repository) {
         addCharacters(data)
 
         val scope =
@@ -83,7 +80,7 @@ class Model private constructor (val repository: Repository<ActionWrapper, State
         scope.launch {
             repository.version.collect {
                 _state.update {
-                    repository.state.toState2(repository)
+                    repository.state.toUiState(repository)
                 }
             }
         }
@@ -92,10 +89,10 @@ class Model private constructor (val repository: Repository<ActionWrapper, State
     fun addCharacters(data: String?) {
         val characterData = data?.split("&")?.firstOrNull { !it.contains('=') }
         val characterNames = characterData?.split(",") ?: emptyList()
-        addActions(
-            *characterNames.flatMap {
+        repository.produce(
+            characterNames.flatMap {
                 val key = it
-                if (!_state.value.actions.contains(AddCharacter(key))) {
+                if (!_state.value.characters.any { it.key == key }) {
                     listOf(
                         AddCharacter(key),
                         ChangeName(key, it),
@@ -104,12 +101,14 @@ class Model private constructor (val repository: Repository<ActionWrapper, State
                 } else {
                     listOf()
                 }
-            }.toTypedArray()
+            }
         )
     }
+/*
+    private fun addActions(vararg actions: Action) {
+        repository.produce(actions)
 
-    private fun addActions(vararg actions: ActionState) {
-        repository.produce(actions.mapNotNull {
+            /*.mapNotNull {
             if (it is StartTurn || it is FinishTurn || it is Die || it is Delay) {
                 val predecessors = repository.state.turnActions.value.map { it.second }
                 if (predecessors.isEmpty()) {
@@ -122,71 +121,75 @@ class Model private constructor (val repository: Repository<ActionWrapper, State
             } else {
                 ActionWrapper(it, null)
             }
-        }.toList())
+        }.toList())*/
+    }*/
+
+    fun addTurn(turnAction: TurnAction) {
+        val predecessors = repository.state.turnActions.value.map { it.second }
+        if (predecessors.size > 1) return
+        val predecessor = predecessors.firstOrNull()
+        repository.produce(listOf(Turn(turnAction, predecessor?.toDot())))
+
     }
 
     override fun deleteCharacter(characterKey: String) {
-        addActions(DeleteCharacter(characterKey))
+        repository.produce(listOf(DeleteCharacter(characterKey)))
     }
 
     override fun editCharacter(characterKey: String, name: String) {
-        addActions(ChangeName(characterKey, name))
+        repository.produce(listOf(ChangeName(characterKey, name)))
     }
 
     override fun editInitiative(characterKey: String, initiative: String) {
         val initiativeNumber = initiative.toIntOrNull()
         if (initiativeNumber != null) {
-            addActions(ChangeInitiative(characterKey, initiativeNumber))
+            repository.produce(listOf(ChangeInitiative(characterKey, initiativeNumber)))
         }
     }
 
     override fun addCharacter() {
-        addActions(AddCharacter(nextKey()))
+        repository.produce(listOf(AddCharacter(nextKey())))
     }
 
     override fun die(characterKey: String) {
-        addActions(Die(characterKey))
+        addTurn(TurnAction.Die(characterKey))
     }
 
     override fun delay() {
-        val current = _state.value.currentTurn()
+        val current = _state.value.currentlySelectedCharacter
         if (current != null) {
-            addActions(Delay(current))
+            addTurn(TurnAction.Delay(current))
         }
     }
 
     override fun next() {
-        val next = _state.value.predictNextTurns(withCurrent = false).firstOrNull()
+        val next = repository.state.predictNextTurns(withCurrent = false, repository).firstOrNull()
         if (next != null) {
-            addActions(StartTurn(next.key))
+            addTurn(TurnAction.StartTurn(next.key))
         }
     }
 
     override fun togglePlayerCharacter(characterKey: String, playerCharacter: Boolean) {
-        addActions(ChangePlayerCharacter(characterKey, playerCharacter)) // TODO Toggle instead of set to false
+        repository.produce(listOf(ChangePlayerCharacter(characterKey, playerCharacter)))
     }
 
     override fun startTurn(characterKey: String) {
-        addActions(StartTurn(characterKey))
+        addTurn(TurnAction.StartTurn(characterKey))
     }
 
     override fun finishTurn(characterKey: String) {
-        addActions(FinishTurn(characterKey))
+        addTurn(TurnAction.FinishTurn(characterKey))
     }
 
     override fun pickAction(dot: Dot?) {
-        repository.produce(
-            listOf(
-                ActionWrapper(ResolveConflict, dot)
-            )
-        )
+        repository.produce(listOf(Turn(TurnAction.ResolveConflicts, dot)))
     }
 
     override fun restartEncounter() {
         repository.produce(
             listOf(
-                ActionWrapper(ResolveConflict, null),
-                ActionWrapper(ResetAllInitiatives, null)
+                Turn(TurnAction.ResolveConflicts, null),
+                ResetAllInitiatives
             )
         )
     }

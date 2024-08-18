@@ -19,7 +19,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
-class ClientConnections(val repository: Repository<ActionWrapper, State>, val connectionManager: ConnectionManager) {
+class ClientConnections(val repository: Repository<Action, State>, val connectionManager: ConnectionManager) {
     suspend fun run(scope: CoroutineScope) {
         val httpClient = HttpClient() {
             install(WebSockets)
@@ -45,8 +45,8 @@ class ClientConnections(val repository: Repository<ActionWrapper, State>, val co
                             port = connectionInformation.port,
                             path = "/ws/${repository.clientIdentifier.name}"
                         ) {
-                            val receiveChannel = Channel<Message<ActionWrapper>>()
-                            val sendChannel = Channel<Message<ActionWrapper>>()
+                            val receiveChannel = Channel<Message<Action>>()
+                            val sendChannel = Channel<Message<Action>>()
 
                             launch {
                                 closeReason.await()

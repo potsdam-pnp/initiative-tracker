@@ -1,5 +1,5 @@
 import io.github.aakira.napier.Napier
-import io.github.potsdam_pnp.initiative_tracker.ActionWrapper
+import io.github.potsdam_pnp.initiative_tracker.Action
 import io.github.potsdam_pnp.initiative_tracker.state.Encoders
 import io.github.potsdam_pnp.initiative_tracker.crdt.Message
 import io.github.potsdam_pnp.initiative_tracker.crdt.MessageHandler
@@ -68,8 +68,8 @@ object ClientConsumer {
                         }
 
 
-                        val receiveChannel = Channel<Message<ActionWrapper>>()
-                        val sendChannel = Channel<Message<ActionWrapper>>()
+                        val receiveChannel = Channel<Message<Action>>()
+                        val sendChannel = Channel<Message<Action>>()
 
                         launch {
                             closeReason.await()

@@ -25,6 +25,10 @@ data class Register<T>(val value: List<Pair<T, OperationMetadata>>) {
         return Register(result + (newValue to clock))
     }
 
+    fun insert(newValue: Operation<T>) {
+        insert(newValue.op, newValue.metadata)
+    }
+
     fun textField(): String {
         when {
             value.isEmpty() -> return ""

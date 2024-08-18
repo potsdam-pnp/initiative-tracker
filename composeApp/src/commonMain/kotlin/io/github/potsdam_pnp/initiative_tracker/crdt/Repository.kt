@@ -15,8 +15,7 @@ class Repository<Op, State: AbstractState<Op>> @OptIn(ExperimentalStdlibApi::cla
     current: VectorClock = VectorClock.empty(),
     val clientIdentifier: ClientIdentifier = ClientIdentifier(
         Random.nextInt().toHexString().take(6)
-    )
-        ) {
+    )) {
     private val currentVersion: MutableStateFlow<VectorClock> = MutableStateFlow(current)
 
     private val versions: MutableMap<Dot, Operation<Op>> = mutableMapOf()

@@ -7,7 +7,7 @@ import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.state.State
 
 class InitiativeTrackerApplication: Application() {
-    val repository: Repository<ActionWrapper, State> = Repository(State())
+    val repository: Repository<Action, State> = Repository(State())
     val connectionManager: ConnectionManager = ConnectionManagerAndroid(this, repository)
 
     override fun onCreate() {

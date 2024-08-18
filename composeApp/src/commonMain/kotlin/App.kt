@@ -121,18 +121,15 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.russhwolf.settings.Settings
 import io.github.aakira.napier.Napier
-import io.github.potsdam_pnp.initiative_tracker.ActionState
+import io.github.potsdam_pnp.initiative_tracker.Action
 import io.github.potsdam_pnp.initiative_tracker.AddCharacter
 import io.github.potsdam_pnp.initiative_tracker.ChangeInitiative
 import io.github.potsdam_pnp.initiative_tracker.ChangeName
 import io.github.potsdam_pnp.initiative_tracker.ChangePlayerCharacter
-import io.github.potsdam_pnp.initiative_tracker.Delay
 import io.github.potsdam_pnp.initiative_tracker.DeleteCharacter
-import io.github.potsdam_pnp.initiative_tracker.Die
-import io.github.potsdam_pnp.initiative_tracker.FinishTurn
 import io.github.potsdam_pnp.initiative_tracker.ResetAllInitiatives
-import io.github.potsdam_pnp.initiative_tracker.ResolveConflict
-import io.github.potsdam_pnp.initiative_tracker.StartTurn
+import io.github.potsdam_pnp.initiative_tracker.Turn
+import io.github.potsdam_pnp.initiative_tracker.TurnAction
 import io.github.potsdam_pnp.initiative_tracker.crdt.ConflictState
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
@@ -160,7 +157,7 @@ data class ViewState(
 
 
 @Composable
-fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, viewState: ViewState, isGreyed: Boolean = false, toggleEditCharacter: (String) -> Unit) {
+fun ShowCharacter(uiCharacter: UiCharacter, isActive: Boolean, actions: Actions, viewState: ViewState, isGreyed: Boolean = false, toggleEditCharacter: (String) -> Unit) {
     val focusRequester = remember { FocusRequester() }
 
     var modifier: Modifier = Modifier.fillMaxWidth()
@@ -175,48 +172,48 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, vie
 
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.width(30.dp)) {
-            if (viewState.shownView == ShownView.TURNS && !character.dead) {
-                Text("${character.turn + 1}", )
+            if (viewState.shownView == ShownView.TURNS && !uiCharacter.dead) {
+                Text("${uiCharacter.turn + 1}", )
             }
         }
-        if (!character.dead) {
+        if (!uiCharacter.dead) {
             Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
-                if (viewState.currentlyEditedCharacter != character.key) {
+                if (viewState.currentlyEditedCharacter != uiCharacter.key) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(character.name ?: "")
-                        ShowPlayerVsNonPlayerCharacter(viewState, character, actions)
-                        if (character.isDelayed && viewState.shownView == ShownView.TURNS) {
+                        Text(uiCharacter.name ?: "")
+                        ShowPlayerVsNonPlayerCharacter(viewState, uiCharacter, actions)
+                        if (uiCharacter.isDelayed && viewState.shownView == ShownView.TURNS) {
                             Text(
                                 "Delayed",
                                 Modifier.padding(horizontal = 10.dp),
                                 fontStyle = FontStyle.Italic
                             )
-                            OutlinedButton(onClick = { actions.startTurn(character.key) }) {
+                            OutlinedButton(onClick = { actions.startTurn(uiCharacter.key) }) {
                                 Text("Take")
                             }
                         }
                     }
                 } else {
                     TextField(
-                        modifier = if (character.name == null) {
+                        modifier = if (uiCharacter.name == null) {
                             Modifier.focusRequester(focusRequester)
                         } else {
                             Modifier
                         },
                         singleLine = true,
-                        value = character.name ?: "",
-                        onValueChange = { actions.editCharacter(character.key, it) },
+                        value = uiCharacter.name ?: "",
+                        onValueChange = { actions.editCharacter(uiCharacter.key, it) },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                         keyboardActions = KeyboardActions(
                             onDone = {
-                                toggleEditCharacter(character.key)
+                                toggleEditCharacter(uiCharacter.key)
                             },
                             onNext = {
                                 focusManager.moveFocus(FocusDirection.Next)
                             }
                         ),
                         label = { Text("Name") })
-                    if (character.name == null || character.initiative == null) {
+                    if (uiCharacter.name == null || uiCharacter.initiative == null) {
                         DisposableEffect(Unit) {
                             focusRequester.requestFocus()
                             onDispose { }
@@ -224,37 +221,37 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, vie
                     }
                 }
             }
-            val toggleEditIcon = if (viewState.currentlyEditedCharacter != character.key) {
+            val toggleEditIcon = if (viewState.currentlyEditedCharacter != uiCharacter.key) {
                 Icons.Default.Edit
             } else {
                 Icons.Default.Check
             }
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (viewState.currentlyEditedCharacter != character.key) {
+                    if (viewState.currentlyEditedCharacter != uiCharacter.key) {
                         Text(
                             modifier = Modifier.padding(horizontal = 5.dp),
-                            text = character.initiative?.toString() ?: ""
+                            text = uiCharacter.initiative?.toString() ?: ""
                         )
                     } else {
                         TextField(
                             modifier = Modifier.width(70.dp)
                                 .padding(horizontal = 5.dp)
                                 .then(
-                                    if (character.initiative == null && character.name != null) Modifier.focusRequester(
+                                    if (uiCharacter.initiative == null && uiCharacter.name != null) Modifier.focusRequester(
                                         focusRequester
                                     ) else Modifier
                                 ),
                             singleLine = true,
-                            value = character.initiative?.toString() ?: "",
-                            onValueChange = { actions.editInitiative(character.key, it) },
+                            value = uiCharacter.initiative?.toString() ?: "",
+                            onValueChange = { actions.editInitiative(uiCharacter.key, it) },
                             keyboardOptions = KeyboardOptions(
                                 imeAction = ImeAction.Done,
                                 keyboardType = KeyboardType.Decimal
                             ),
                             keyboardActions = KeyboardActions(
                                 onDone = {
-                                    toggleEditCharacter(character.key)
+                                    toggleEditCharacter(uiCharacter.key)
                                 },
                                 onPrevious = {
                                     focusManager.moveFocus(FocusDirection.Previous)
@@ -263,20 +260,20 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, vie
                             label = { Text("In") })
                     }
                     if (viewState.shownView == ShownView.CHARACTERS) {
-                        IconButton(onClick = { toggleEditCharacter(character.key) }) {
+                        IconButton(onClick = { toggleEditCharacter(uiCharacter.key) }) {
                             AnimatedContent(targetState = toggleEditIcon) {
                                 Icon(it, contentDescription = "Toggle Edit")
                             }
                         }
-                        IconButton(onClick = { actions.deleteCharacter(character.key) }) {
+                        IconButton(onClick = { actions.deleteCharacter(uiCharacter.key) }) {
                             Icon(
                                 Icons.Default.Delete,
                                 contentDescription = "Delete"
                             )
                         }
                     } else {
-                        if (character.playerCharacter == true) {
-                            IconButton(enabled = !isGreyed, onClick = { actions.die(character.key) }) {
+                        if (uiCharacter.playerCharacter == true) {
+                            IconButton(enabled = !isGreyed, onClick = { actions.die(uiCharacter.key) }) {
                                 Icon(
                                     imageVector = deathIcon,
                                     tint = Color.Black,
@@ -284,7 +281,7 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, vie
                                 )
                             }
                         } else {
-                            IconButton(enabled = !isGreyed, onClick = { actions.deleteCharacter(character.key) }) {
+                            IconButton(enabled = !isGreyed, onClick = { actions.deleteCharacter(uiCharacter.key) }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Delete")
                             }
                         }
@@ -297,10 +294,10 @@ fun ShowCharacter(character: Character, isActive: Boolean, actions: Actions, vie
 
 
 @Composable
-fun ShowPlayerVsNonPlayerCharacter(viewState: ViewState, character: Character, actions: Actions) {
-    val isPlayerCharacter = character.playerCharacter == true
+fun ShowPlayerVsNonPlayerCharacter(viewState: ViewState, uiCharacter: UiCharacter, actions: Actions) {
+    val isPlayerCharacter = uiCharacter.playerCharacter == true
     if (viewState.shownView == ShownView.CHARACTERS) {
-        Button(modifier = Modifier.padding(start = 10.dp), onClick = { actions.togglePlayerCharacter(character.key, !isPlayerCharacter) }) {
+        Button(modifier = Modifier.padding(start = 10.dp), onClick = { actions.togglePlayerCharacter(uiCharacter.key, !isPlayerCharacter) }) {
             Text(text = if (isPlayerCharacter) "PC" else "NPC")
         }
     }
@@ -311,13 +308,13 @@ fun ShowPlayerVsNonPlayerCharacter(viewState: ViewState, character: Character, a
 @Composable
 fun ListCharacters(
     columnScope: ColumnScope,
-    characters: List<Character>,
+    uiCharacters: List<UiCharacter>,
     actions: Actions,
     listState: LazyListState,
     currentlyEditedCharacter: String?,
     toggleEditCharacter: (String) -> Unit) {
     LazyColumn(state = listState, modifier = with(columnScope) { Modifier.fillMaxWidth().weight(1f) }) {
-        items(characters, key = { it.key }) { character ->
+        items(uiCharacters, key = { it.key }) { character ->
             Box(modifier = Modifier.animateItemPlacement()) {
                 ShowCharacter(
                     character,
@@ -372,14 +369,14 @@ fun ListConflictTurns(columnScope: ColumnScope, hasConflict: Boolean, showAction
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ListTurns(characters: List<Character>, active: String?, actions: Actions) {
+fun ListTurns(uiCharacters: List<UiCharacter>, active: String?, actions: Actions) {
     SubcomposeLayout(modifier = Modifier.clipToBounds()) { constraints ->
-        if (characters.isEmpty()) {
+        if (uiCharacters.isEmpty()) {
             return@SubcomposeLayout layout(0, 0) {}
         }
 
         var currentAddTurn = -1
-        var currentIndex = characters.size - 1
+        var currentIndex = uiCharacters.size - 1
         var currentHeight = 0
 
         var oneRoundHeight = 0
@@ -387,7 +384,7 @@ fun ListTurns(characters: List<Character>, active: String?, actions: Actions) {
         val placeables = mutableListOf<Pair<Int, Placeable>>()
 
         while (currentHeight < constraints.maxHeight) {
-            val currentCharacter = characters[currentIndex]
+            val currentCharacter = uiCharacters[currentIndex]
             val currentTurn = currentCharacter.turn + currentAddTurn
             val slotKey = currentCharacter.key + "-" + currentTurn
 
@@ -439,7 +436,7 @@ fun ListTurns(characters: List<Character>, active: String?, actions: Actions) {
             placeables.add(currentHeight to measured)
             currentHeight += measured.height
             currentIndex++
-            if (currentIndex == characters.size) {
+            if (currentIndex == uiCharacters.size) {
                 if (currentAddTurn == 0) {
                     oneRoundHeight = currentHeight
                 }
@@ -458,12 +455,12 @@ fun ListTurns(characters: List<Character>, active: String?, actions: Actions) {
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-fun InitOrder(columnScope: ColumnScope, characters: List<Character>, active: String?, actions: Actions, listState: LazyListState, viewState: ViewState, hasConflict: Boolean, showActionList: () -> Unit, toggleEditCharacter: (String) -> Unit) {
+fun InitOrder(columnScope: ColumnScope, uiCharacters: List<UiCharacter>, active: String?, actions: Actions, listState: LazyListState, viewState: ViewState, hasConflict: Boolean, showActionList: () -> Unit, toggleEditCharacter: (String) -> Unit) {
     if (viewState.shownView == ShownView.CHARACTERS) {
-        ListCharacters(columnScope, characters, actions, listState, viewState.currentlyEditedCharacter, toggleEditCharacter)
+        ListCharacters(columnScope, uiCharacters, actions, listState, viewState.currentlyEditedCharacter, toggleEditCharacter)
     } else {
         ListConflictTurns(columnScope, hasConflict, showActionList) {
-            ListTurns(characters, active, actions)
+            ListTurns(uiCharacters, active, actions)
         }
     }
 }
@@ -510,7 +507,7 @@ fun App(data: String? = null) {
             ClientConsumer.start(model, globalCoroutineScope)
         }
     }
-    val state by model.state.collectAsState(State(turnConflicts = false))
+    val uiState by model.state.collectAsState(UiState(turnConflicts = false))
 
     val partiesStateFlow = remember { MutableStateFlow(mapOf<String, List<SimpleCharacter>>()) }
     val partiesState = remember { mutableStateOf(mapOf<String, List<SimpleCharacter>>()) }
@@ -634,7 +631,7 @@ fun App(data: String? = null) {
                             label = { Text("Add players to home screen") },
                             selected = false,
                             onClick = {
-                                val characters = state.characters.mapNotNull { it.name }
+                                val characters = uiState.characters.mapNotNull { it.name }
                                 if (characters.isNotEmpty()) {
                                     getPlatform().generatePlayerShortcut(context, characters)
                                 } else {
@@ -652,8 +649,8 @@ fun App(data: String? = null) {
                     Spacer(modifier = Modifier.weight(1f))
                     Row(modifier = Modifier.fillMaxWidth().align(Alignment.CenterHorizontally).padding(all = 10.dp)) {
                         Column() {
-                            Text("${state.actions.filterIsInstance<StartTurn>().size} turns played so far in current encounter")
-                            Text("${state.characters.filter { !it.dead }.size} characters still alive")
+                            Text("${uiState.actions.filterIsInstance<TurnAction.StartTurn>().size} turns played so far in current encounter")
+                            Text("${uiState.characters.filter { !it.dead }.size} characters still alive")
                             Button(onClick = {
                                 scope.launch {
                                     drawerState.close()
@@ -740,7 +737,7 @@ fun App(data: String? = null) {
                     startDestination = Screens.MainScreen.name
                 ) {
                     composable(route = Screens.MainScreen.name) {
-                        MainScreen(innerPadding, state, model, viewStateVar, pagerState) {
+                        MainScreen(innerPadding, uiState, model, viewStateVar, pagerState) {
                             navController.navigate(Screens.ListActions.name) {
                                 popUpTo(Screens.MainScreen.name)
                                 launchSingleTop = true
@@ -749,7 +746,7 @@ fun App(data: String? = null) {
                     }
 
                     composable(route = Screens.ListActions.name) {
-                        ListActions(innerPadding, state, model)
+                        ListActions(innerPadding, uiState, model)
                     }
 
                     composable(route = Screens.ConnectionSettings.name) {
@@ -1071,7 +1068,7 @@ fun Parties(innerPadding: PaddingValues, model: Model, partiesState: MutableStat
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(innerPadding: PaddingValues, state: State, model: Model, viewStateVar: MutableState<ViewState>, pagerState: PagerState, showActionList: () -> Unit) {
+fun MainScreen(innerPadding: PaddingValues, uiState: UiState, model: Model, viewStateVar: MutableState<ViewState>, pagerState: PagerState, showActionList: () -> Unit) {
     val actions: Actions = model
     var viewState by viewStateVar
 
@@ -1099,12 +1096,12 @@ fun MainScreen(innerPadding: PaddingValues, state: State, model: Model, viewStat
                 val listState = rememberLazyListState()
                 InitOrder(
                     this,
-                    state.characters,
-                    state.currentlySelectedCharacter,
+                    uiState.characters,
+                    uiState.currentlySelectedCharacter,
                     actions,
                     listState,
                     thisViewState,
-                    state.turnConflicts,
+                    uiState.turnConflicts,
                     showActionList,
                 ) {
                     viewState =
@@ -1118,20 +1115,20 @@ fun MainScreen(innerPadding: PaddingValues, state: State, model: Model, viewStat
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceAround
                         ) {
-                            OutlinedButton( enabled = !state.turnConflicts, onClick = {
+                            OutlinedButton( enabled = !uiState.turnConflicts, onClick = {
                                 model.delay()
                             }) {
                                 Text("io.github.potsdam_pnp.initiative_tracker.Delay turn")
                             }
 
-                            Button(enabled = !state.turnConflicts, onClick = {
+                            Button(enabled = !uiState.turnConflicts, onClick = {
                                 model.next()
                             }) {
                                 Text("Start next turn")
                             }
 
-                            OutlinedButton(enabled = !state.turnConflicts, onClick = {
-                                state.currentlySelectedCharacter.let {
+                            OutlinedButton(enabled = !uiState.turnConflicts, onClick = {
+                                uiState.currentlySelectedCharacter.let {
                                     if (it != null)
                                         model.finishTurn(it)
                                 }
@@ -1148,10 +1145,10 @@ fun MainScreen(innerPadding: PaddingValues, state: State, model: Model, viewStat
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ListActions(innerPadding: PaddingValues, state: State, actions: Actions) {
+fun ListActions(innerPadding: PaddingValues, uiState: UiState, actions: Actions) {
     var showModalDialogOfDot by remember { mutableStateOf<Dot?>(null) }
     LazyColumn(contentPadding = innerPadding) {
-        items(state.actions.reversed(), key = { it.first.clientIdentifier.name + "-" + it.first.position }) { item ->
+        items(uiState.actions.reversed(), key = { it.first.clientIdentifier.name + "-" + it.first.position }) { item ->
             Row(
                 modifier =
                 Modifier.clickable(onClick = {
@@ -1184,7 +1181,7 @@ fun ListActions(innerPadding: PaddingValues, state: State, actions: Actions) {
                         )
                         HorizontalDivider()
                         Text(
-                            text = descriptionOfAction(state.actions.find { it.first == modelDialogVersion }!!),
+                            text = descriptionOfAction(uiState.actions.find { it.first == modelDialogVersion }!!),
                             modifier = Modifier.padding(16.dp)
                         )
 
@@ -1210,7 +1207,7 @@ fun ListActions(innerPadding: PaddingValues, state: State, actions: Actions) {
     }
 }
 
-fun descriptionOfAction(action: Triple<Dot, ConflictState, ActionState>): String {
+fun descriptionOfAction(action: Triple<Dot, ConflictState, TurnAction>): String {
     val conflictStateString =
         when (val af = action.second) {
             ConflictState.InAllTimelines -> ""
@@ -1218,38 +1215,20 @@ fun descriptionOfAction(action: Triple<Dot, ConflictState, ActionState>): String
         }
 
     val result = when (val a = action.third) {
-        is AddCharacter -> {
-            "Add character ${a.id}"
+        is TurnAction.StartTurn -> {
+            "Start turn of character ${a.characterId}"
         }
-        is ChangeName -> {
-            "Change name of character ${a.id} to ${a.name}"
+        is TurnAction.Delay -> {
+            "io.github.potsdam_pnp.initiative_tracker.Delay turn of character ${a.characterId}"
         }
-        is ChangeInitiative -> {
-            "Change initiative of character ${a.id} to ${a.initiative}"
+        is TurnAction.FinishTurn -> {
+            "Finish turn of character ${a.characterId}"
         }
-        is ChangePlayerCharacter -> {
-            "Change player character of character ${a.id} to ${a.playerCharacter}"
+        is TurnAction.Die -> {
+            "Character ${a.characterId} dies"
         }
-        is DeleteCharacter -> {
-            "Delete character ${a.id}"
-        }
-        is StartTurn -> {
-            "Start turn of character ${a.id}"
-        }
-        is Delay -> {
-            "io.github.potsdam_pnp.initiative_tracker.Delay turn of character ${a.id}"
-        }
-        is FinishTurn -> {
-            "Finish turn of character ${a.id}"
-        }
-        is Die -> {
-            "Character ${a.id} dies"
-        }
-        is ResolveConflict -> {
+        is TurnAction.ResolveConflicts -> {
             "Undo some actions"
-        }
-        is ResetAllInitiatives -> {
-            "Reset all initiatives"
         }
     }
 

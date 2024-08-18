@@ -1,9 +1,9 @@
 package io.github.potsdam_pnp.initiative_tracker.crdt
 
-data class GrowingListItem<T>(
-    val item: T,
-    val predecessor: Dot?,
-) {
+interface GrowingListItem<T> {
+    val item: T
+    val predecessor: Dot?
+
     fun asList(dot: Dot, fetchDot: (Dot) -> Pair<Dot, GrowingListItem<T>>): List<Pair<Dot, T>> {
         val result = mutableListOf<Pair<Dot, T>>(dot to item)
 
@@ -24,7 +24,7 @@ sealed class ConflictState {
     data class InTimelines(val timeline: Set<Int>): ConflictState()
 }
 
-fun <T> Register<GrowingListItem<T>>.show(fetchVersion: (Dot) -> Pair<GrowingListItem<T>, OperationMetadata>): List<Triple<Dot, ConflictState, T>> {
+fun <U: GrowingListItem<T>, T> Register<U>.show(fetchVersion: (Dot) -> Pair<U, OperationMetadata>): List<Triple<Dot, ConflictState, T>> {
     if (value.isEmpty()) return emptyList()
 
     val currentTop = value.mapIndexed { index, v -> setOf(index) to v }.toMap().toMutableMap()

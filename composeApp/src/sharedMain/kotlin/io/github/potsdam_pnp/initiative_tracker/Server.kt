@@ -75,7 +75,7 @@ private sealed class Actions {
     object End: Actions()
 }
 
-class Server(private val name: String, private val repository: Repository<ActionWrapper, State>, private val connectionManager: ConnectionManager) {
+class Server(private val name: String, private val repository: Repository<Action, State>, private val connectionManager: ConnectionManager) {
     private val state = MutableStateFlow<ServerState>(ServerState.Stopped)
     private val actions = Channel<Actions>()
 
@@ -148,8 +148,8 @@ class Server(private val name: String, private val repository: Repository<Action
                     state.update { (it as ServerState.Running).let { it.copy(connectedClients = it.connectedClients + 1) } }
 
                     try {
-                        val receiveChannel = Channel<Message<ActionWrapper>>()
-                        val sendChannel = Channel<Message<ActionWrapper>>()
+                        val receiveChannel = Channel<Message<Action>>()
+                        val sendChannel = Channel<Message<Action>>()
 
                         launch {
                             state.first { it !is ServerState.Running }

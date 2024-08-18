@@ -10,7 +10,7 @@ import io.github.potsdam_pnp.initiative_tracker.state.State
 import kotlinx.coroutines.flow.update
 
 
-class ConnectionManagerAndroid(val context: Context, val repository: Repository<ActionWrapper, State>): ConnectionManager() {
+class ConnectionManagerAndroid(val context: Context, val repository: Repository<Action, State>): ConnectionManager() {
 
     override fun registerService(name: String, port: Int) {
         // Create the NsdServiceInfo object, and populate it.

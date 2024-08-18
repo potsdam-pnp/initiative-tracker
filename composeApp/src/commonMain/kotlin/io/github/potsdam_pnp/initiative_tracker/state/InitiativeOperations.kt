@@ -4,16 +4,12 @@ import io.github.potsdam_pnp.initiative_tracker.AddCharacter
 import io.github.potsdam_pnp.initiative_tracker.ChangeInitiative
 import io.github.potsdam_pnp.initiative_tracker.ChangeName
 import io.github.potsdam_pnp.initiative_tracker.ChangePlayerCharacter
-import io.github.potsdam_pnp.initiative_tracker.Delay
 import io.github.potsdam_pnp.initiative_tracker.DeleteCharacter
-import io.github.potsdam_pnp.initiative_tracker.Die
-import io.github.potsdam_pnp.initiative_tracker.FinishTurn
 import io.github.potsdam_pnp.initiative_tracker.ResetAllInitiatives
-import io.github.potsdam_pnp.initiative_tracker.ResolveConflict
-import io.github.potsdam_pnp.initiative_tracker.StartTurn
-import State2
+import UiCharacter
+import UiState
+import io.github.potsdam_pnp.initiative_tracker.Action
 import io.github.potsdam_pnp.initiative_tracker.deserializeAction
-import io.github.potsdam_pnp.initiative_tracker.ActionWrapper
 import io.github.potsdam_pnp.initiative_tracker.Character
 import io.github.potsdam_pnp.initiative_tracker.CharacterId
 import io.github.potsdam_pnp.initiative_tracker.Turn
@@ -32,26 +28,19 @@ import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 import io.github.potsdam_pnp.initiative_tracker.crdt.show
 import io.github.potsdam_pnp.initiative_tracker.serializeAction
 
-import io.github.potsdam_pnp.initiative_tracker.StartTurn as _StartTurn
-import io.github.potsdam_pnp.initiative_tracker.Delay as _Delay
-import io.github.potsdam_pnp.initiative_tracker.Die as _Die
-import io.github.potsdam_pnp.initiative_tracker.FinishTurn as _FinishTurn
-
-
 class State(
     val characters: MutableMap<CharacterId, Character> = mutableMapOf(),
-    var turnActions: Register<GrowingListItem<Turn>> = Register.empty(),
+    var turnActions: Register<Turn> = Register.empty(),
     var initiativeResets: VectorClock = VectorClock.empty()
-): AbstractState<ActionWrapper>() {
+): AbstractState<Action>() {
     private fun withCharacter(id: CharacterId, op: Character.() -> Character) {
         characters[id] =
             characters.getOrPut(id) { Character(id, Register.empty(), Register.empty(), Register.empty()) }
                 .let { it.op() }
     }
 
-    override fun apply(operation: Operation<ActionWrapper>): List<Dot> {
-        val op = operation.op.action
-        when (op) {
+    override fun apply(operation: Operation<Action>): List<Dot> {
+        when (val op = operation.op) {
             is AddCharacter -> {
                 withCharacter(CharacterId(op.id)) { this }
             }
@@ -84,151 +73,128 @@ class State(
                     copy(dead = dead.insert(true, operation.metadata))
                 }
 
-            is StartTurn ->
-                withTurnActions {
-                    insert(
-                        GrowingListItem(
-                            Turn(CharacterId(op.id), TurnAction.StartTurn),
-                            predecessor = operation.op.predecessor
-                        ),
-                        operation.metadata
-                    )
-                }
-
-            is FinishTurn ->
-                withTurnActions {
-                    insert(
-                        GrowingListItem(
-                            Turn(CharacterId(op.id), TurnAction.FinishTurn),
-                            predecessor = operation.op.predecessor
-                        ),
-                        operation.metadata
-                    )
-                }
-
-            is Die ->
-                withTurnActions {
-                    insert(
-                        GrowingListItem(
-                            Turn(CharacterId(op.id), TurnAction.Die),
-                            predecessor = operation.op.predecessor
-                        ),
-                        operation.metadata
-                    )
-                }
-            is Delay ->
-                withTurnActions {
-                    insert(
-                        GrowingListItem(
-                            Turn(CharacterId(op.id), TurnAction.Delay),
-                            predecessor = operation.op.predecessor
-                        ),
-                        operation.metadata
-                    )
-                }
-            is ResolveConflict ->
-                withTurnActions {
-                    insert(
-                        GrowingListItem(
-                            Turn(CharacterId(""), TurnAction.ResolveConflicts), //TODO io.github.potsdam_pnp.initiative_tracker.ResolveConflict should be a "Turn" without a character
-                            predecessor = operation.op.predecessor
-                        ),
-                        operation.metadata
-                    )
-                }
+            is Turn -> {
+                turnActions = turnActions.insert(op, operation.metadata)
+            }
         }
         return listOf()
     }
 
-    override fun predecessors(op: ActionWrapper): List<Dot> =
-        op.predecessor.let { if (it == null) listOf() else listOf(it) }
+    override fun predecessors(op: Action): List<Dot> =
+        if (op is Turn) { op.predecessor?.let { listOf(it) } ?: listOf() } else listOf()
 
-    private fun withTurnActions(f: Register<GrowingListItem<Turn>>.() -> Register<GrowingListItem<Turn>>) {
-        turnActions = turnActions.f()
+    private fun commonLatestTurn(repository: Repository<Action, State>): Turn? {
+        return when {
+            turnActions.value.isEmpty() -> null
+            else -> {
+                var resultValue = turnActions
+                while (resultValue.value.size > 1) {
+                    val firstElement = resultValue.value[0]
+                    resultValue = Register(resultValue.value.drop(1))
+                    val predecessor = firstElement.first.predecessor
+                    if (predecessor != null) {
+                        val fetched = repository.fetchVersion(predecessor)!!
+                        resultValue = resultValue.insert(fetched.op as Turn, fetched.metadata)
+                    } else {
+                        return null
+                    }
+                }
+                return resultValue.value[0].first
+            }
+        }
     }
 
-    fun toState2(repository: Repository<ActionWrapper, State>): State2 {
-        val characterActions = characters.flatMap {
-            val initiative = it.value.initiative.value.let {
-                if (it.size == 1 && it[0].second.clock.contains(initiativeResets))
-                    it.first().first
-                else
-                    null
-            }
+    private data class CharacterData(val turns: Int = 0, val delayed: Boolean = false)
+    fun predictNextTurns(withCurrent: Boolean, repository: Repository<Action, State>): List<UiCharacter> {
+        val alreadyPlayedCharactersSet = mutableMapOf<String, CharacterData>()
+        val alreadyPlayedCharacters = mutableListOf<String>()
 
-            val playerCharacter = it.value.playerCharacter.value.let {
-                when {
-                    it.isEmpty() -> null
-                    it.all { it.first } -> true
-                    it.all { !it.first } -> false
-                    else -> null
-                }
-            }
-
-            val isDead = it.value.dead.value.let {
-                when {
-                    it.isEmpty() -> null
-                    it.any { it.first } -> true
-                    else -> false
-                }
-            }
-
-            listOfNotNull(
-                AddCharacter(it.value.id.id),
-                if (it.value.name.value.isNotEmpty()) ChangeName(it.value.id.id, it.value.name.textField()) else null,
-                if (initiative != null) ChangeInitiative(it.value.id.id, initiative) else null,
-                if (playerCharacter != null) ChangePlayerCharacter(it.value.id.id, playerCharacter) else null,
-                if (isDead == true) DeleteCharacter(it.value.id.id) else null
-            )
+        val updatePlayedCharacters = { characterId: String, characterData: (CharacterData) -> CharacterData ->
+            alreadyPlayedCharactersSet[characterId] = characterData(alreadyPlayedCharactersSet.getOrElse(characterId){CharacterData()})
         }
 
-        val fetchVersion = { dot: Dot ->
-            val v = repository.fetchVersion(dot)!!
-            val turn =
-                when (v.op.action) {
-                    is StartTurn ->
-                        Turn(CharacterId(v.op.action.id), TurnAction.StartTurn)
+        val current = if (withCurrent) currentTurn(repository) else null
+        if (current != null) {
+            alreadyPlayedCharactersSet[current] = CharacterData(turns = -1)
+        }
 
-                    is FinishTurn ->
-                        Turn(CharacterId(v.op.action.id), TurnAction.FinishTurn)
+        var dying = 0
 
-                    is Die ->
-                        Turn(CharacterId(v.op.action.id), TurnAction.Die)
-
-                    is Delay ->
-                        Turn(CharacterId(v.op.action.id), TurnAction.Delay)
-
-                    is ResolveConflict ->
-                        Turn(CharacterId(""), TurnAction.ResolveConflicts)
-
-                    else ->
-                        throw Exception("Not a turn action")
+        var turn = commonLatestTurn(repository)
+        while (turn != null) {
+            when (val action = turn.turnAction) {
+                is TurnAction.StartTurn -> {
+                    if (!alreadyPlayedCharactersSet.contains(action.characterId)) {
+                        updatePlayedCharacters(action.characterId) { it.copy(turns = it.turns + 1) }
+                        alreadyPlayedCharacters.add(alreadyPlayedCharacters.size - dying, action.characterId)
+                    }
+                    dying = 0
                 }
-            GrowingListItem(turn, v.op.predecessor) to v.metadata
-        }
+                is TurnAction.Delay -> {
+                    if (!alreadyPlayedCharactersSet.contains(action.characterId)) {
+                        updatePlayedCharacters(action.characterId) { it.copy(delayed = true) }
+                    }
+                    updatePlayedCharacters(action.characterId) { it.copy(turns = it.turns - 1)}
+                }
+                is TurnAction.Die -> {
+                    if (!alreadyPlayedCharactersSet.contains(action.characterId)) {
+                        alreadyPlayedCharacters.add(action.characterId)
+                        dying += 1
+                        updatePlayedCharacters(action.characterId) { it }
+                    }
+                }
+                is TurnAction.FinishTurn -> {}
 
-        val turnActions = turnActions.show(fetchVersion).mapNotNull {
-            val result = when (it.third.turnAction) {
-                is TurnAction.StartTurn ->
-                    _StartTurn(it.third.id.id)
-
-                is TurnAction.FinishTurn ->
-                    _FinishTurn(it.third.id.id)
-
-                is TurnAction.Die ->
-                    _Die(it.third.id.id)
-
-                is TurnAction.Delay ->
-                    _Delay(it.third.id.id)
-
-                is TurnAction.ResolveConflicts ->
-                    ResolveConflict
+                is TurnAction.ResolveConflicts -> {}
             }
-            Triple(it.first, it.second, result)
         }
 
-        return State2(characterActions + turnActions.filter { it.second == ConflictState.InAllTimelines }.map { it.third }, turnActions)
+        val notYetPlayed = characters.filterKeys { !alreadyPlayedCharactersSet.contains(it.id) }.values.sortedBy {
+            -((it.resolvedInitiative(initiativeResets) ?: -100) * 2 + (if (it.resolvedPlayerCharacter() == true) 0 else 1))
+        }
+
+        val currentAsList = if (current == null) listOf() else listOf(current)
+
+        return (currentAsList + notYetPlayed.map { it.id.id } + alreadyPlayedCharacters.reversed()).mapNotNull {
+            val result = characters[CharacterId(it)]
+            if (result?.resolvedDead() == true) null else {
+                UiCharacter(
+                    key = it,
+                    name = result?.resolvedName(),
+                    initiative = result?.resolvedInitiative(initiativeResets),
+                    playerCharacter = result?.resolvedPlayerCharacter(),
+                    dead = result?.resolvedDead() ?: false,
+                    isDelayed = alreadyPlayedCharactersSet[it]?.delayed ?: false,
+                    turn = alreadyPlayedCharactersSet[it]?.turns ?: 0
+                )
+            }
+        }
     }
+
+    fun currentTurn(repository: Repository<Action, State>): String? {
+        var turn = commonLatestTurn(repository)
+        while (turn != null) {
+            when (val action = turn.turnAction) {
+                is TurnAction.StartTurn -> return action.characterId
+                is TurnAction.Delay -> return null
+                is TurnAction.FinishTurn -> return null
+                else -> {}
+            }
+            turn = turn.predecessor?.let { repository.fetchVersion(it) }?.let { it.op as Turn }
+        }
+        return null
+    }
+
+    fun toUiState(repository: Repository<Action, State>): UiState =
+        UiState(
+            characters = predictNextTurns(withCurrent = true, repository),
+            currentlySelectedCharacter = currentTurn(repository),
+            actions = turnActions.show {
+                val result = repository.fetchVersion(it)!!
+                Pair(result.op as Turn, result.metadata)
+            },
+            turnConflicts = turnActions.value.size > 1
+        )
 }
 
 object Encoders {
@@ -245,7 +211,7 @@ object Encoders {
     }
 
 
-    fun encode(msg: Message<ActionWrapper>): String {
+    fun encode(msg: Message<Action>): String {
         return when (msg) {
             is Message.CurrentState ->
                 "c" + vectorClockEncode(msg.vectorClock)
@@ -259,7 +225,7 @@ object Encoders {
         }
     }
 
-    fun decode(s: String): Message<ActionWrapper> {
+    fun decode(s: String): Message<Action> {
         val initial = s[0]
         val rest = s.substring(1)
 
@@ -292,25 +258,19 @@ object Encoders {
         }
     }
 
-    private fun actionEncode(action: Operation<ActionWrapper>): String {
-        val intAction = serializeAction(action.op.action)
+    private fun actionEncode(action: Operation<Action>): String {
+        val intAction = serializeAction(action.op)
         val clock = vectorClockEncode(action.metadata.clock)
         val client = action.metadata.client.name
-        val predecessor = if (action.op.predecessor == null) "" else
-            action.op.predecessor.clientIdentifier.name + ":" + action.op.predecessor.position
 
-        return "${clock}%${client}%${predecessor}%${intAction}"
+        return "${clock}%${client}%${intAction}"
     }
 
-    private fun actionDecode(s: String): Operation<ActionWrapper> {
-        val parts = s.split("%", limit=4)
+    private fun actionDecode(s: String): Operation<Action> {
+        val parts = s.split("%", limit=3)
         val clock = vectorClockDecode(parts[0])
         val client = ClientIdentifier(parts[1])
-        val predecessor = if (parts[2] == "") null else {
-            val p = parts[2].split(":")
-            Dot(ClientIdentifier(p[0]), p[1].toInt())
-        }
-        val action = deserializeAction(parts[3])!!
-        return Operation(OperationMetadata(clock, client), ActionWrapper(action, predecessor))
+        val action = deserializeAction(parts[2])!!
+        return Operation(OperationMetadata(clock, client), action)
     }
 }
