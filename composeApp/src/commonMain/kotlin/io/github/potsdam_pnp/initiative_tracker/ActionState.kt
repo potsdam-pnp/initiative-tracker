@@ -56,7 +56,7 @@ data class Character(
         }
     }
 
-    fun resolvedName(): String = name.textField()
+    fun resolvedName(): String? = if (name.value.isEmpty()) null else name.textField()
 }
 
 
