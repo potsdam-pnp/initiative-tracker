@@ -147,6 +147,8 @@ class State(
 
                 is TurnAction.ResolveConflicts -> {}
             }
+
+            turn = turn.predecessor?.let { repository.fetchVersion(it) }?.let { it.op as Turn }
         }
 
         val notYetPlayed = characters.filterKeys { !alreadyPlayedCharactersSet.contains(it.id) }.values.sortedBy {
