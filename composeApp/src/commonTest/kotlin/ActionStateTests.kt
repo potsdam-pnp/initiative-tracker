@@ -1,4 +1,5 @@
 import io.github.potsdam_pnp.initiative_tracker.ChangeInitiative
+import io.github.potsdam_pnp.initiative_tracker.CharacterId
 import io.github.potsdam_pnp.initiative_tracker.Turn
 import io.github.potsdam_pnp.initiative_tracker.TurnAction
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
@@ -39,13 +40,29 @@ class ActionStateTests {
             listOf(
                 ChangeInitiative("character1", 5),
                 ChangeInitiative("character2", 10),
-                Turn(TurnAction.StartTurn("character1"), null)
+                Turn(TurnAction.StartTurn(CharacterId("character1")), null)
             )
         )
         val predicted = repository.state.predictNextTurns(withCurrent = false, repository)
         val predicted2 = repository.state.predictNextTurns(withCurrent = true, repository)
         assertEquals(listOf("character2" to 0, "character1" to 1), predicted.map { it.key to it.turn })
         assertEquals(listOf("character1" to 0, "character2" to 0), predicted2.map { it.key to it.turn })
-        assertEquals("character1", repository.state.currentTurn(repository))
+        assertEquals(CharacterId("character1"), repository.state.currentTurn(repository))
+    }
+
+    @Test
+    fun delay() {
+        val repository = Repository(State())
+        repository.produce(
+            listOf(
+                ChangeInitiative("character", 5),
+                Turn(TurnAction.StartTurn(CharacterId("character")), null),
+            )
+        )
+        repository.produce(listOf(
+            Turn(TurnAction.Delay(CharacterId("character")), repository.state.turnActions.value[0].second.toDot())
+        ))
+        val predicted = repository.state.predictNextTurns(withCurrent = false, repository)
+        assertEquals(listOf("character"), predicted.map { it.key })
     }
 }

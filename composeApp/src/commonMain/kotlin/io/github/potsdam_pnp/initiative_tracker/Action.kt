@@ -12,10 +12,10 @@ import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 sealed class Action()
 
 sealed class TurnAction {
-    data class StartTurn(val characterId: String): TurnAction()
-    data class FinishTurn(val characterId: String): TurnAction()
-    data class Die(val characterId: String): TurnAction()
-    data class Delay(val characterId: String): TurnAction()
+    data class StartTurn(val characterId: CharacterId): TurnAction()
+    data class FinishTurn(val characterId: CharacterId): TurnAction()
+    data class Die(val characterId: CharacterId): TurnAction()
+    data class Delay(val characterId: CharacterId): TurnAction()
     object ResolveConflicts: TurnAction()
 }
 
@@ -79,10 +79,10 @@ fun serializeAction(it: Action): String {
         is DeleteCharacter -> "c${it.id}"
         is ResetAllInitiatives -> "q"
         is Turn -> when (it.turnAction) {
-            is TurnAction.StartTurn -> "s${it.turnAction.characterId}"
-            is TurnAction.FinishTurn -> "f${it.turnAction.characterId}"
-            is TurnAction.Die -> "d${it.turnAction.characterId}"
-            is TurnAction.Delay -> "D${it.turnAction.characterId}"
+            is TurnAction.StartTurn -> "s${it.turnAction.characterId.id}"
+            is TurnAction.FinishTurn -> "f${it.turnAction.characterId.id}"
+            is TurnAction.Die -> "d${it.turnAction.characterId.id}"
+            is TurnAction.Delay -> "D${it.turnAction.characterId.id}"
             is TurnAction.ResolveConflicts -> "r"
         } + if (it.predecessor != null) ":" + it.predecessor.clientIdentifier.name + ":" + it.predecessor.position else ""
     }
@@ -109,10 +109,10 @@ fun deserializeAction(it: String): Action? {
             'p' -> ChangePlayerCharacter(it.substring(1), true)
             'P' -> ChangePlayerCharacter(it.substring(1), false)
             'c' -> DeleteCharacter(it.substring(1))
-            's' -> turn(1) { TurnAction.StartTurn(it[0]) }
-            'D' -> turn(1) { TurnAction.Delay(it[0]) }
-            'd' -> turn(1) { TurnAction.Die(it[0]) }
-            'f' -> turn(1) { TurnAction.FinishTurn(it[0]) }
+            's' -> turn(1) { TurnAction.StartTurn(CharacterId(it[0])) }
+            'D' -> turn(1) { TurnAction.Delay(CharacterId(it[0])) }
+            'd' -> turn(1) { TurnAction.Die(CharacterId(it[0])) }
+            'f' -> turn(1) { TurnAction.FinishTurn(CharacterId(it[0])) }
             'r' -> turn(0) { TurnAction.ResolveConflicts }
             'q' -> ResetAllInitiatives
             else -> return null

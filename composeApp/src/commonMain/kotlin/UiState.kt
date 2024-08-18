@@ -5,6 +5,7 @@ import io.github.potsdam_pnp.initiative_tracker.AddCharacter
 import io.github.potsdam_pnp.initiative_tracker.ChangeInitiative
 import io.github.potsdam_pnp.initiative_tracker.ChangeName
 import io.github.potsdam_pnp.initiative_tracker.ChangePlayerCharacter
+import io.github.potsdam_pnp.initiative_tracker.CharacterId
 import io.github.potsdam_pnp.initiative_tracker.DeleteCharacter
 import io.github.potsdam_pnp.initiative_tracker.ResetAllInitiatives
 import io.github.potsdam_pnp.initiative_tracker.Turn
@@ -132,20 +133,20 @@ class Model private constructor (val repository: Repository<Action, State>) : Vi
     }
 
     override fun die(characterKey: String) {
-        addTurn(TurnAction.Die(characterKey))
+        addTurn(TurnAction.Die(CharacterId(characterKey)))
     }
 
     override fun delay() {
         val current = _state.value.currentlySelectedCharacter
         if (current != null) {
-            addTurn(TurnAction.Delay(current))
+            addTurn(TurnAction.Delay(CharacterId(current)))
         }
     }
 
     override fun next() {
         val next = repository.state.predictNextTurns(withCurrent = false, repository).firstOrNull()
         if (next != null) {
-            addTurn(TurnAction.StartTurn(next.key))
+            addTurn(TurnAction.StartTurn(CharacterId(next.key)))
         }
     }
 
@@ -154,11 +155,11 @@ class Model private constructor (val repository: Repository<Action, State>) : Vi
     }
 
     override fun startTurn(characterKey: String) {
-        addTurn(TurnAction.StartTurn(characterKey))
+        addTurn(TurnAction.StartTurn(CharacterId(characterKey)))
     }
 
     override fun finishTurn(characterKey: String) {
-        addTurn(TurnAction.FinishTurn(characterKey))
+        addTurn(TurnAction.FinishTurn(CharacterId(characterKey)))
     }
 
     override fun pickAction(dot: Dot?) {

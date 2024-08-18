@@ -86,18 +86,19 @@ class State(
         }
     }
 
-    private data class CharacterData(val turns: Int = 0, val delayed: Boolean = false)
+    private data class CharacterData(val turns: Int = 0, val delayed: Boolean = false, val alreadyPlayed: Boolean = false)
     fun predictNextTurns(withCurrent: Boolean, repository: Repository<Action, State>): List<UiCharacter> {
-        val alreadyPlayedCharactersSet = mutableMapOf<String, CharacterData>()
-        val alreadyPlayedCharacters = mutableListOf<String>()
+        val state = mutableMapOf<CharacterId, CharacterData>()
+        val alreadyPlayedCharacters = mutableListOf<CharacterId>()
 
-        val updatePlayedCharacters = { characterId: String, characterData: (CharacterData) -> CharacterData ->
-            alreadyPlayedCharactersSet[characterId] = characterData(alreadyPlayedCharactersSet.getOrElse(characterId){ CharacterData() })
+        val updatePlayedCharacters = { characterId: CharacterId, characterData: (CharacterData) -> CharacterData ->
+            state[characterId] = characterData(state.getOrElse(characterId){ CharacterData() })
         }
+        val alreadyPlayed = { characterId: CharacterId -> state.get(characterId)?.alreadyPlayed  == true }
 
         val current = if (withCurrent) currentTurn(repository) else null
         if (current != null) {
-            alreadyPlayedCharactersSet[current] = CharacterData(turns = -1)
+            state[current] = CharacterData(turns = -1, alreadyPlayed = true)
         }
 
         var dying = 0
@@ -106,23 +107,23 @@ class State(
         while (turn != null) {
             when (val action = turn.turnAction) {
                 is TurnAction.StartTurn -> {
-                    if (!alreadyPlayedCharactersSet.contains(action.characterId)) {
+                    if (!alreadyPlayed(action.characterId)) {
                         alreadyPlayedCharacters.add(alreadyPlayedCharacters.size - dying, action.characterId)
                     }
-                    updatePlayedCharacters(action.characterId) { it.copy(turns = it.turns + 1) }
+                    updatePlayedCharacters(action.characterId) { it.copy(turns = it.turns + 1, alreadyPlayed = true) }
                     dying = 0
                 }
                 is TurnAction.Delay -> {
-                    if (!alreadyPlayedCharactersSet.contains(action.characterId)) {
+                    if (!alreadyPlayed(action.characterId)) {
                         updatePlayedCharacters(action.characterId) { it.copy(delayed = true) }
                     }
                     updatePlayedCharacters(action.characterId) { it.copy(turns = it.turns - 1)}
                 }
                 is TurnAction.Die -> {
-                    if (!alreadyPlayedCharactersSet.contains(action.characterId)) {
+                    if (!alreadyPlayed(action.characterId)) {
                         alreadyPlayedCharacters.add(action.characterId)
                         dying += 1
-                        updatePlayedCharacters(action.characterId) { it }
+                        updatePlayedCharacters(action.characterId) { it.copy(alreadyPlayed = true) }
                     }
                 }
                 is TurnAction.FinishTurn -> {}
@@ -133,29 +134,29 @@ class State(
             turn = turn.predecessor?.let { repository.fetchVersion(it) }?.let { it.op as Turn }
         }
 
-        val notYetPlayed = characters.filterKeys { !alreadyPlayedCharactersSet.contains(it.id) }.values.sortedBy {
+        val notYetPlayed = characters.filterKeys { !alreadyPlayed(it) }.values.sortedBy {
             -((it.resolvedInitiative(initiativeResets) ?: -100) * 2 + (if (it.resolvedPlayerCharacter() == true) 0 else 1))
         }
 
         val currentAsList = if (current == null) listOf() else listOf(current)
 
-        return (currentAsList + notYetPlayed.map { it.id.id } + alreadyPlayedCharacters.reversed()).mapNotNull {
-            val result = characters[CharacterId(it)]
+        return (currentAsList + notYetPlayed.map { it.id } + alreadyPlayedCharacters.reversed()).mapNotNull {
+            val result = characters[it]
             if (result?.resolvedDead() == true) null else {
                 UiCharacter(
-                    key = it,
+                    key = it.id,
                     name = result?.resolvedName(),
                     initiative = result?.resolvedInitiative(initiativeResets),
                     playerCharacter = result?.resolvedPlayerCharacter(),
                     dead = result?.resolvedDead() ?: false,
-                    isDelayed = alreadyPlayedCharactersSet[it]?.delayed ?: false,
-                    turn = alreadyPlayedCharactersSet[it]?.turns ?: 0
+                    isDelayed = state[it]?.delayed ?: false,
+                    turn = state[it]?.turns ?: 0
                 )
             }
         }
     }
 
-    fun currentTurn(repository: Repository<Action, State>): String? {
+    fun currentTurn(repository: Repository<Action, State>): CharacterId? {
         var turn = commonLatestTurn(repository)
         while (turn != null) {
             when (val action = turn.turnAction) {
@@ -172,7 +173,7 @@ class State(
     fun toUiState(repository: Repository<Action, State>): UiState =
         UiState(
             characters = predictNextTurns(withCurrent = true, repository),
-            currentlySelectedCharacter = currentTurn(repository),
+            currentlySelectedCharacter = currentTurn(repository)?.id,
             actions = turnActions.show {
                 val result = repository.fetchVersion(it)!!
                 Pair(result.op as Turn, result.metadata)
