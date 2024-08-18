@@ -1,11 +1,10 @@
 package io.github.potsdam_pnp.initiative_tracker
 
 import io.github.aakira.napier.Napier
-import io.github.potsdam_pnp.initiative_tracker.state.ActionWrapper
 import io.github.potsdam_pnp.initiative_tracker.crdt.ClientIdentifier
 import io.github.potsdam_pnp.initiative_tracker.state.Encoders
-import io.github.potsdam_pnp.initiative_tracker.state.Message
-import io.github.potsdam_pnp.initiative_tracker.state.MessageHandler
+import io.github.potsdam_pnp.initiative_tracker.crdt.Message
+import io.github.potsdam_pnp.initiative_tracker.crdt.MessageHandler
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.state.State
 import io.ktor.http.ContentType

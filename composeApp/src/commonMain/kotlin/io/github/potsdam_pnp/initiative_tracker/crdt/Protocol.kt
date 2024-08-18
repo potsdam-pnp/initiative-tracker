@@ -1,12 +1,6 @@
-package io.github.potsdam_pnp.initiative_tracker.state
+package io.github.potsdam_pnp.initiative_tracker.crdt
 
 import io.github.aakira.napier.Napier
-import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
-import io.github.potsdam_pnp.initiative_tracker.crdt.InsertResult
-import io.github.potsdam_pnp.initiative_tracker.crdt.Operation
-import io.github.potsdam_pnp.initiative_tracker.crdt.AbstractState
-import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
-import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
@@ -48,7 +42,13 @@ class MessageHandler<Op, State: AbstractState<Op>>(private val repository: Repos
             is Message.CurrentState -> {
                 when (repository.insert(message.vectorClock, listOf())) {
                     is InsertResult.MissingVersions -> {
-                        return Message.RequestVersions(message.vectorClock, (repository.insert(message.vectorClock, listOf()) as InsertResult.MissingVersions).missingDots)
+                        return Message.RequestVersions(
+                            message.vectorClock,
+                            (repository.insert(
+                                message.vectorClock,
+                                listOf()
+                            ) as InsertResult.MissingVersions).missingDots
+                        )
                     }
                     is InsertResult.Success ->
                         return null

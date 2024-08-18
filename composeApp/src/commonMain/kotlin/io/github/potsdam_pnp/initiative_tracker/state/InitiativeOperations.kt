@@ -1,19 +1,23 @@
 package io.github.potsdam_pnp.initiative_tracker.state
 
-import ActionState
-import AddCharacter
-import ChangeInitiative
-import ChangeName
-import ChangePlayerCharacter
-import Delay
-import DeleteCharacter
-import Die
-import FinishTurn
-import ResetAllInitiatives
-import ResolveConflict
-import StartTurn
+import io.github.potsdam_pnp.initiative_tracker.AddCharacter
+import io.github.potsdam_pnp.initiative_tracker.ChangeInitiative
+import io.github.potsdam_pnp.initiative_tracker.ChangeName
+import io.github.potsdam_pnp.initiative_tracker.ChangePlayerCharacter
+import io.github.potsdam_pnp.initiative_tracker.Delay
+import io.github.potsdam_pnp.initiative_tracker.DeleteCharacter
+import io.github.potsdam_pnp.initiative_tracker.Die
+import io.github.potsdam_pnp.initiative_tracker.FinishTurn
+import io.github.potsdam_pnp.initiative_tracker.ResetAllInitiatives
+import io.github.potsdam_pnp.initiative_tracker.ResolveConflict
+import io.github.potsdam_pnp.initiative_tracker.StartTurn
 import State2
-import deserializeAction
+import io.github.potsdam_pnp.initiative_tracker.deserializeAction
+import io.github.potsdam_pnp.initiative_tracker.ActionWrapper
+import io.github.potsdam_pnp.initiative_tracker.Character
+import io.github.potsdam_pnp.initiative_tracker.CharacterId
+import io.github.potsdam_pnp.initiative_tracker.Turn
+import io.github.potsdam_pnp.initiative_tracker.TurnAction
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
 import io.github.potsdam_pnp.initiative_tracker.crdt.Operation
 import io.github.potsdam_pnp.initiative_tracker.crdt.OperationMetadata
@@ -21,45 +25,18 @@ import io.github.potsdam_pnp.initiative_tracker.crdt.AbstractState
 import io.github.potsdam_pnp.initiative_tracker.crdt.ClientIdentifier
 import io.github.potsdam_pnp.initiative_tracker.crdt.ConflictState
 import io.github.potsdam_pnp.initiative_tracker.crdt.GrowingListItem
+import io.github.potsdam_pnp.initiative_tracker.crdt.Message
 import io.github.potsdam_pnp.initiative_tracker.crdt.Register
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 import io.github.potsdam_pnp.initiative_tracker.crdt.show
-import serializeAction
+import io.github.potsdam_pnp.initiative_tracker.serializeAction
 
-import StartTurn as _StartTurn
-import Delay as _Delay
-import Die as _Die
-import FinishTurn as _FinishTurn
+import io.github.potsdam_pnp.initiative_tracker.StartTurn as _StartTurn
+import io.github.potsdam_pnp.initiative_tracker.Delay as _Delay
+import io.github.potsdam_pnp.initiative_tracker.Die as _Die
+import io.github.potsdam_pnp.initiative_tracker.FinishTurn as _FinishTurn
 
-
-sealed class TurnAction {
-    object StartTurn: TurnAction()
-    object FinishTurn: TurnAction()
-    object Die: TurnAction()
-    object Delay: TurnAction()
-    object ResolveConflicts: TurnAction()
-}
-
-data class Turn(
-    val id: CharacterId,
-    val turnAction: TurnAction
-)
-
-data class CharacterId(val id: String)
-
-data class Character(
-    val id: CharacterId,
-    val name: Register<String> = Register.empty(),
-    val initiative: Register<Int> = Register.empty(),
-    val playerCharacter: Register<Boolean> = Register.empty(),
-    val dead: Register<Boolean> = Register.empty()
-)
-
-data class ActionWrapper(
-    val action: ActionState,
-    val predecessor: Dot? // only used for turn-based actions
-)
 
 class State(
     val characters: MutableMap<CharacterId, Character> = mutableMapOf(),
@@ -153,7 +130,7 @@ class State(
                 withTurnActions {
                     insert(
                         GrowingListItem(
-                            Turn(CharacterId(""), TurnAction.ResolveConflicts), //TODO ResolveConflict should be a "Turn" without a character
+                            Turn(CharacterId(""), TurnAction.ResolveConflicts), //TODO io.github.potsdam_pnp.initiative_tracker.ResolveConflict should be a "Turn" without a character
                             predecessor = operation.op.predecessor
                         ),
                         operation.metadata

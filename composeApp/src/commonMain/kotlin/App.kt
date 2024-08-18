@@ -121,6 +121,18 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.russhwolf.settings.Settings
 import io.github.aakira.napier.Napier
+import io.github.potsdam_pnp.initiative_tracker.ActionState
+import io.github.potsdam_pnp.initiative_tracker.AddCharacter
+import io.github.potsdam_pnp.initiative_tracker.ChangeInitiative
+import io.github.potsdam_pnp.initiative_tracker.ChangeName
+import io.github.potsdam_pnp.initiative_tracker.ChangePlayerCharacter
+import io.github.potsdam_pnp.initiative_tracker.Delay
+import io.github.potsdam_pnp.initiative_tracker.DeleteCharacter
+import io.github.potsdam_pnp.initiative_tracker.Die
+import io.github.potsdam_pnp.initiative_tracker.FinishTurn
+import io.github.potsdam_pnp.initiative_tracker.ResetAllInitiatives
+import io.github.potsdam_pnp.initiative_tracker.ResolveConflict
+import io.github.potsdam_pnp.initiative_tracker.StartTurn
 import io.github.potsdam_pnp.initiative_tracker.crdt.ConflictState
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
@@ -1109,7 +1121,7 @@ fun MainScreen(innerPadding: PaddingValues, state: State, model: Model, viewStat
                             OutlinedButton( enabled = !state.turnConflicts, onClick = {
                                 model.delay()
                             }) {
-                                Text("Delay turn")
+                                Text("io.github.potsdam_pnp.initiative_tracker.Delay turn")
                             }
 
                             Button(enabled = !state.turnConflicts, onClick = {
@@ -1225,7 +1237,7 @@ fun descriptionOfAction(action: Triple<Dot, ConflictState, ActionState>): String
             "Start turn of character ${a.id}"
         }
         is Delay -> {
-            "Delay turn of character ${a.id}"
+            "io.github.potsdam_pnp.initiative_tracker.Delay turn of character ${a.id}"
         }
         is FinishTurn -> {
             "Finish turn of character ${a.id}"

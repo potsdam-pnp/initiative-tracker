@@ -1,8 +1,8 @@
 import io.github.aakira.napier.Napier
-import io.github.potsdam_pnp.initiative_tracker.state.ActionWrapper
+import io.github.potsdam_pnp.initiative_tracker.ActionWrapper
 import io.github.potsdam_pnp.initiative_tracker.state.Encoders
-import io.github.potsdam_pnp.initiative_tracker.state.Message
-import io.github.potsdam_pnp.initiative_tracker.state.MessageHandler
+import io.github.potsdam_pnp.initiative_tracker.crdt.Message
+import io.github.potsdam_pnp.initiative_tracker.crdt.MessageHandler
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
