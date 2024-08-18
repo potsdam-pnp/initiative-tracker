@@ -1,6 +1,5 @@
 package io.github.potsdam_pnp.initiative_tracker.crdt
 
-import io.github.potsdam_pnp.initiative_tracker.state.ClientIdentifier
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update

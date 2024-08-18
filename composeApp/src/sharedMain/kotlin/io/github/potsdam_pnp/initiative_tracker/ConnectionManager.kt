@@ -4,7 +4,7 @@ import DiscoveredClient
 import JoinLink
 import ServerStatus
 import io.github.aakira.napier.Napier
-import io.github.potsdam_pnp.initiative_tracker.state.ClientIdentifier
+import io.github.potsdam_pnp.initiative_tracker.crdt.ClientIdentifier
 import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.WebSockets

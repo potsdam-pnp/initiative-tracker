@@ -18,8 +18,13 @@ import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
 import io.github.potsdam_pnp.initiative_tracker.crdt.Operation
 import io.github.potsdam_pnp.initiative_tracker.crdt.OperationMetadata
 import io.github.potsdam_pnp.initiative_tracker.crdt.AbstractState
+import io.github.potsdam_pnp.initiative_tracker.crdt.ClientIdentifier
+import io.github.potsdam_pnp.initiative_tracker.crdt.ConflictState
+import io.github.potsdam_pnp.initiative_tracker.crdt.GrowingListItem
+import io.github.potsdam_pnp.initiative_tracker.crdt.Register
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
+import io.github.potsdam_pnp.initiative_tracker.crdt.show
 import serializeAction
 
 import StartTurn as _StartTurn
@@ -45,10 +50,10 @@ data class CharacterId(val id: String)
 
 data class Character(
     val id: CharacterId,
-    val name: Value<String> = Value.empty(),
-    val initiative: Value<Int> = Value.empty(),
-    val playerCharacter: Value<Boolean> = Value.empty(),
-    val dead: Value<Boolean> = Value.empty()
+    val name: Register<String> = Register.empty(),
+    val initiative: Register<Int> = Register.empty(),
+    val playerCharacter: Register<Boolean> = Register.empty(),
+    val dead: Register<Boolean> = Register.empty()
 )
 
 data class ActionWrapper(
@@ -58,12 +63,12 @@ data class ActionWrapper(
 
 class State(
     val characters: MutableMap<CharacterId, Character> = mutableMapOf(),
-    var turnActions: Value<GrowingListItem<Turn>> = Value.empty(),
+    var turnActions: Register<GrowingListItem<Turn>> = Register.empty(),
     var initiativeResets: VectorClock = VectorClock.empty()
 ): AbstractState<ActionWrapper>() {
     private fun withCharacter(id: CharacterId, op: Character.() -> Character) {
         characters[id] =
-            characters.getOrPut(id) { Character(id, Value.empty(), Value.empty(), Value.empty()) }
+            characters.getOrPut(id) { Character(id, Register.empty(), Register.empty(), Register.empty()) }
                 .let { it.op() }
     }
 
@@ -161,7 +166,7 @@ class State(
     override fun predecessors(op: ActionWrapper): List<Dot> =
         op.predecessor.let { if (it == null) listOf() else listOf(it) }
 
-    private fun withTurnActions(f: Value<GrowingListItem<Turn>>.() -> Value<GrowingListItem<Turn>>) {
+    private fun withTurnActions(f: Register<GrowingListItem<Turn>>.() -> Register<GrowingListItem<Turn>>) {
         turnActions = turnActions.f()
     }
 

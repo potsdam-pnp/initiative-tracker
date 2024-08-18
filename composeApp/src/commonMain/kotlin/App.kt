@@ -121,7 +121,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.russhwolf.settings.Settings
 import io.github.aakira.napier.Napier
-import io.github.potsdam_pnp.initiative_tracker.state.ConflictState
+import io.github.potsdam_pnp.initiative_tracker.crdt.ConflictState
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
 import kotlinproject.composeapp.generated.resources.Res

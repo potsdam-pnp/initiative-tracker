@@ -1,4 +1,4 @@
-import io.github.potsdam_pnp.initiative_tracker.state.ConflictState
+import io.github.potsdam_pnp.initiative_tracker.crdt.ConflictState
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
 
 sealed class ActionState
