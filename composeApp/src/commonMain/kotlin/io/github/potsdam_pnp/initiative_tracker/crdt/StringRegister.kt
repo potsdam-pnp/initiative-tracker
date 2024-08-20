@@ -109,7 +109,7 @@ class StringRegister(): Iterable<Operation<Char>> {
         }
     }
 
-    fun toImmutableStringRegister() = ImmutableStringRegister(toList())
+    fun toImmutableStringRegister() = if (state.isNotEmpty()) ImmutableStringRegister(toList()) else null
 
     companion object {
         fun empty(): StringRegister = StringRegister()
