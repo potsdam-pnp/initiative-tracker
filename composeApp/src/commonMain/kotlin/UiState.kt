@@ -93,7 +93,7 @@ class Model private constructor (val repository: Repository<Action, State>) : Vi
         val characterData = data?.split("&")?.firstOrNull { !it.contains('=') }
         val characterNames = characterData?.split(",") ?: emptyList()
         repository.produce(
-            characterNames.flatMap {
+            *characterNames.flatMap {
                 val key = it
                 if (!_state.value.characters.any { it.key == key }) {
                     listOf(
@@ -105,7 +105,7 @@ class Model private constructor (val repository: Repository<Action, State>) : Vi
                 } else {
                     listOf()
                 }
-            }
+            }.toTypedArray()
         )
     }
 
@@ -113,27 +113,27 @@ class Model private constructor (val repository: Repository<Action, State>) : Vi
         val predecessors = repository.state.turnActions.value.map { it.second }
         if (predecessors.size > 1) return
         val predecessor = predecessors.firstOrNull()
-        repository.produce(listOf(Turn(turnAction, predecessor?.toDot())))
+        repository.produce(Turn(turnAction, predecessor?.toDot()))
 
     }
 
     override fun deleteCharacter(characterKey: String) {
-        repository.produce(listOf(DeleteCharacter(characterKey)))
+        repository.produce(DeleteCharacter(characterKey))
     }
 
     override fun editCharacter(characterKey: String, operation: StringOperation): Dot {
-        return repository.produce(listOf(ChangeName(characterKey, operation)))[0]
+        return repository.produce(ChangeName(characterKey, operation))[0]
     }
 
     override fun editInitiative(characterKey: String, initiative: String) {
         val initiativeNumber = initiative.toIntOrNull()
         if (initiativeNumber != null) {
-            repository.produce(listOf(ChangeInitiative(characterKey, initiativeNumber)))
+            repository.produce(ChangeInitiative(characterKey, initiativeNumber))
         }
     }
 
     override fun addCharacter() {
-        repository.produce(listOf(AddCharacter(nextKey())))
+        repository.produce(AddCharacter(nextKey()))
     }
 
     override fun die(characterKey: String) {
@@ -155,7 +155,7 @@ class Model private constructor (val repository: Repository<Action, State>) : Vi
     }
 
     override fun togglePlayerCharacter(characterKey: String, playerCharacter: Boolean) {
-        repository.produce(listOf(ChangePlayerCharacter(characterKey, playerCharacter)))
+        repository.produce(ChangePlayerCharacter(characterKey, playerCharacter))
     }
 
     override fun startTurn(characterKey: String) {
@@ -167,15 +167,13 @@ class Model private constructor (val repository: Repository<Action, State>) : Vi
     }
 
     override fun pickAction(dot: Dot?) {
-        repository.produce(listOf(Turn(TurnAction.ResolveConflicts, dot)))
+        repository.produce(Turn(TurnAction.ResolveConflicts, dot))
     }
 
     override fun restartEncounter() {
         repository.produce(
-            listOf(
-                Turn(TurnAction.ResolveConflicts, null),
-                ResetAllInitiatives
-            )
+            Turn(TurnAction.ResolveConflicts, null),
+            ResetAllInitiatives
         )
     }
 }

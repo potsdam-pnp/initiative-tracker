@@ -21,10 +21,8 @@ class ActionStateTests {
     fun twoCharacters() {
         val repository = Repository(State())
         repository.produce(
-            listOf(
-                ChangeInitiative("character1", 5),
-                ChangeInitiative("character2", 10)
-            )
+            ChangeInitiative("character1", 5),
+            ChangeInitiative("character2", 10)
         )
         val predicted = repository.state.predictNextTurns(withCurrent = false, repository)
         assertEquals(listOf("character2", "character1"), predicted.map { it.key })
@@ -37,11 +35,9 @@ class ActionStateTests {
     fun twoCharacters2() {
         val repository = Repository(State())
         repository.produce(
-            listOf(
-                ChangeInitiative("character1", 5),
-                ChangeInitiative("character2", 10),
-                Turn(TurnAction.StartTurn(CharacterId("character1")), null)
-            )
+            ChangeInitiative("character1", 5),
+            ChangeInitiative("character2", 10),
+            Turn(TurnAction.StartTurn(CharacterId("character1")), null)
         )
         val predicted = repository.state.predictNextTurns(withCurrent = false, repository)
         val predicted2 = repository.state.predictNextTurns(withCurrent = true, repository)
@@ -53,15 +49,14 @@ class ActionStateTests {
     @Test
     fun delay() {
         val repository = Repository(State())
-        repository.produce(
+        repository.produce { dots ->
             listOf(
                 ChangeInitiative("character", 5),
                 Turn(TurnAction.StartTurn(CharacterId("character")), null),
+                Turn(TurnAction.Delay(CharacterId("character")), dots(1))
             )
-        )
-        repository.produce(listOf(
-            Turn(TurnAction.Delay(CharacterId("character")), repository.state.turnActions.value[0].second.toDot())
-        ))
+        }
+
         val predicted = repository.state.predictNextTurns(withCurrent = false, repository)
         assertEquals(listOf("character"), predicted.map { it.key })
     }

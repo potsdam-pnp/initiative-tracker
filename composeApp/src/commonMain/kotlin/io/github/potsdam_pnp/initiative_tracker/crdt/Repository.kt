@@ -22,8 +22,20 @@ class Repository<Op, State: AbstractState<Op>> @OptIn(ExperimentalStdlibApi::cla
 
     val version: StateFlow<VectorClock> get() = currentVersion
 
-    fun produce(versions: List<Op>): List<Dot> {
+    fun produce(versionsFun: ((Int) -> Dot) -> List<Op>): List<Dot> {
         var nextVersion = currentVersion.value
+        var highestIndex = -1
+        val currentPosition = nextVersion.clock[clientIdentifier] ?: 0
+        val dotCreator = { index: Int ->
+            highestIndex = maxOf(highestIndex, index)
+            Dot(clientIdentifier, currentPosition + index + 1)
+        }
+        val versions = versionsFun(dotCreator)
+
+        if (highestIndex >= versions.size) {
+            throw IllegalStateException("Invalid usage of Repository.produce")
+        }
+
         val next = mutableListOf<Operation<Op>>()
 
         for (version in versions) {
@@ -33,6 +45,10 @@ class Repository<Op, State: AbstractState<Op>> @OptIn(ExperimentalStdlibApi::cla
 
         insert(nextVersion, next)
         return next.map { it.dot }
+    }
+
+    fun produce(vararg versions: Op): List<Dot> {
+        return produce { versions.toList() }
     }
 
     fun insert(version: VectorClock, data: List<Operation<Op>>): InsertResult {
