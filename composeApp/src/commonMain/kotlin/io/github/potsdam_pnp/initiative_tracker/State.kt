@@ -7,8 +7,40 @@ import io.github.potsdam_pnp.initiative_tracker.crdt.Operation
 import io.github.potsdam_pnp.initiative_tracker.crdt.AbstractState
 import io.github.potsdam_pnp.initiative_tracker.crdt.Register
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
+import io.github.potsdam_pnp.initiative_tracker.crdt.StringRegister
 import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 import io.github.potsdam_pnp.initiative_tracker.crdt.show
+
+data class Character(
+    val id: CharacterId,
+    val name: StringRegister = StringRegister.empty(),
+    val initiative: Register<Int> = Register.empty(),
+    val playerCharacter: Register<Boolean> = Register.empty(),
+    val dead: Register<Boolean> = Register.empty()
+) {
+    fun resolvedInitiative(initiativeResets: VectorClock): Int? =
+        if (initiative.value.size == 1 && initiative.value[0].second.clock.contains(initiativeResets))
+            initiative.value.first().first
+        else
+            null
+
+    fun resolvedPlayerCharacter() = playerCharacter.value.let {
+        when {
+            it.isEmpty() -> null
+            it.all { it.first } -> true
+            it.all { !it.first } -> false
+            else -> null
+        }
+    }
+
+    fun resolvedDead() = dead.value.let {
+        when {
+            it.isEmpty() -> false
+            it.any { it.first } -> true
+            else -> false
+        }
+    }
+}
 
 class State(
     val characters: MutableMap<CharacterId, Character> = mutableMapOf(),
@@ -17,7 +49,7 @@ class State(
 ): AbstractState<Action>() {
     private fun withCharacter(id: CharacterId, op: Character.() -> Character) {
         characters[id] =
-            characters.getOrPut(id) { Character(id, Register.empty(), Register.empty(), Register.empty()) }
+            characters.getOrPut(id) { Character(id, StringRegister.empty(), Register.empty(), Register.empty()) }
                 .let { it.op() }
     }
 
@@ -28,7 +60,8 @@ class State(
             }
             is ChangeName -> {
                 withCharacter(CharacterId(op.id)) {
-                    copy(name = name.insert(op.name, operation.metadata))
+                    name.insert(Operation(operation.metadata, op.operation))
+                    this
                 }
             }
 
@@ -145,7 +178,7 @@ class State(
             if (result?.resolvedDead() == true) null else {
                 UiCharacter(
                     key = it.id,
-                    name = result?.resolvedName(),
+                    name = result?.name?.toImmutableStringRegister(),
                     initiative = result?.resolvedInitiative(initiativeResets),
                     playerCharacter = result?.resolvedPlayerCharacter(),
                     dead = result?.resolvedDead() ?: false,

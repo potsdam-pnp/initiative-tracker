@@ -7,6 +7,7 @@ import io.github.potsdam_pnp.initiative_tracker.crdt.Message
 import io.github.potsdam_pnp.initiative_tracker.crdt.Operation
 import io.github.potsdam_pnp.initiative_tracker.crdt.OperationMetadata
 import io.github.potsdam_pnp.initiative_tracker.crdt.Register
+import io.github.potsdam_pnp.initiative_tracker.crdt.StringOperation
 import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 
 sealed class Action()
@@ -29,42 +30,9 @@ data class Turn(
 
 
 data class CharacterId(val id: String)
-data class Character(
-    val id: CharacterId,
-    val name: Register<String> = Register.empty(),
-    val initiative: Register<Int> = Register.empty(),
-    val playerCharacter: Register<Boolean> = Register.empty(),
-    val dead: Register<Boolean> = Register.empty()
-) {
-    fun resolvedInitiative(initiativeResets: VectorClock): Int? =
-        if (initiative.value.size == 1 && initiative.value[0].second.clock.contains(initiativeResets))
-            initiative.value.first().first
-        else
-            null
-
-    fun resolvedPlayerCharacter() = playerCharacter.value.let {
-        when {
-            it.isEmpty() -> null
-            it.all { it.first } -> true
-            it.all { !it.first } -> false
-            else -> null
-        }
-    }
-
-    fun resolvedDead() = dead.value.let {
-        when {
-            it.isEmpty() -> false
-            it.any { it.first } -> true
-            else -> false
-        }
-    }
-
-    fun resolvedName(): String? = if (name.value.isEmpty()) null else name.textField()
-}
-
 
 data class AddCharacter(val id: String): Action()
-data class ChangeName(val id: String, val name: String): Action()
+data class ChangeName(val id: String, val operation: StringOperation): Action()
 data class ChangeInitiative(val id: String, val initiative: Int): Action()
 data class ChangePlayerCharacter(val id: String, val playerCharacter: Boolean): Action()
 data class DeleteCharacter(val id: String): Action()
@@ -73,7 +41,11 @@ object ResetAllInitiatives: Action()
 fun serializeAction(it: Action): String {
     return when (it) {
         is AddCharacter -> "a${it.id}"
-        is ChangeName -> "n${it.id}:${it.name}"
+        is ChangeName ->
+            when (it.operation) {
+                is StringOperation.Delete -> "n${it.id}:${it.operation.dot.clientIdentifier}:${it.operation.dot.position}"
+                is StringOperation.InsertAfter -> "N${it.id}:${it.operation.after?.clientIdentifier ?: ""}:${it.operation.after?.position ?: ""}:${it.operation.character}"
+            }
         is ChangeInitiative -> "i${it.id}:${it.initiative}"
         is ChangePlayerCharacter -> "${if (it.playerCharacter) "p" else "P"}${it.id}"
         is DeleteCharacter -> "c${it.id}"
@@ -100,7 +72,24 @@ fun deserializeAction(it: String): Action? {
             'a' -> AddCharacter(it.substring(1))
             'n' -> ChangeName(
                 it.substring(1).split(":")[0],
-                it.substring(1).split(":", limit = 2)[1]
+                StringOperation.Delete(
+                    Dot(
+                        ClientIdentifier(it.substring(1).split(":")[1]),
+                        it.substring(1).split(":")[2].toInt()
+                    )
+                )
+            )
+            'N' -> ChangeName(
+                it.substring(1).split(":")[0],
+                StringOperation.InsertAfter(
+                    character = it.substring(1).split(":", limit=4)[3][0],
+                    after = if (it.substring(1).split(": ")[2] != "") {
+                        Dot(
+                            ClientIdentifier(it.substring(1).split(":")[1]),
+                            it.substring(1).split(":")[2].toInt()
+                        )
+                    } else null
+                )
             )
             'i' -> ChangeInitiative(
                 it.substring(1).split(":")[0],

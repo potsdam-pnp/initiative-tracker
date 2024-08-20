@@ -22,7 +22,7 @@ class Repository<Op, State: AbstractState<Op>> @OptIn(ExperimentalStdlibApi::cla
 
     val version: StateFlow<VectorClock> get() = currentVersion
 
-    fun produce(versions: List<Op>) {
+    fun produce(versions: List<Op>): List<Dot> {
         var nextVersion = currentVersion.value
         val next = mutableListOf<Operation<Op>>()
 
@@ -32,6 +32,7 @@ class Repository<Op, State: AbstractState<Op>> @OptIn(ExperimentalStdlibApi::cla
         }
 
         insert(nextVersion, next)
+        return next.map { it.dot }
     }
 
     fun insert(version: VectorClock, data: List<Operation<Op>>): InsertResult {

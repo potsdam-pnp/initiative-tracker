@@ -107,9 +107,11 @@ import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
@@ -126,6 +128,7 @@ import io.github.potsdam_pnp.initiative_tracker.TurnAction
 import io.github.potsdam_pnp.initiative_tracker.crdt.ConflictState
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
+import io.github.potsdam_pnp.initiative_tracker.crdt.StringOperation
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.baseline_sync_24
 import kotlinproject.composeapp.generated.resources.baseline_sync_disabled_24
@@ -173,7 +176,7 @@ fun ShowCharacter(uiCharacter: UiCharacter, isActive: Boolean, actions: Actions,
             Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
                 if (viewState.currentlyEditedCharacter != uiCharacter.key) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(uiCharacter.name ?: "")
+                        Text(uiCharacter.name?.asString() ?: "")
                         ShowPlayerVsNonPlayerCharacter(viewState, uiCharacter, actions)
                         if (uiCharacter.isDelayed && viewState.shownView == ShownView.TURNS) {
                             Text(
@@ -187,6 +190,43 @@ fun ShowCharacter(uiCharacter: UiCharacter, isActive: Boolean, actions: Actions,
                         }
                     }
                 } else {
+                    var currentCursor by remember { mutableStateOf<Dot?>(null) }
+                    val pos = uiCharacter.name?.indexPosition(currentCursor) ?: 0
+                    val persistedName = uiCharacter.name?.asString() ?: ""
+                    val currentName by remember(persistedName) { mutableStateOf(persistedName) }
+                    val value = TextFieldValue(currentName, selection = TextRange(pos))
+                    Napier.i("generated value: $value")
+
+                    val onValueChange = { newValue: TextFieldValue ->
+                        Napier.i("change value to $newValue")
+                        val newPos = newValue.selection
+                        if (newPos.start == newPos.end) {
+                            if (newValue.text.length == currentName.length) {
+                                if (currentName == persistedName) {
+                                    // Assume cursor position changed without text change
+                                    currentCursor = uiCharacter.name?.positionIndex(newPos.start)
+                                }
+                            } else if (newValue.text.length < currentName.length) {
+                                // Assume this means character before previous position was deleted
+                                if (currentCursor != null) {
+                                    actions.editCharacter(
+                                        uiCharacter.key,
+                                        StringOperation.Delete(currentCursor!!)
+                                    )
+                                    currentCursor = uiCharacter.name?.positionIndex(newPos.start)
+                                }
+                            } else {
+                                // Assume new character was added after position
+                                val newChar = newValue.text[newPos.start - 1]
+                                val newCursorPos = actions.editCharacter(
+                                    uiCharacter.key,
+                                    StringOperation.InsertAfter(newChar, currentCursor)
+                                )
+                                currentCursor = newCursorPos
+                            }
+                        }
+                    }
+
                     TextField(
                         modifier = if (uiCharacter.name == null) {
                             Modifier.focusRequester(focusRequester)
@@ -194,8 +234,8 @@ fun ShowCharacter(uiCharacter: UiCharacter, isActive: Boolean, actions: Actions,
                             Modifier
                         },
                         singleLine = true,
-                        value = uiCharacter.name ?: "",
-                        onValueChange = { actions.editCharacter(uiCharacter.key, it) },
+                        value = value,
+                        onValueChange = onValueChange,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                         keyboardActions = KeyboardActions(
                             onDone = {
@@ -626,7 +666,7 @@ fun App(data: String? = null) {
                             onClick = {
                                 val characters = uiState.characters.mapNotNull { it.name }
                                 if (characters.isNotEmpty()) {
-                                    getPlatform().generatePlayerShortcut(context, characters)
+                                    getPlatform().generatePlayerShortcut(context, characters.map { it.asString() })
                                 } else {
                                     scope.launch {
                                         snackBarHostState.showSnackbar(

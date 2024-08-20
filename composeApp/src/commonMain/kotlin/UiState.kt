@@ -14,6 +14,9 @@ import io.github.potsdam_pnp.initiative_tracker.crdt.ConflictState
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.State
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
+import io.github.potsdam_pnp.initiative_tracker.crdt.ImmutableStringRegister
+import io.github.potsdam_pnp.initiative_tracker.crdt.StringOperation
+import io.github.potsdam_pnp.initiative_tracker.crdt.StringRegister
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,7 +27,7 @@ import kotlin.random.Random
 
 data class UiCharacter(
     val key: String,
-    val name: String? = null,
+    val name: ImmutableStringRegister? = null,
     val initiative: Int? = null,
     val playerCharacter: Boolean? = null,
     val dead: Boolean = false,
@@ -41,7 +44,7 @@ data class UiState(
 
 interface Actions {
     fun deleteCharacter(characterKey: String)
-    fun editCharacter(characterKey: String, name: String)
+    fun editCharacter(characterKey: String, operation: StringOperation): Dot
     fun editInitiative(characterKey: String, initiative: String)
     fun addCharacter()
     fun die(characterKey: String)
@@ -95,9 +98,10 @@ class Model private constructor (val repository: Repository<Action, State>) : Vi
                 if (!_state.value.characters.any { it.key == key }) {
                     listOf(
                         AddCharacter(key),
-                        ChangeName(key, it),
                         ChangePlayerCharacter(key, true)
-                    )
+                    ) + it.reversed().map {
+                        ChangeName(key, StringOperation.InsertAfter(it, null))
+                    }
                 } else {
                     listOf()
                 }
@@ -117,8 +121,8 @@ class Model private constructor (val repository: Repository<Action, State>) : Vi
         repository.produce(listOf(DeleteCharacter(characterKey)))
     }
 
-    override fun editCharacter(characterKey: String, name: String) {
-        repository.produce(listOf(ChangeName(characterKey, name)))
+    override fun editCharacter(characterKey: String, operation: StringOperation): Dot {
+        return repository.produce(listOf(ChangeName(characterKey, operation)))[0]
     }
 
     override fun editInitiative(characterKey: String, initiative: String) {
