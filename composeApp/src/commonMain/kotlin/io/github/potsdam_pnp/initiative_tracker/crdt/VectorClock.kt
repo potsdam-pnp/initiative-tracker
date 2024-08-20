@@ -65,6 +65,18 @@ data class VectorClock(
         return copy(clock = clock + (clientIdentifier to newValue))
     }
 
+    fun clientTotalOrder(other: VectorClock): Int {
+        val allKeys = clock.keys + other.clock.keys
+        val orderedKeys = allKeys.sortedBy { it.name }
+        for (key in orderedKeys) {
+            val result = (clock[key] ?: 0).compareTo(other.clock[key] ?: 0)
+            if (result != 0) {
+                return result
+            }
+        }
+        return 0
+    }
+
     companion object {
         fun empty() = VectorClock(mapOf())
     }

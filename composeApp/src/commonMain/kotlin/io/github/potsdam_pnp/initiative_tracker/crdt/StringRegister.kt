@@ -9,72 +9,19 @@ sealed class StringOperation {
 }
 
 data class Successors(
-    val successors: MutableList<Pair<Operation<Char>, Successors>> = mutableListOf()
+    val successors: MutableList<Operation<Char>> = mutableListOf()
 ): Iterable<Operation<Char>> {
-    private fun insertDirectly(d: Operation<Char>, succ: Successors) {
-        val index = successors.indexOfFirst {
-            it.first.metadata.client.name.compareTo(d.metadata.client.name) < 0
-        }
-        if (index != -1) {
-            successors.add(index, d to succ)
-        } else {
-            successors.add(d to succ)
-        }
-    }
-
     fun insert(d: Operation<Char>) {
-        val removed = mutableListOf<Int>()
-        for (successor in successors.withIndex().reversed()) {
-            when (successor.value.first.metadata.clock.compare(d.metadata.clock)) {
-                CompareResult.Smaller -> removed.add(successor.index)
-                CompareResult.Greater -> {
-                    successor.value.second.insert(d)
-                    return
-                }
-                CompareResult.Incomparable -> {}
-                CompareResult.Equal -> throw RuntimeException("inserting duplicate - not allowed")
-            }
-        }
-        val newSuccessors = mutableListOf<Pair<Operation<Char>, Successors>>()
-        for (index in removed.reversed()) {
-            newSuccessors.add(successors.removeAt(index))
-        }
-        newSuccessors.reverse()
-        insertDirectly(d, Successors(newSuccessors))
-    }
-
-    private class Iter(var current: Successors?, var currentIndex: Int = 0, var preds: MutableList<Pair<Successors, Int>> = mutableListOf()): Iterator<Operation<Char>> {
-        override fun hasNext(): Boolean {
-            return current != null
-        }
-
-        override fun next(): Operation<Char> {
-            val c = current ?: throw NoSuchElementException()
-            val result = c.successors[currentIndex].first
-            if (currentIndex + 1 < c.successors.size) {
-                preds.add(c to (currentIndex + 1))
-            }
-            val nextSuccessors = c.successors[currentIndex].second
-            if (nextSuccessors.successors.isNotEmpty()) {
-                current = nextSuccessors
-                currentIndex = 0
-            } else {
-                val p = preds.removeLastOrNull()
-                if (p == null) {
-                    current = null
-                } else {
-                    current = p.first
-                    currentIndex = p.second
-                }
-            }
-            return result
+        val index = successors.indexOfFirst { it.metadata.clock.clientTotalOrder(d.metadata.clock) < 0 }
+        if (index == -1) {
+            successors.add(d)
+        } else {
+            successors.add(index, d)
         }
     }
 
     override fun iterator(): Iterator<Operation<Char>> {
-        return Iter(
-            if (successors.isNotEmpty()) this else null
-        )
+        return successors.iterator()
     }
 }
 
