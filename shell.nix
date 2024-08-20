@@ -1,4 +1,4 @@
-{ pkgs ? import <nixpkgs> {} }:
+{ pkgs ? import <nixpkgs> (import ./config.nix) }:
 
 let
   bin-path = pkgs.lib.makeBinPath [
@@ -16,6 +16,24 @@ let
     pkgs.libGL
   ];
 
+  # needed for android target
+  android = pkgs.androidenv.composeAndroidPackages {
+    toolsVersion = null;
+    includeEmulator = false;
+    platformVersions = [ "34" ];
+    includeSources = false;
+    includeSystemImages = false;
+    systemImageTypes = [];
+    abiVersions = [];
+    cmakeVersions = [];
+    includeNDK = false;
+    ndkVersions = [];
+    useGoogleAPIs = false;
+    useGoogleTVAddOns = false;
+    includeExtras = [];
+  };
+  inherit (android) androidsdk;
+
   gradle = pkgs.writeShellApplication {
     name = "gradle";
     text = ''
@@ -27,6 +45,7 @@ let
       PATH=${bin-path} \
       LD_LIBRARY_PATH=${ld-library-path} \
       JAVA_HOME=${pkgs.jre} \
+      ANDROID_HOME=${androidsdk}/libexec/android-sdk \
       exec "./gradlew" -PnixManaged=true "$@"
     '';
   };
