@@ -128,6 +128,7 @@ import io.github.potsdam_pnp.initiative_tracker.TurnAction
 import io.github.potsdam_pnp.initiative_tracker.crdt.ConflictState
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
+import io.github.potsdam_pnp.initiative_tracker.crdt.ImmutableStringRegister
 import io.github.potsdam_pnp.initiative_tracker.crdt.StringOperation
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.baseline_sync_24
@@ -193,36 +194,20 @@ fun ShowCharacter(uiCharacter: UiCharacter, isActive: Boolean, actions: Actions,
                     var currentCursor by remember { mutableStateOf<Dot?>(null) }
                     val pos = uiCharacter.name?.indexPosition(currentCursor) ?: 0
                     val persistedName = uiCharacter.name?.asString() ?: ""
-                    val currentName by remember(persistedName) { mutableStateOf(persistedName) }
-                    val value = TextFieldValue(currentName, selection = TextRange(pos))
+                    //val currentName by remember(persistedName) { mutableStateOf(persistedName) }
+                    val value = TextFieldValue(persistedName, selection = TextRange(pos))
                     Napier.i("generated value: $value")
 
                     val onValueChange = { newValue: TextFieldValue ->
                         Napier.i("change value to $newValue")
                         val newPos = newValue.selection
                         if (newPos.start == newPos.end) {
-                            if (newValue.text.length == currentName.length) {
-                                if (currentName == persistedName) {
-                                    // Assume cursor position changed without text change
-                                    currentCursor = uiCharacter.name?.positionIndex(newPos.start)
-                                }
-                            } else if (newValue.text.length < currentName.length) {
-                                // Assume this means character before previous position was deleted
-                                if (currentCursor != null) {
-                                    actions.editCharacter(
-                                        uiCharacter.key,
-                                        StringOperation.Delete(currentCursor!!)
-                                    )
-                                    currentCursor = uiCharacter.name?.positionIndex(newPos.start)
-                                }
-                            } else {
-                                // Assume new character was added after position
-                                val newChar = newValue.text[newPos.start - 1]
-                                val newCursorPos = actions.editCharacter(
-                                    uiCharacter.key,
-                                    StringOperation.InsertAfter(newChar, currentCursor)
-                                )
-                                currentCursor = newCursorPos
+                            val stringRegister = uiCharacter.name ?: ImmutableStringRegister(listOf())
+                            val upd = stringRegister.operationsToUpdateTo(newValue.text, newPos.start)
+                            val res = actions.doNameActions(uiCharacter.key, upd.first)
+                            currentCursor = when (val p = upd.second) {
+                                is ImmutableStringRegister.DotGenerator.FromDot -> p.dot
+                                is ImmutableStringRegister.DotGenerator.FromResult -> res[p.index]
                             }
                         }
                     }

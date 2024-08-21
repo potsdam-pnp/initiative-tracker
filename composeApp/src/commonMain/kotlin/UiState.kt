@@ -55,6 +55,7 @@ interface Actions {
     fun finishTurn(characterKey: String)
     fun pickAction(dot: Dot?)
     fun restartEncounter()
+    fun doNameActions(characterKey: String, actions: ((Int) -> Dot) -> List<StringOperation>): List<Dot>
 }
 
 
@@ -175,5 +176,16 @@ class Model private constructor (val repository: Repository<Action, State>) : Vi
             Turn(TurnAction.ResolveConflicts, null),
             ResetAllInitiatives
         )
+    }
+
+    override fun doNameActions(
+        characterKey: String,
+        actions: ((Int) -> Dot) -> List<StringOperation>
+    ): List<Dot> {
+        return repository.produce {
+            actions(it).map {
+                ChangeName(characterKey, it)
+            }
+        }
     }
 }

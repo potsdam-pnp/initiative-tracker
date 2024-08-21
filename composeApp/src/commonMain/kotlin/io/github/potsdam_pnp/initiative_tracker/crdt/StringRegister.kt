@@ -1,6 +1,7 @@
 package io.github.potsdam_pnp.initiative_tracker.crdt
 
 import androidx.compose.runtime.mutableStateListOf
+import io.github.aakira.napier.Napier
 
 
 sealed class StringOperation {
@@ -129,5 +130,51 @@ data class ImmutableStringRegister(
     fun indexPosition(dot: Dot?): Int? {
         if (dot == null) return 0
         return copied.withIndex().firstOrNull { it.value.dot == dot }?.let { it.index + 1 }
+    }
+
+    sealed class DotGenerator {
+        data class FromResult(val index: Int): DotGenerator()
+        data class FromDot(val dot: Dot?): DotGenerator()
+    }
+
+    fun operationsToUpdateTo(newString: String, cursor: Int): Pair<((Int) -> Dot) -> List<StringOperation>, DotGenerator> {
+        val s = asString()
+        val sameFront = s.withIndex().indexOfFirst { newString.length <= it.index || newString[it.index] != it.value }
+        if (sameFront == -1) {
+            // Beginnings are the same, so we push the rest to the end
+            return { dots: (Int) -> Dot ->
+                newString.drop(s.length).toCharArray().mapIndexed { index, c ->
+                    val after = if (index == 0) positionIndex(s.length) else dots(index - 1)
+                    StringOperation.InsertAfter(c, after)
+                }
+            } to if (cursor <= s.length) positionIndex(cursor).let { DotGenerator.FromDot(it) } else DotGenerator.FromResult(cursor - s.length - 1)
+        } else {
+            val sameEnd = s.withIndex().indexOfLast { it.index - s.length + newString.length < 0 || newString[it.index - s.length + newString.length] != it.value}
+            if (sameFront >= sameEnd + 1 && newString.length >= s.length) {
+                val dot = when {
+                    cursor < sameFront -> DotGenerator.FromDot(positionIndex(cursor))
+                    cursor > sameEnd + newString.length - s.length ->
+                        DotGenerator.FromDot(positionIndex(cursor - newString.length + s.length)!!)
+                    else -> DotGenerator.FromResult(cursor - sameFront)
+                }
+                // All characters from s are part of the new string, so we add the new part
+                val newPart = newString.substring(sameFront, sameFront + newString.length - s.length)
+                return { dots: (Int) -> Dot ->
+                    newPart.toCharArray().mapIndexed { index, c ->
+                        val after = if (index == 0) positionIndex(sameFront) else dots(index - 1)
+                        StringOperation.InsertAfter(c, after)
+                    }
+                } to dot
+            } else if (sameFront <= sameEnd && newString.length == sameFront + s.length - sameEnd - 1) {
+                val dot = when {
+                    cursor < sameFront -> DotGenerator.FromDot(positionIndex(cursor))
+                    else -> DotGenerator.FromDot(positionIndex(cursor - newString.length + s.length))
+                }
+                return { _: (Int) -> Dot -> (sameFront until (sameEnd + 1)).map { index -> StringOperation.Delete(copied[index].dot) } } to dot
+            } else {
+                Napier.w("String operations not supported: '$s' -> '$newString'")
+                return { _: (Int) -> Dot -> listOf<StringOperation>() } to DotGenerator.FromDot(null)
+            }
+        }
     }
 }

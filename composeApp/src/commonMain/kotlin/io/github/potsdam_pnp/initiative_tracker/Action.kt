@@ -83,7 +83,7 @@ fun deserializeAction(it: String): Action? {
                 it.substring(1).split(":")[0],
                 StringOperation.InsertAfter(
                     character = it.substring(1).split(":", limit=4)[3][0],
-                    after = if (it.substring(1).split(": ")[2] != "") {
+                    after = if (it.substring(1).split(":")[2] != "") {
                         Dot(
                             ClientIdentifier(it.substring(1).split(":")[1]),
                             it.substring(1).split(":")[2].toInt()
