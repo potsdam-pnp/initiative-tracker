@@ -1,8 +1,5 @@
 package io.github.potsdam_pnp.initiative_tracker.crdt
 
-import androidx.compose.runtime.mutableStateListOf
-import io.github.aakira.napier.Napier
-
 
 sealed class StringOperation {
     data class InsertAfter(val character: Char, val after: Dot?): StringOperation()
@@ -137,44 +134,83 @@ data class ImmutableStringRegister(
         data class FromDot(val dot: Dot?): DotGenerator()
     }
 
+    private sealed class Change {
+        data class AddAfter(val index: Int, val str: String): Change()
+        data class Delete(val from: Int, val untilExclusive: Int): Change()
+        data class DeleteAndAdd(val from: Int, val untilExclusive: Int, val replace: String): Change()
+
+        fun cursorPosition(self: ImmutableStringRegister, cursor: Int): DotGenerator {
+            when (this) {
+                is AddAfter ->
+                    when {
+                        cursor <= index -> return DotGenerator.FromDot(self.positionIndex(cursor))
+                        cursor <= index + str.length -> return DotGenerator.FromResult(cursor - index - 1)
+                        else -> return DotGenerator.FromDot(self.positionIndex(cursor - str.length))
+                    }
+                is Delete ->
+                    when {
+                        cursor <= from -> return DotGenerator.FromDot(self.positionIndex(cursor))
+                        else -> return DotGenerator.FromDot(self.positionIndex(cursor - from + untilExclusive))
+                    }
+                is DeleteAndAdd ->
+                    when {
+                        cursor <= from -> return DotGenerator.FromDot(self.positionIndex(cursor))
+                        cursor <= from + replace.length -> return DotGenerator.FromResult(cursor - from - 1 + (untilExclusive - from))
+                        else -> return DotGenerator.FromDot(self.positionIndex(cursor - replace.length + untilExclusive - from))
+                    }
+            }
+        }
+
+        fun operations(self: ImmutableStringRegister): ((Int) -> Dot) -> List<StringOperation> {
+            when (this) {
+                is AddAfter ->
+                    return { dots ->
+                        str.mapIndexed { index, c ->
+                            if (index == 0) {
+                                StringOperation.InsertAfter(c, self.positionIndex(this.index))
+                            } else {
+                                StringOperation.InsertAfter(c, dots(index - 1))
+                            }
+                        }
+                    }
+                is Delete ->
+                    return { _ ->
+                        (from until untilExclusive).map { StringOperation.Delete(self.positionIndex(it + 1)!!) }
+                    }
+                is DeleteAndAdd ->
+                    return { dots ->
+                        (from until untilExclusive).map { StringOperation.Delete(self.positionIndex(it + 1)!!) } +
+                        replace.mapIndexed { index, c ->
+                            if (index == 0) {
+                                StringOperation.InsertAfter(c, self.positionIndex(from + 1))
+                            } else {
+                                StringOperation.InsertAfter(c, dots(index - 1 + untilExclusive - from))
+                            }
+                        }
+                    }
+
+            }
+        }
+    }
+
+
     fun operationsToUpdateTo(newString: String, cursor: Int): Pair<((Int) -> Dot) -> List<StringOperation>, DotGenerator> {
         val s = asString()
         val sameFront = s.withIndex().indexOfFirst { newString.length <= it.index || newString[it.index] != it.value }
-        if (sameFront == -1) {
-            // Beginnings are the same, so we push the rest to the end
-            return { dots: (Int) -> Dot ->
-                newString.drop(s.length).toCharArray().mapIndexed { index, c ->
-                    val after = if (index == 0) positionIndex(s.length) else dots(index - 1)
-                    StringOperation.InsertAfter(c, after)
-                }
-            } to if (cursor <= s.length) positionIndex(cursor).let { DotGenerator.FromDot(it) } else DotGenerator.FromResult(cursor - s.length - 1)
-        } else {
-            val sameEnd = s.withIndex().indexOfLast { it.index - s.length + newString.length < 0 || newString[it.index - s.length + newString.length] != it.value}
-            if (sameFront >= sameEnd + 1 && newString.length >= s.length) {
-                val dot = when {
-                    cursor < sameFront -> DotGenerator.FromDot(positionIndex(cursor))
-                    cursor > sameEnd + newString.length - s.length ->
-                        DotGenerator.FromDot(positionIndex(cursor - newString.length + s.length)!!)
-                    else -> DotGenerator.FromResult(cursor - sameFront)
-                }
-                // All characters from s are part of the new string, so we add the new part
-                val newPart = newString.substring(sameFront, sameFront + newString.length - s.length)
-                return { dots: (Int) -> Dot ->
-                    newPart.toCharArray().mapIndexed { index, c ->
-                        val after = if (index == 0) positionIndex(sameFront) else dots(index - 1)
-                        StringOperation.InsertAfter(c, after)
-                    }
-                } to dot
-            } else if (sameFront <= sameEnd && newString.length == sameFront + s.length - sameEnd - 1) {
-                val dot = when {
-                    cursor < sameFront -> DotGenerator.FromDot(positionIndex(cursor))
-                    else -> DotGenerator.FromDot(positionIndex(cursor - newString.length + s.length))
-                }
-                return { _: (Int) -> Dot -> (sameFront until (sameEnd + 1)).map { index -> StringOperation.Delete(copied[index].dot) } } to dot
+        val sameEnd = s.withIndex().indexOfLast { it.index - s.length + newString.length < 0 || newString[it.index - s.length + newString.length] != it.value}
+
+        val operation = if (sameFront == -1) {
+            Change.AddAfter(s.length, newString.drop(s.length))
+        } else if (sameFront >= sameEnd + 1) {
+            if (newString.length >= s.length) {
+                Change.AddAfter(sameFront, newString.substring(sameFront, sameFront + newString.length - s.length))
             } else {
-                Napier.w("String operations not supported: '$s' -> '$newString'")
-                return { _: (Int) -> Dot -> listOf<StringOperation>() } to DotGenerator.FromDot(null)
+                Change.Delete(sameFront, s.length - newString.length + sameFront)
             }
+        } else {
+            Change.DeleteAndAdd(sameFront, sameEnd + 1, newString.substring(sameFront, sameEnd + 1 - s.length + newString.length))
         }
+
+        return operation.operations(this) to operation.cursorPosition(this, cursor)
     }
 }

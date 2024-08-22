@@ -43,8 +43,8 @@ fun serializeAction(it: Action): String {
         is AddCharacter -> "a${it.id}"
         is ChangeName ->
             when (it.operation) {
-                is StringOperation.Delete -> "n${it.id}:${it.operation.dot.clientIdentifier}:${it.operation.dot.position}"
-                is StringOperation.InsertAfter -> "N${it.id}:${it.operation.after?.clientIdentifier ?: ""}:${it.operation.after?.position ?: ""}:${it.operation.character}"
+                is StringOperation.Delete -> "n${it.id}:${it.operation.dot.clientIdentifier.name}:${it.operation.dot.position}"
+                is StringOperation.InsertAfter -> "N${it.id}:${it.operation.after?.clientIdentifier?.name ?: ""}:${it.operation.after?.position ?: ""}:${it.operation.character}"
             }
         is ChangeInitiative -> "i${it.id}:${it.initiative}"
         is ChangePlayerCharacter -> "${if (it.playerCharacter) "p" else "P"}${it.id}"
