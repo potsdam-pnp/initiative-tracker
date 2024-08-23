@@ -77,6 +77,11 @@ data class VectorClock(
         return 0
     }
 
+    fun contains(other: Dot?): Boolean {
+        if (other == null) return true
+        return (clock[other.clientIdentifier] ?: 0) >= other.position
+    }
+
     companion object {
         fun empty() = VectorClock(mapOf())
     }
