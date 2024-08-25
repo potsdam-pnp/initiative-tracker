@@ -129,7 +129,6 @@ import io.github.potsdam_pnp.initiative_tracker.crdt.ConflictState
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
 import io.github.potsdam_pnp.initiative_tracker.crdt.ImmutableStringRegister
-import io.github.potsdam_pnp.initiative_tracker.crdt.StringOperation
 import kotlinproject.composeapp.generated.resources.Res
 import kotlinproject.composeapp.generated.resources.baseline_sync_24
 import kotlinproject.composeapp.generated.resources.baseline_sync_disabled_24
@@ -147,18 +146,19 @@ enum class ShownView {
     TURNS
 }
 
-data class ViewState(
-    val shownView: ShownView,
-    val currentlyEditedCharacter: String?
-)
-
-
 @Composable
-fun ShowCharacter(uiCharacter: UiCharacter, isActive: Boolean, actions: Actions, viewState: ViewState, isGreyed: Boolean = false, toggleEditCharacter: (String) -> Unit) {
+fun ShowCharacter(
+    uiCharacter: UiCharacter,
+    currentlyEditedCharacter: Pair<String, Dot?>?,
+    isActive: Boolean,
+    actions: Actions,
+    shownView: ShownView,
+    isGreyed: Boolean = false
+) {
     val focusRequester = remember { FocusRequester() }
 
     var modifier: Modifier = Modifier.fillMaxWidth()
-    if (viewState.shownView == ShownView.TURNS) {
+    if (shownView == ShownView.TURNS) {
         val isActiveAlpha by animateFloatAsState(if (isActive) 1f else 0f)
         modifier = modifier.then(Modifier.background(color = Color.Yellow.copy(alpha = isActiveAlpha)))
     }
@@ -169,17 +169,17 @@ fun ShowCharacter(uiCharacter: UiCharacter, isActive: Boolean, actions: Actions,
 
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.width(30.dp)) {
-            if (viewState.shownView == ShownView.TURNS && !uiCharacter.dead) {
+            if (shownView == ShownView.TURNS && !uiCharacter.dead) {
                 Text("${uiCharacter.turn + 1}", )
             }
         }
         if (!uiCharacter.dead) {
             Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
-                if (viewState.currentlyEditedCharacter != uiCharacter.key) {
+                if (currentlyEditedCharacter?.first != uiCharacter.key) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(uiCharacter.name?.asString() ?: "")
-                        ShowPlayerVsNonPlayerCharacter(viewState, uiCharacter, actions)
-                        if (uiCharacter.isDelayed && viewState.shownView == ShownView.TURNS) {
+                        ShowPlayerVsNonPlayerCharacter(shownView, uiCharacter, actions)
+                        if (uiCharacter.isDelayed && shownView == ShownView.TURNS) {
                             Text(
                                 "Delayed",
                                 Modifier.padding(horizontal = 10.dp),
@@ -191,8 +191,7 @@ fun ShowCharacter(uiCharacter: UiCharacter, isActive: Boolean, actions: Actions,
                         }
                     }
                 } else {
-                    var currentCursor by remember { mutableStateOf<Dot?>(null) }
-                    val pos = uiCharacter.name?.indexPosition(currentCursor) ?: 0
+                    val pos = uiCharacter.name?.indexPosition(currentlyEditedCharacter.second) ?: 0
                     val persistedName = uiCharacter.name?.asString() ?: ""
                     //val currentName by remember(persistedName) { mutableStateOf(persistedName) }
                     val value = TextFieldValue(persistedName, selection = TextRange(pos))
@@ -202,13 +201,7 @@ fun ShowCharacter(uiCharacter: UiCharacter, isActive: Boolean, actions: Actions,
                         Napier.i("change value to $newValue")
                         val newPos = newValue.selection
                         if (newPos.start == newPos.end) {
-                            val stringRegister = uiCharacter.name ?: ImmutableStringRegister(listOf())
-                            val upd = stringRegister.operationsToUpdateTo(newValue.text, newPos.start)
-                            val res = actions.doNameActions(uiCharacter.key, upd.first)
-                            currentCursor = when (val p = upd.second) {
-                                is ImmutableStringRegister.DotGenerator.FromDot -> p.dot
-                                is ImmutableStringRegister.DotGenerator.FromResult -> res[p.index]
-                            }
+                            actions.updateName(uiCharacter.key, uiCharacter.name, newValue.text, newPos.start)
                         }
                     }
 
@@ -224,7 +217,7 @@ fun ShowCharacter(uiCharacter: UiCharacter, isActive: Boolean, actions: Actions,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                         keyboardActions = KeyboardActions(
                             onDone = {
-                                toggleEditCharacter(uiCharacter.key)
+                                actions.toggleEditCharacter(uiCharacter.key)
                             },
                             onNext = {
                                 focusManager.moveFocus(FocusDirection.Next)
@@ -239,14 +232,14 @@ fun ShowCharacter(uiCharacter: UiCharacter, isActive: Boolean, actions: Actions,
                     }
                 }
             }
-            val toggleEditIcon = if (viewState.currentlyEditedCharacter != uiCharacter.key) {
+            val toggleEditIcon = if (currentlyEditedCharacter?.first != uiCharacter.key) {
                 Icons.Default.Edit
             } else {
                 Icons.Default.Check
             }
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (viewState.currentlyEditedCharacter != uiCharacter.key) {
+                    if (currentlyEditedCharacter?.first != uiCharacter.key) {
                         Text(
                             modifier = Modifier.padding(horizontal = 5.dp),
                             text = uiCharacter.initiative?.toString() ?: ""
@@ -269,7 +262,7 @@ fun ShowCharacter(uiCharacter: UiCharacter, isActive: Boolean, actions: Actions,
                             ),
                             keyboardActions = KeyboardActions(
                                 onDone = {
-                                    toggleEditCharacter(uiCharacter.key)
+                                    actions.toggleEditCharacter(uiCharacter.key)
                                 },
                                 onPrevious = {
                                     focusManager.moveFocus(FocusDirection.Previous)
@@ -277,8 +270,8 @@ fun ShowCharacter(uiCharacter: UiCharacter, isActive: Boolean, actions: Actions,
                             ),
                             label = { Text("In") })
                     }
-                    if (viewState.shownView == ShownView.CHARACTERS) {
-                        IconButton(onClick = { toggleEditCharacter(uiCharacter.key) }) {
+                    if (shownView == ShownView.CHARACTERS) {
+                        IconButton(onClick = { actions.toggleEditCharacter(uiCharacter.key) }) {
                             AnimatedContent(targetState = toggleEditIcon) {
                                 Icon(it, contentDescription = "Toggle Edit")
                             }
@@ -312,9 +305,9 @@ fun ShowCharacter(uiCharacter: UiCharacter, isActive: Boolean, actions: Actions,
 
 
 @Composable
-fun ShowPlayerVsNonPlayerCharacter(viewState: ViewState, uiCharacter: UiCharacter, actions: Actions) {
+fun ShowPlayerVsNonPlayerCharacter(shownView: ShownView, uiCharacter: UiCharacter, actions: Actions) {
     val isPlayerCharacter = uiCharacter.playerCharacter == true
-    if (viewState.shownView == ShownView.CHARACTERS) {
+    if (shownView == ShownView.CHARACTERS) {
         Button(modifier = Modifier.padding(start = 10.dp), onClick = { actions.togglePlayerCharacter(uiCharacter.key, !isPlayerCharacter) }) {
             Text(text = if (isPlayerCharacter) "PC" else "NPC")
         }
@@ -329,18 +322,17 @@ fun ListCharacters(
     uiCharacters: List<UiCharacter>,
     actions: Actions,
     listState: LazyListState,
-    currentlyEditedCharacter: String?,
-    toggleEditCharacter: (String) -> Unit) {
+    currentlyEditedCharacter: Pair<String, Dot?>?) {
     LazyColumn(state = listState, modifier = with(columnScope) { Modifier.fillMaxWidth().weight(1f) }) {
         items(uiCharacters, key = { it.key }) { character ->
             Box(modifier = Modifier.animateItemPlacement()) {
                 ShowCharacter(
                     character,
+                    currentlyEditedCharacter,
                     isActive = false,
                     actions,
-                    ViewState(ShownView.CHARACTERS, currentlyEditedCharacter),
+                    ShownView.CHARACTERS,
                     false,
-                    toggleEditCharacter
                 )
             }
         }
@@ -387,7 +379,7 @@ fun ListConflictTurns(columnScope: ColumnScope, hasConflict: Boolean, showAction
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ListTurns(uiCharacters: List<UiCharacter>, active: String?, actions: Actions) {
+fun ListTurns(uiCharacters: List<UiCharacter>, currentlyEditedCharacter: Pair<String, Dot?>?, active: String?, actions: Actions) {
     SubcomposeLayout(modifier = Modifier.clipToBounds()) { constraints ->
         if (uiCharacters.isEmpty()) {
             return@SubcomposeLayout layout(0, 0) {}
@@ -432,10 +424,11 @@ fun ListTurns(uiCharacters: List<UiCharacter>, active: String?, actions: Actions
                          val isActive = active == currentCharacter.key && currentAddTurnCopy == 0 && anim?.isRunning != true
                         ShowCharacter(
                             currentCharacter.copy(turn = currentTurn, isDelayed = currentCharacter.isDelayed && currentAddTurnCopy == 0),
+                            null,
                             isActive = isActive,
                             actions,
-                            ViewState(ShownView.TURNS, null),
-                            isGreyed = currentAddTurnCopy >= 1, {},
+                            ShownView.TURNS,
+                            isGreyed = currentAddTurnCopy >= 1,
                         )
                     }
                 }
@@ -473,12 +466,12 @@ fun ListTurns(uiCharacters: List<UiCharacter>, active: String?, actions: Actions
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-fun InitOrder(columnScope: ColumnScope, uiCharacters: List<UiCharacter>, active: String?, actions: Actions, listState: LazyListState, viewState: ViewState, hasConflict: Boolean, showActionList: () -> Unit, toggleEditCharacter: (String) -> Unit) {
-    if (viewState.shownView == ShownView.CHARACTERS) {
-        ListCharacters(columnScope, uiCharacters, actions, listState, viewState.currentlyEditedCharacter, toggleEditCharacter)
+fun InitOrder(columnScope: ColumnScope, uiCharacters: List<UiCharacter>, currentlyEditedCharacter: Pair<String, Dot?>?, active: String?, actions: Actions, listState: LazyListState, shownView: ShownView, hasConflict: Boolean, showActionList: () -> Unit) {
+    if (shownView == ShownView.CHARACTERS) {
+        ListCharacters(columnScope, uiCharacters, actions, listState, currentlyEditedCharacter)
     } else {
         ListConflictTurns(columnScope, hasConflict, showActionList) {
-            ListTurns(uiCharacters, active, actions)
+            ListTurns(uiCharacters, currentlyEditedCharacter, active, actions)
         }
     }
 }
@@ -564,16 +557,16 @@ fun App(data: String? = null) {
         val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
         val scope = rememberCoroutineScope()
 
-        val viewStateVar = remember { mutableStateOf(ViewState(ShownView.CHARACTERS, null)) }
-        var viewState by viewStateVar
-        val pagerState = rememberPagerState(initialPage = viewState.shownView.ordinal) { ShownView.entries.size }
+        val shownViewVar = remember { mutableStateOf(ShownView.CHARACTERS) }
+        var shownView by shownViewVar
+        val pagerState = rememberPagerState(initialPage = shownView.ordinal) { ShownView.entries.size }
 
         LaunchedEffect(pagerState.currentPage) {
             pagerState.interactionSource
-            viewState = viewState.copy(shownView = ShownView.entries[pagerState.currentPage])
+            shownView = ShownView.entries[pagerState.currentPage]
         }
-        LaunchedEffect(viewState.shownView) {
-            pagerState.animateScrollToPage(viewState.shownView.ordinal)
+        LaunchedEffect(shownView) {
+            pagerState.animateScrollToPage(shownView.ordinal)
         }
 
         val snackBarHostState = remember { SnackbarHostState() }
@@ -598,25 +591,25 @@ fun App(data: String? = null) {
                     )
                     NavigationDrawerItem(
                         label = { Text("Characters") },
-                        selected = backStackEntry?.destination?.route == Screens.MainScreen.name && viewState.shownView == ShownView.CHARACTERS,
+                        selected = backStackEntry?.destination?.route == Screens.MainScreen.name && shownView == ShownView.CHARACTERS,
                         onClick = {
                             navController.navigate(Screens.MainScreen.name) {
                                 popUpTo(Screens.MainScreen.name)
                                 launchSingleTop = true
                             }
-                            viewState = viewState.copy(shownView = ShownView.CHARACTERS)
+                            shownView = ShownView.CHARACTERS
                             scope.launch { drawerState.close() }
                         }
                     )
                     NavigationDrawerItem(
                         label = { Text("Turns") },
-                        selected = backStackEntry?.destination?.route == Screens.MainScreen.name && viewState.shownView == ShownView.TURNS,
+                        selected = backStackEntry?.destination?.route == Screens.MainScreen.name && shownView == ShownView.TURNS,
                         onClick = {
                             navController.navigate(Screens.MainScreen.name) {
                                 popUpTo(Screens.MainScreen.name)
                                 launchSingleTop = true
                             }
-                            viewState = viewState.copy(shownView = ShownView.TURNS)
+                            shownView = ShownView.TURNS
                             scope.launch { drawerState.close() }
                         }
                     )
@@ -755,7 +748,7 @@ fun App(data: String? = null) {
                     startDestination = Screens.MainScreen.name
                 ) {
                     composable(route = Screens.MainScreen.name) {
-                        MainScreen(innerPadding, uiState, model, viewStateVar, pagerState) {
+                        MainScreen(innerPadding, uiState, model, shownViewVar, pagerState) {
                             navController.navigate(Screens.ListActions.name) {
                                 popUpTo(Screens.MainScreen.name)
                                 launchSingleTop = true
@@ -777,7 +770,7 @@ fun App(data: String? = null) {
                                 popUpTo(Screens.MainScreen.name)
                                 launchSingleTop = true
                             }
-                            viewState = viewState.copy(shownView = ShownView.CHARACTERS)
+                            shownView = ShownView.CHARACTERS
                         })
                     }
                 }
@@ -1086,46 +1079,42 @@ fun Parties(innerPadding: PaddingValues, model: Model, partiesState: MutableStat
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(innerPadding: PaddingValues, uiState: UiState, model: Model, viewStateVar: MutableState<ViewState>, pagerState: PagerState, showActionList: () -> Unit) {
+fun MainScreen(innerPadding: PaddingValues, uiState: UiState, model: Model, shownViewVar: MutableState<ShownView>, pagerState: PagerState, showActionList: () -> Unit) {
     val actions: Actions = model
-    var viewState by viewStateVar
+    var shownView by shownViewVar
 
     Column(Modifier.padding(innerPadding)) {
         PrimaryTabRow(
-            selectedTabIndex = viewState.shownView.ordinal
+            selectedTabIndex = shownView.ordinal
         ) {
-            Tab(selected = viewState.shownView == ShownView.CHARACTERS, onClick = {
-                viewState = viewState.copy(shownView = ShownView.CHARACTERS)
+            Tab(selected = shownView == ShownView.CHARACTERS, onClick = {
+                shownView = ShownView.CHARACTERS
             }, text = {
                 Text("Characters")
             })
-            Tab(selected = viewState.shownView == ShownView.TURNS, onClick = {
-                viewState = viewState.copy(
-                    shownView = ShownView.TURNS,
-                    currentlyEditedCharacter = null
-                )
+            Tab(selected = shownView == ShownView.TURNS, onClick = {
+                shownView = ShownView.TURNS
+                // TODO Unset edit character
             }, text = {
                 Text("Turns")
             })
         }
         HorizontalPager(pagerState) { page ->
-            val thisViewState = viewState.copy(shownView = ShownView.entries[page])
+            val thisShownView = ShownView.entries[page]
             Column {
                 val listState = rememberLazyListState()
                 InitOrder(
                     this,
                     uiState.characters,
+                    uiState.currentlyEditedCharacter,
                     uiState.currentlySelectedCharacter,
                     actions,
                     listState,
-                    thisViewState,
+                    thisShownView,
                     uiState.turnConflicts,
                     showActionList,
-                ) {
-                    viewState =
-                        viewState.copy(currentlyEditedCharacter = if (viewState.currentlyEditedCharacter == it) null else it)
-                }
-                if (thisViewState.shownView == ShownView.TURNS) {
+                )
+                if (thisShownView == ShownView.TURNS) {
                     BottomAppBar(
                         windowInsets = BottomAppBarDefaults.windowInsets,
                     ) {

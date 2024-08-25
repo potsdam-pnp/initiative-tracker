@@ -1,5 +1,6 @@
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.aakira.napier.Napier
 import io.github.potsdam_pnp.initiative_tracker.Action
 import io.github.potsdam_pnp.initiative_tracker.AddCharacter
 import io.github.potsdam_pnp.initiative_tracker.ChangeInitiative
@@ -17,12 +18,22 @@ import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
 import io.github.potsdam_pnp.initiative_tracker.crdt.ImmutableStringRegister
 import io.github.potsdam_pnp.initiative_tracker.crdt.StringOperation
 import io.github.potsdam_pnp.initiative_tracker.crdt.StringRegister
+import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ChannelResult
+import kotlinx.coroutines.channels.getOrElse
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
 import kotlin.random.Random
 
 data class UiCharacter(
@@ -39,8 +50,9 @@ data class UiState(
     val characters: List<UiCharacter> = listOf(),
     val currentlySelectedCharacter: String? = null,
     val actions: List<Triple<Dot, ConflictState, TurnAction>> = listOf(),
-    val turnConflicts: Boolean = false
-)
+    val turnConflicts: Boolean = false,
+    val currentlyEditedCharacter: Pair<String, Dot?>? = null
+    )
 
 interface Actions {
     fun deleteCharacter(characterKey: String)
@@ -55,7 +67,8 @@ interface Actions {
     fun finishTurn(characterKey: String)
     fun pickAction(dot: Dot?)
     fun restartEncounter()
-    fun doNameActions(characterKey: String, actions: ((Int) -> Dot) -> List<StringOperation>): List<Dot>
+    fun toggleEditCharacter(key: String)
+    fun updateName(characterKey: String, name: ImmutableStringRegister?, text: String, start: Int)
 }
 
 
@@ -81,10 +94,38 @@ class Model private constructor (val repository: Repository<Action, State>) : Vi
                 CoroutineScope(Dispatchers.Unconfined)
             }
 
+        val versionChannel = Channel<VectorClock>()
+
         scope.launch {
-            repository.version.collect {
-                _state.update {
-                    repository.state.toUiState(repository)
+            repository.version.collect { versionChannel.send(it) }
+        }
+
+        scope.launch {
+            var vc = VectorClock.empty()
+
+            while (true) {
+                val s = select {
+                    versionChannel.onReceive { null to it }
+                    positionLock.onReceive { it to null }
+                }
+
+                val newVc = s.second
+                if (newVc != null) vc = s.second!!
+
+                val p = s.first
+                if (p != null && vc.contains(p.first) || p == null) {
+                    _state.update { prevState ->
+                        val currentlyEditedCharacter = if (p == null) prevState.currentlyEditedCharacter else
+                            prevState.currentlyEditedCharacter?.copy(second = p.second)
+                        repository.state.toUiState(repository)
+                            .copy(currentlyEditedCharacter = currentlyEditedCharacter)
+                    }
+
+                    if (p != null) {
+                        doNameActionLock.tryReceive()
+                    }
+                } else {
+                    positionLock.trySend(p)
                 }
             }
         }
@@ -115,7 +156,6 @@ class Model private constructor (val repository: Repository<Action, State>) : Vi
         if (predecessors.size > 1) return
         val predecessor = predecessors.firstOrNull()
         repository.produce(Turn(turnAction, predecessor?.toDot()))
-
     }
 
     override fun deleteCharacter(characterKey: String) {
@@ -178,13 +218,42 @@ class Model private constructor (val repository: Repository<Action, State>) : Vi
         )
     }
 
-    override fun doNameActions(
-        characterKey: String,
-        actions: ((Int) -> Dot) -> List<StringOperation>
-    ): List<Dot> {
-        return repository.produce {
-            actions(it).map {
-                ChangeName(characterKey, it)
+    private val doNameActionLock: Channel<Unit> = Channel(1)
+    private val positionLock: Channel<Pair<Dot?, Dot?>> = Channel(1)
+
+    override fun updateName(characterKey: String, name: ImmutableStringRegister?, text: String, start: Int) {
+         if (doNameActionLock.trySend(Unit).isSuccess) {
+             val c = repository.state.characters[CharacterId(characterKey)]
+             if (c == null || c.name.asString() != (name?.asString() ?: "")) {
+                 doNameActionLock.tryReceive()
+                 return
+             }
+
+             val upd = (name ?: ImmutableStringRegister(listOf())).operationsToUpdateTo(text, start)
+
+             val dots = repository.produce {
+                 upd.first(it).map {
+                     ChangeName(characterKey, it)
+                 }
+             }
+
+             val dot = when (val newPosition = upd.second) {
+                 is ImmutableStringRegister.DotGenerator.FromDot -> newPosition.dot
+                 is ImmutableStringRegister.DotGenerator.FromResult -> dots[newPosition.index]
+             }
+             positionLock.trySend(dots.lastOrNull() to dot)
+
+         } else {
+             Napier.i("Don't update because of lock")
+         }
+    }
+
+    override fun toggleEditCharacter(key: String) {
+        _state.update {
+            if (it.currentlyEditedCharacter?.first == key) {
+                it.copy(currentlyEditedCharacter = null)
+            } else {
+                it.copy(currentlyEditedCharacter = key to null)
             }
         }
     }
