@@ -9,6 +9,7 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.jetbrainsCompose)
     alias(libs.plugins.compose.compiler)
+    id("io.kotest.multiplatform") version "5.9.1"
 }
 
 kotlin {
@@ -59,7 +60,11 @@ kotlin {
             androidMain.dependsOn(this)
             desktopMain.dependsOn(this)
         }
-        
+
+        tasks.withType<Test>().configureEach {
+            useJUnitPlatform()
+        }
+
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
@@ -86,6 +91,9 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.kotest.property)
+            implementation(libs.kotest.framework.engine)
+            implementation(libs.kotest.runner.junit5)
         }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)

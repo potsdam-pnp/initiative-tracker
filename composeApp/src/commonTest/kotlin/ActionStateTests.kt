@@ -1,9 +1,19 @@
+import io.github.potsdam_pnp.initiative_tracker.Action
+import io.github.potsdam_pnp.initiative_tracker.AddCharacter
 import io.github.potsdam_pnp.initiative_tracker.ChangeInitiative
 import io.github.potsdam_pnp.initiative_tracker.CharacterId
+import io.github.potsdam_pnp.initiative_tracker.Encoders
 import io.github.potsdam_pnp.initiative_tracker.Turn
 import io.github.potsdam_pnp.initiative_tracker.TurnAction
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.State
+import io.github.potsdam_pnp.initiative_tracker.crdt.Message
+import io.github.potsdam_pnp.initiative_tracker.deserializeAction
+import io.github.potsdam_pnp.initiative_tracker.serializeAction
+import io.kotest.core.spec.style.StringSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.property.arbitrary.arbitrary
+import io.kotest.property.checkAll
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -61,3 +71,15 @@ class ActionStateTests {
         assertEquals(listOf("character"), predicted.map { it.key })
     }
 }
+
+
+class DecodeEncodeTests: StringSpec({
+    "Decode encoded value returns the same value" {
+        checkAll<AddCharacter> {
+            serializeAction(it).let { deserializeAction(it) } shouldBe it
+        }
+        //checkAll<String> {
+        //    Encoders.decode(it).let { Encoders.encode(it) } shouldBe it
+        //}
+    }
+})
