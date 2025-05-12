@@ -45,7 +45,7 @@ jobs:
       - name: Build and website
         run: ./gradlew wasmJsBrowserDistribution
       - name: Upload website artifact
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v3
         with:
           path: ./composeApp/build/dist/wasmJs/productionExecutable
       - name: Deploy to GitHub Pages
