@@ -184,7 +184,7 @@ class State(
                     dead = result?.resolvedDead() ?: false,
                     isDelayed = state[it]?.delayed ?: false,
                     turn = state[it]?.turns ?: 0,
-                    notPlayedYet = state[it]?.alreadyPlayed ?: true
+                    notPlayedYet = !(state[it]?.alreadyPlayed ?: false)
                 )
             }
         }
