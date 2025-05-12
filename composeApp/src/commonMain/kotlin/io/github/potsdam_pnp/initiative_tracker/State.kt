@@ -183,7 +183,8 @@ class State(
                     playerCharacter = result?.resolvedPlayerCharacter(),
                     dead = result?.resolvedDead() ?: false,
                     isDelayed = state[it]?.delayed ?: false,
-                    turn = state[it]?.turns ?: 0
+                    turn = state[it]?.turns ?: 0,
+                    notPlayedYet = state[it]?.alreadyPlayed ?: true
                 )
             }
         }

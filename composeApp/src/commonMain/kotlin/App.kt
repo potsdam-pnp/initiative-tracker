@@ -256,6 +256,7 @@ fun ShowCharacter(
                                 ),
                             singleLine = true,
                             value = uiCharacter.initiative?.toString() ?: "",
+                            enabled = uiCharacter.notPlayedYet,
                             onValueChange = { actions.editInitiative(uiCharacter.key, it) },
                             keyboardOptions = KeyboardOptions(
                                 imeAction = ImeAction.Done,

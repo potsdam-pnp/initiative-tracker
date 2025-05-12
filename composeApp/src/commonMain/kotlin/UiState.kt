@@ -43,7 +43,8 @@ data class UiCharacter(
     val playerCharacter: Boolean? = null,
     val dead: Boolean = false,
     val isDelayed: Boolean = false,
-    val turn: Int = 0
+    val turn: Int = 0,
+    val notPlayedYet: Boolean = true,
 )
 
 data class UiState(

@@ -43,7 +43,7 @@ jobs:
           path: composeApp/build/test-results/**/*.xml
           reporter: java-junit
       - name: Build and website
-        run: ./gradlew wasmJsBrowserDistribution
+        run: VERSION_CODE=$GITHUB_RUN_NUMBER VERSION_NAME=$(git rev-parse --short HEAD) ./gradlew wasmJsBrowserDistribution
       - name: Upload website artifact
         uses: actions/upload-pages-artifact@v3
         with:
@@ -52,7 +52,7 @@ jobs:
         id: deploy
         uses: actions/deploy-pages@v4
       - name: Build Android app bundle
-        run: ./gradlew bundle
+        run: VERSION_CODE=$GITHUB_RUN_NUMBER VERSION_NAME=$(git rev-parse --short HEAD) ./gradlew bundle
       - name: Sign app bundle
         run: |
           echo $RELEASE_KEY | base64 --decode > key.jks
