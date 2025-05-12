@@ -50,7 +50,7 @@ jobs:
           path: ./composeApp/build/dist/wasmJs/productionExecutable
       - name: Deploy to GitHub Pages
         id: deploy
-        uses: actions/deploy-pages@v1
+        uses: actions/deploy-pages@v4
       - name: Build Android app bundle
         run: ./gradlew bundle
       - name: Sign app bundle

@@ -500,7 +500,6 @@ enum class Screens(val title: String) {
     MainScreen("Initiative Tracker"),
     ListActions("List Actions"),
     ConnectionSettings("Connection Settings"),
-    Parties("Parties")
 }
 
 
@@ -520,35 +519,6 @@ fun App(data: String? = null) {
         }
     }
     val uiState by model.state.collectAsState(UiState(turnConflicts = false))
-
-    val partiesStateFlow = remember { MutableStateFlow(mapOf<String, List<SimpleCharacter>>()) }
-    val partiesState = remember { mutableStateOf(mapOf<String, List<SimpleCharacter>>()) }
-    var parties by partiesState
-
-    LaunchedEffect(parties) {
-        partiesStateFlow.value = parties
-    }
-
-    LaunchedEffect(Unit) {
-        val settings = Settings()
-
-        parties = settings.getString("parties", "").split(";").mapNotNull {
-            val parts = it.split(",")
-            val partyName = parts.firstOrNull()
-            val characters = parts.drop(1).map {
-                SimpleCharacter(0, it, true)
-            }
-            if (partyName != null && partyName != "") {
-                partyName to characters
-            } else {
-                null
-            }
-        }.toMap()
-
-        partiesStateFlow.collect {
-            settings.putString("parties", it.entries.joinToString(";") { it.key + "," + it.value.joinToString(",") { it.name } })
-        }
-    }
 
     MaterialTheme {
         val navController = rememberNavController()
@@ -626,38 +596,6 @@ fun App(data: String? = null) {
                             scope.launch { drawerState.close() }
                         }
                     )
-                    NavigationDrawerItem(
-                        label = { Text("Parties")},
-                        selected = backStackEntry?.destination?.route == Screens.Parties.name,
-                        onClick = {
-                            navController.navigate(Screens.Parties.name) {
-                                popUpTo(Screens.MainScreen.name)
-                                launchSingleTop = true
-                            }
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-                    if (getPlatform().isGeneratePlayerShortcutSupported()) {
-                        val context = getPlatform().getContext()
-                        NavigationDrawerItem(
-                            label = { Text("Add players to home screen") },
-                            selected = false,
-                            onClick = {
-                                val characters = uiState.characters.mapNotNull { it.name }
-                                if (characters.isNotEmpty()) {
-                                    getPlatform().generatePlayerShortcut(context, characters.map { it.asString() })
-                                } else {
-                                    scope.launch {
-                                        snackBarHostState.showSnackbar(
-                                            message = "No characters to add",
-                                            withDismissAction = true
-                                        )
-                                    }
-                                }
-                                scope.launch { drawerState.close() }
-                            }
-                        )
-                    }
                     Spacer(modifier = Modifier.weight(1f))
                     Row(modifier = Modifier.fillMaxWidth().align(Alignment.CenterHorizontally).padding(all = 10.dp)) {
                         Column() {
