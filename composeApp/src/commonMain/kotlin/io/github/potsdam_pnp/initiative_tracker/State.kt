@@ -1,5 +1,6 @@
 package io.github.potsdam_pnp.initiative_tracker
 
+import ShownView
 import UiCharacter
 import UiState
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
@@ -204,7 +205,7 @@ class State(
         return null
     }
 
-    fun toUiState(repository: Repository<Action, State>): UiState =
+    fun toUiState(repository: Repository<Action, State>, shownView: ShownView): UiState =
         UiState(
             characters = predictNextTurns(withCurrent = true, repository),
             currentlySelectedCharacter = currentTurn(repository)?.id,
@@ -212,7 +213,8 @@ class State(
                 val result = repository.fetchVersion(it)!!
                 Pair(result.op as Turn, result.metadata)
             },
-            turnConflicts = turnActions.value.size > 1
+            turnConflicts = turnActions.value.size > 1,
+            shownView = shownView
         )
 }
 

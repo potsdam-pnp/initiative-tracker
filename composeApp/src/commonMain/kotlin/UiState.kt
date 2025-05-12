@@ -52,7 +52,8 @@ data class UiState(
     val currentlySelectedCharacter: String? = null,
     val actions: List<Triple<Dot, ConflictState, TurnAction>> = listOf(),
     val turnConflicts: Boolean = false,
-    val currentlyEditedCharacter: Pair<String, Dot?>? = null
+    val currentlyEditedCharacter: Pair<String, Dot?>? = null,
+    val shownView: ShownView
     )
 
 interface Actions {
@@ -70,11 +71,12 @@ interface Actions {
     fun restartEncounter()
     fun toggleEditCharacter(key: String)
     fun updateName(characterKey: String, name: ImmutableStringRegister?, text: String, start: Int)
+    fun showView(shownView: ShownView)
 }
 
 
 class Model private constructor (val repository: Repository<Action, State>) : ViewModel(), Actions {
-    private val _state = MutableStateFlow(UiState())
+    private val _state = MutableStateFlow(UiState(shownView = ShownView.CHARACTERS))
     val state: StateFlow<UiState> = _state
 
     @OptIn(ExperimentalStdlibApi::class)
@@ -118,8 +120,13 @@ class Model private constructor (val repository: Repository<Action, State>) : Vi
                     _state.update { prevState ->
                         val currentlyEditedCharacter = if (p == null) prevState.currentlyEditedCharacter else
                             prevState.currentlyEditedCharacter?.copy(second = p.second)
-                        repository.state.toUiState(repository)
+                        val result = repository.state.toUiState(repository, prevState.shownView)
                             .copy(currentlyEditedCharacter = currentlyEditedCharacter)
+                        if (result.currentlySelectedCharacter != prevState.currentlySelectedCharacter && result.currentlyEditedCharacter == null) {
+                            result.copy(shownView = ShownView.TURNS)
+                        } else {
+                            result
+                        }
                     }
 
                     if (p != null) {
@@ -256,6 +263,12 @@ class Model private constructor (val repository: Repository<Action, State>) : Vi
             } else {
                 it.copy(currentlyEditedCharacter = key to null)
             }
+        }
+    }
+
+    override fun showView(shownView: ShownView) {
+        _state.update {
+            it.copy(shownView = shownView)
         }
     }
 }

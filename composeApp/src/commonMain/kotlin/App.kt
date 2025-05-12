@@ -519,7 +519,7 @@ fun App(data: String? = null) {
             ClientConsumer.start(model, globalCoroutineScope)
         }
     }
-    val uiState by model.state.collectAsState(UiState(turnConflicts = false))
+    val uiState by model.state.collectAsState(UiState(turnConflicts = false, shownView = ShownView.CHARACTERS))
 
     MaterialTheme {
         val navController = rememberNavController()
@@ -529,16 +529,14 @@ fun App(data: String? = null) {
         val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
         val scope = rememberCoroutineScope()
 
-        val shownViewVar = remember { mutableStateOf(ShownView.CHARACTERS) }
-        var shownView by shownViewVar
-        val pagerState = rememberPagerState(initialPage = shownView.ordinal) { ShownView.entries.size }
+        val pagerState = rememberPagerState(initialPage = uiState.shownView.ordinal) { ShownView.entries.size }
 
         LaunchedEffect(pagerState.currentPage) {
             pagerState.interactionSource
-            shownView = ShownView.entries[pagerState.currentPage]
+            model.showView(ShownView.entries[pagerState.currentPage])
         }
-        LaunchedEffect(shownView) {
-            pagerState.animateScrollToPage(shownView.ordinal)
+        LaunchedEffect(uiState.shownView) {
+            pagerState.animateScrollToPage(uiState.shownView.ordinal)
         }
 
         val snackBarHostState = remember { SnackbarHostState() }
@@ -563,25 +561,25 @@ fun App(data: String? = null) {
                     )
                     NavigationDrawerItem(
                         label = { Text("Characters") },
-                        selected = backStackEntry?.destination?.route == Screens.MainScreen.name && shownView == ShownView.CHARACTERS,
+                        selected = backStackEntry?.destination?.route == Screens.MainScreen.name && uiState.shownView == ShownView.CHARACTERS,
                         onClick = {
                             navController.navigate(Screens.MainScreen.name) {
                                 popUpTo(Screens.MainScreen.name)
                                 launchSingleTop = true
                             }
-                            shownView = ShownView.CHARACTERS
+                            model.showView(ShownView.CHARACTERS)
                             scope.launch { drawerState.close() }
                         }
                     )
                     NavigationDrawerItem(
                         label = { Text("Turns") },
-                        selected = backStackEntry?.destination?.route == Screens.MainScreen.name && shownView == ShownView.TURNS,
+                        selected = backStackEntry?.destination?.route == Screens.MainScreen.name && uiState.shownView == ShownView.TURNS,
                         onClick = {
                             navController.navigate(Screens.MainScreen.name) {
                                 popUpTo(Screens.MainScreen.name)
                                 launchSingleTop = true
                             }
-                            shownView = ShownView.TURNS
+                            model.showView(ShownView.TURNS)
                             scope.launch { drawerState.close() }
                         }
                     )
@@ -688,7 +686,7 @@ fun App(data: String? = null) {
                     startDestination = Screens.MainScreen.name
                 ) {
                     composable(route = Screens.MainScreen.name) {
-                        MainScreen(innerPadding, uiState, model, shownViewVar, pagerState) {
+                        MainScreen(innerPadding, uiState, model, pagerState) {
                             navController.navigate(Screens.ListActions.name) {
                                 popUpTo(Screens.MainScreen.name)
                                 launchSingleTop = true
@@ -847,21 +845,20 @@ fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(innerPadding: PaddingValues, uiState: UiState, model: Model, shownViewVar: MutableState<ShownView>, pagerState: PagerState, showActionList: () -> Unit) {
+fun MainScreen(innerPadding: PaddingValues, uiState: UiState, model: Model, pagerState: PagerState, showActionList: () -> Unit) {
     val actions: Actions = model
-    var shownView by shownViewVar
 
     Column(Modifier.padding(innerPadding)) {
         PrimaryTabRow(
-            selectedTabIndex = shownView.ordinal
+            selectedTabIndex = uiState.shownView.ordinal
         ) {
-            Tab(selected = shownView == ShownView.CHARACTERS, onClick = {
-                shownView = ShownView.CHARACTERS
+            Tab(selected = uiState.shownView == ShownView.CHARACTERS, onClick = {
+                actions.showView(ShownView.CHARACTERS)
             }, text = {
                 Text("Characters")
             })
-            Tab(selected = shownView == ShownView.TURNS, onClick = {
-                shownView = ShownView.TURNS
+            Tab(selected = uiState.shownView == ShownView.TURNS, onClick = {
+                actions.showView(ShownView.TURNS)
                 // TODO Unset edit character
             }, text = {
                 Text("Turns")
