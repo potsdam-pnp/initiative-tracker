@@ -37,8 +37,6 @@
             </intent-filter>
         </activity>
 
-        <receiver android:name=".ShareLinkReceiver" />
-
         <service android:name=".ConnectionService" android:foregroundServiceType="remoteMessaging" />
     </application>
 

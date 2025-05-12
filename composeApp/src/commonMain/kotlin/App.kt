@@ -123,6 +123,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.russhwolf.settings.Settings
 import io.github.aakira.napier.Napier
+import io.github.potsdam_pnp.initiative_tracker.CharacterId
 import io.github.potsdam_pnp.initiative_tracker.State
 import io.github.potsdam_pnp.initiative_tracker.TurnAction
 import io.github.potsdam_pnp.initiative_tracker.crdt.ConflictState
@@ -1164,7 +1165,7 @@ fun ListActions(innerPadding: PaddingValues, uiState: UiState, actions: Actions)
             ) {
                 Text(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp),
-                    text = descriptionOfAction(item)
+                    text = descriptionOfAction(uiState, item)
                 )
             }
         }
@@ -1188,7 +1189,7 @@ fun ListActions(innerPadding: PaddingValues, uiState: UiState, actions: Actions)
                         )
                         HorizontalDivider()
                         Text(
-                            text = descriptionOfAction(uiState.actions.find { it.first == modelDialogVersion }!!),
+                            text = descriptionOfAction(uiState, uiState.actions.find { it.first == modelDialogVersion }!!),
                             modifier = Modifier.padding(16.dp)
                         )
 
@@ -1214,7 +1215,7 @@ fun ListActions(innerPadding: PaddingValues, uiState: UiState, actions: Actions)
     }
 }
 
-fun descriptionOfAction(action: Triple<Dot, ConflictState, TurnAction>): String {
+fun descriptionOfAction(uiState: UiState, action: Triple<Dot, ConflictState, TurnAction>): String {
     val conflictStateString =
         when (val af = action.second) {
             ConflictState.InAllTimelines -> ""
@@ -1223,19 +1224,23 @@ fun descriptionOfAction(action: Triple<Dot, ConflictState, TurnAction>): String 
 
     val result = when (val a = action.third) {
         is TurnAction.StartTurn -> {
-            "Start turn of character ${a.characterId}"
+            val name = uiState.characters.find { a.characterId == CharacterId(it.key) }?.name?.asString()
+            "$name started turn"
         }
         is TurnAction.Delay -> {
-            "Delay turn of character ${a.characterId}"
+            val name = uiState.characters.find { a.characterId == CharacterId(it.key) }?.name?.asString()
+            "$name delayed turn"
         }
         is TurnAction.FinishTurn -> {
-            "Finish turn of character ${a.characterId}"
+            val name = uiState.characters.find { a.characterId == CharacterId(it.key) }?.name?.asString()
+            "$name finished turn"
         }
         is TurnAction.Die -> {
-            "Character ${a.characterId} dies"
+            val name = uiState.characters.find { a.characterId == CharacterId(it.key) }?.name?.asString()
+            "$name died"
         }
         is TurnAction.ResolveConflicts -> {
-            "Undo some actions"
+            "Actions undone"
         }
     }
 
