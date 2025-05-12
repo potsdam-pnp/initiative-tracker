@@ -38,18 +38,7 @@ kotlin {
     }
     
     jvm("desktop")
-    
-    listOf(
-        iosX64(),
-        iosArm64(),
-        iosSimulatorArm64()
-    ).forEach { iosTarget ->
-        iosTarget.binaries.framework {
-            baseName = "ComposeApp"
-            isStatic = true
-        }
-    }
-    
+
     sourceSets {
         val desktopMain by getting
         val androidMain by getting
@@ -93,7 +82,6 @@ kotlin {
             implementation(libs.kotlin.test)
             implementation(libs.kotest.property)
             implementation(libs.kotest.framework.engine)
-            implementation(libs.kotest.runner.junit5)
         }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
