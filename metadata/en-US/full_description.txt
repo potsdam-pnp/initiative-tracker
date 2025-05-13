@@ -1,0 +1,8 @@
+Initiative tracker is an android app to track encounters in role playing games like Pathfinder 2.
+It supports showing and editing the current state on multiple devices at the same time.
+All devices that are connected to the same WiFi are linked to each other (when the devices are allowed to talk to each other).
+
+It supports the following Pathfinder 2 encounter rules:
+- Player characters come only after non-player characters
+- When a character dies, it's turn moves to just before the current character
+- Characters can delay their turn
