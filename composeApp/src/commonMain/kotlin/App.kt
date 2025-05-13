@@ -121,7 +121,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.russhwolf.settings.Settings
+import initiative_tracker.composeapp.generated.resources.Res
+import initiative_tracker.composeapp.generated.resources.baseline_sync_24
+import initiative_tracker.composeapp.generated.resources.baseline_sync_disabled_24
+import initiative_tracker.composeapp.generated.resources.baseline_sync_problem_24
 import io.github.aakira.napier.Napier
 import io.github.potsdam_pnp.initiative_tracker.CharacterId
 import io.github.potsdam_pnp.initiative_tracker.State
@@ -129,13 +132,7 @@ import io.github.potsdam_pnp.initiative_tracker.TurnAction
 import io.github.potsdam_pnp.initiative_tracker.crdt.ConflictState
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
-import io.github.potsdam_pnp.initiative_tracker.crdt.ImmutableStringRegister
-import kotlinproject.composeapp.generated.resources.Res
-import kotlinproject.composeapp.generated.resources.baseline_sync_24
-import kotlinproject.composeapp.generated.resources.baseline_sync_disabled_24
-import kotlinproject.composeapp.generated.resources.baseline_sync_problem_24
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview

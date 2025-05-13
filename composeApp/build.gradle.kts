@@ -87,6 +87,9 @@ kotlin {
             implementation(compose.desktop.currentOs)
             implementation(libs.ktor.client.cio)
         }
+        wasmJsMain.dependencies {
+            implementation(libs.kotlinx.browser)
+        }
     }
 }
 
@@ -100,7 +103,7 @@ android {
 
     defaultConfig {
         applicationId = "io.github.potsdam_pnp.initiative_tracker"
-        minSdk = 26 //libs.versions.android.minSdk.get().toInt()
+        minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 20
         versionName = System.getenv("VERSION_NAME") ?: "2.0.9"
