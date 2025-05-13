@@ -129,6 +129,10 @@ android {
         debugImplementation(compose.uiTooling)
         implementation(libs.androidx.lifecycle.service)
     }
+
+    lint {
+        disable += "NullSafeMutableLiveData"
+    }
 }
 
 compose.desktop {
