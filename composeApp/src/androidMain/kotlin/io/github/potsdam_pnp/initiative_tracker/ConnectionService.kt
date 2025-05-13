@@ -39,7 +39,7 @@ class ConnectionService: LifecycleService() {
         Napier.i("Service created (1)")
 
         val notification = NotificationCompat.Builder(this, channelId()).apply {
-            setSmallIcon(R.drawable.ic_launcher_foreground)
+            setSmallIcon(R.drawable.ic_notification)
             setContentTitle("Server Running")
             setPriority(NotificationCompat.PRIORITY_LOW)
             setOngoing(true)
@@ -49,7 +49,7 @@ class ConnectionService: LifecycleService() {
                     putExtra("stop", true)
                 }
             addAction(
-                R.drawable.ic_launcher_foreground,
+                R.drawable.ic_notification,
                 "Stop",
                 PendingIntent.getService(
                     this@ConnectionService, 1, actionIntent, PendingIntent.FLAG_IMMUTABLE)

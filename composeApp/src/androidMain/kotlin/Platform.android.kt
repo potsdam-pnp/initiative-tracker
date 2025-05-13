@@ -76,7 +76,7 @@ class AndroidPlatform : Platform {
         if (otherLinks.isNotEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             val customActions = otherLinks.mapIndexed() { index, otherJoinLink ->
                 ChooserAction.Builder(
-                    Icon.createWithResource(context.context, R.drawable.ic_launcher_foreground),
+                    Icon.createWithResource(context.context, R.drawable.ic_notification),
                     "Share via ${otherJoinLink.host} instead",
                     PendingIntent.getActivity(
                         context.context,
