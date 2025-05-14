@@ -65,8 +65,13 @@ fun deserializeAction(it: String): Action? {
         val turn = { usedParts: Int, turnAction: (List<String>) -> TurnAction ->
             val parts = it.substring(1).split(":")
             val startParts = parts.take(usedParts)
-            val predecessor = Dot(ClientIdentifier(parts[usedParts]), parts[usedParts+1].toInt())
-            Turn(turnAction(startParts), predecessor)
+            if (parts.size == usedParts) {
+                Turn(turnAction(startParts), null)
+            } else {
+                val predecessor =
+                    Dot(ClientIdentifier(parts[usedParts]), parts[usedParts + 1].toInt())
+                Turn(turnAction(startParts), predecessor)
+            }
         }
         return when (it[0]) {
             'a' -> AddCharacter(it.substring(1))

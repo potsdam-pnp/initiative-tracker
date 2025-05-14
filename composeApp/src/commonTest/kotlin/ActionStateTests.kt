@@ -70,16 +70,34 @@ class ActionStateTests {
         val predicted = repository.state.predictNextTurns(withCurrent = false, repository)
         assertEquals(listOf("character"), predicted.map { it.key })
     }
-}
 
+    @Test
+    fun startTurn() {
+        val repository = Repository(State())
+        repository.produce { dots ->
+            listOf(
+                ChangeInitiative("character", 5),
+                Turn(TurnAction.StartTurn(CharacterId("character")), null),
+                Turn(TurnAction.StartTurn(CharacterId("character")), dots(1))
+            )
+        }
+
+        val predicted = repository.state.predictNextTurns(withCurrent = false, repository)
+        assertEquals(listOf("character"), predicted.map { it.key })
+
+    }
+
+    @Test
+    fun decodeStartTurn() {
+        val action = Turn(TurnAction.StartTurn(CharacterId("character")), null)
+        assertEquals(deserializeAction(serializeAction(action)), action)
+    }
+}
 
 class DecodeEncodeTests: StringSpec({
     "Decode encoded value returns the same value" {
         checkAll<AddCharacter> {
-            serializeAction(it).let { deserializeAction(it) } shouldBe it
+            deserializeAction(serializeAction(it)) shouldBe it
         }
-        //checkAll<String> {
-        //    Encoders.decode(it).let { Encoders.encode(it) } shouldBe it
-        //}
     }
 })
