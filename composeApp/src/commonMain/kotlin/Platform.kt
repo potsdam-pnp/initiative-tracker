@@ -49,6 +49,11 @@ interface Platform {
     fun getContext(): PlatformContext
 
     fun shareLink(context: PlatformContext, link: JoinLink, allLinks: List<JoinLink>) {}
+
+    @Composable
+    fun ServerSettings(): Unit {
+
+    }
 }
 
 expect fun getPlatform(): Platform

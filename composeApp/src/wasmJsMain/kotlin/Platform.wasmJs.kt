@@ -4,7 +4,6 @@ class WasmPlatform: Platform {
     override val name: String = "Web with Kotlin/Wasm"
     @Composable
     override fun getContext() = Unit
-
 }
 
 actual fun getPlatform(): Platform = WasmPlatform()

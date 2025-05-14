@@ -12,12 +12,16 @@ import androidx.lifecycle.lifecycleScope
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
 import java.util.Calendar
 import java.util.Date
 import java.util.GregorianCalendar
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 
 class ConnectionService: LifecycleService() {
     private fun channelId(): String {
@@ -55,14 +59,15 @@ class ConnectionService: LifecycleService() {
                 R.drawable.ic_notification,
                 "Stop",
                 PendingIntent.getService(
-                    this@ConnectionService, 1, actionIntent, PendingIntent.FLAG_IMMUTABLE)
+                    this@ConnectionService, 1, actionIntent, PendingIntent.FLAG_IMMUTABLE
+                )
             )
         }.build()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(100, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING)
         } else {
-            startForeground( 100, notification)
+            startForeground(100, notification)
         }
 
         Napier.i("Service created")
@@ -85,24 +90,50 @@ class ConnectionService: LifecycleService() {
             delay(1000)
             server!!.toggle(true)
         }
+        lifecycleScope.launch {
+            var currentDelay: Duration? = null
+
+            while (!isShuttingDown) {
+                val nextEvent = if (currentDelay == null) {
+                    app.serverLifecycleManager.serverEventChannel.receive()
+                } else {
+                    val delay = currentDelay
+                    select {
+                        async { delay(delay) }.onAwait { StopServer }
+                        app.serverLifecycleManager.serverEventChannel.onReceive { it }
+                    }
+                }
+                when (nextEvent) {
+                    is KeepRunning ->
+                        currentDelay = null
+
+                    is StopServer ->
+                        if (!isShuttingDown) {
+                            app.serverLifecycleManager.startShuttingDown()
+                            isShuttingDown = true
+                            server?.toggle(false)
+
+                            serverJob?.join()
+                            clientConnectionJob?.cancelAndJoin()
+                            connectionManagerJob?.cancelAndJoin()
+
+                            stopForeground(STOP_FOREGROUND_REMOVE)
+                            stopSelf()
+                            app.serverLifecycleManager.finishedShuttingDown()
+
+                        }
+
+                    is KillIn ->
+                        currentDelay = nextEvent.minutes.minutes
+                }
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.getBooleanExtra("stop", false) == true) {
             Napier.i("stop command")
-            if (!isShuttingDown) {
-                isShuttingDown = true
-                server?.toggle(false)
-
-                lifecycleScope.launch {
-                    serverJob?.join()
-                    clientConnectionJob?.cancelAndJoin()
-                    connectionManagerJob?.cancelAndJoin()
-
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                    stopSelf()
-                }
-            }
+            (application as InitiativeTrackerApplication).serverLifecycleManager.serverEventChannel.trySend(StopServer)
         } else {
             Napier.i("start command")
             server?.toggle(true)

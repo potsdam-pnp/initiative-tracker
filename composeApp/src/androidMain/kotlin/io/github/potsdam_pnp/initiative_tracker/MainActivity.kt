@@ -41,13 +41,20 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
 
-        startService(Intent(this, ConnectionService::class.java))
+        (application as InitiativeTrackerApplication).serverLifecycleManager.makeSureServerIsRunning(this);
     }
 
     override fun onResume() {
         super.onResume()
 
-        startService(Intent(this, ConnectionService::class.java))
+        (application as InitiativeTrackerApplication).serverLifecycleManager.makeSureServerIsRunning(this);
+    }
+
+    override fun onStop() {
+        (application as InitiativeTrackerApplication).serverLifecycleManager.stopServerAfterDelay();
+
+
+        super.onStop()
     }
 
     override fun onNewIntent(intent: Intent) {

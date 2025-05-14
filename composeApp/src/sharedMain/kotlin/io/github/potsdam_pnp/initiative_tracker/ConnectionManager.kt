@@ -125,7 +125,7 @@ fun toServerStatus(connectionStates: Map<ClientIdentifier, ConnectionState>, ser
     return ServerStatus(
         isRunning = name != null,
         message = if (name == null) "Not connected" else "Running as '$name'",
-        isSupported = false,
+        isSupported = true,
         connections = connectionStates.filterValues { it.serverConnected || it.clientConnected }.size,
         joinLinks = name?.let { serviceInfoStates[it] }?.connectionInformation?.let { it.hosts.map { JoinLink(it) } } ?: emptyList(),
         discoveredClients = serviceInfoStates.map {

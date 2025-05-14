@@ -775,6 +775,7 @@ fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope
         val serverStatus = getPlatform().serverStatus()
         val clientStatus by ClientConsumer.clientStatus.collectAsState()
         val context = getPlatform().getContext()
+        getPlatform().ServerSettings()
         ServerConnectionSettings()
         HorizontalDivider()
         ListItem(

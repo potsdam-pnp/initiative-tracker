@@ -12,18 +12,25 @@ import android.net.wifi.WifiManager
 import android.os.Build
 import android.service.chooser.ChooserAction
 import android.view.Choreographer.FrameData
+import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.core.content.ContextCompat.startActivity
 import io.github.aakira.napier.Napier
 import io.github.potsdam_pnp.initiative_tracker.InitiativeTrackerApplication
 import io.github.potsdam_pnp.initiative_tracker.MainActivity
 import io.github.potsdam_pnp.initiative_tracker.R
 import io.github.potsdam_pnp.initiative_tracker.toServerStatus
+import kotlinx.coroutines.flow.update
 
 class AndroidPlatform : Platform {
     override val name: String = "Android ${Build.VERSION.SDK_INT}"
@@ -90,6 +97,42 @@ class AndroidPlatform : Platform {
         }
 
         startActivity(context.context, shareIntent, null)
+    }
+
+    @Composable
+    override fun ServerSettings() {
+        val application = LocalContext.current.applicationContext as InitiativeTrackerApplication
+        val activity = LocalActivity.current as MainActivity
+        val serverSettings by application.serverLifecycleManager.serverSettings.collectAsState()
+        ListItem(
+            headlineContent = { Text("Allow to run server") },
+            trailingContent = {
+                Switch(
+                    checked = serverSettings.isAllowed,
+                    enabled = serverSettings.isAllowed || !serverSettings.disableActivateServer,
+                    onCheckedChange = { newValue ->
+                        application.serverLifecycleManager.changeServerIsAllowed(activity, newValue)
+                    })
+            },
+            supportingContent = {
+                Text("Server is needed to let other devices and clients join and share the initiative tracker state.")
+            }
+        )
+        ListItem(
+            headlineContent = {
+                TextField(
+                    serverSettings.minutesAfterAppClose.toString(),
+                    label = { Text("Number of minutes server will keep running after app has been closed") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    onValueChange = { newValue ->
+                        val value = newValue.toIntOrNull()
+                        if (value != null) {
+                            application.serverLifecycleManager.changeMinutesAfterAppClose(value)
+                        }
+                    })
+            },
+        )
     }
 }
 
