@@ -47,7 +47,7 @@ jobs:
       - name: Sign app
         run: |
           echo $RELEASE_KEY | base64 --decode > key.jks
-          jarsigner -keystore key.jks -storepass android composeApp/build/outputs/apk/release/composeApp-release-unsigned.apk my-alias
+          apksigner sign --in composeApp/build/outputs/apk/release/composeApp-release-unsigned.apk --ks key.jks --ks-pass pass:android
         env:
           RELEASE_KEY: ${{ secrets.RELEASE_KEY }}
       - name: Publish release apk
