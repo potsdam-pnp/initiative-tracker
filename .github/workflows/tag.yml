@@ -27,7 +27,6 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', '**/gradle.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
-
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
@@ -47,7 +46,9 @@ jobs:
       - name: Sign app
         run: |
           echo $RELEASE_KEY | base64 --decode > key.jks
-          apksigner sign --in composeApp/build/outputs/apk/release/composeApp-release-unsigned.apk --ks key.jks --ks-pass pass:android
+          ls -l /usr/local/lib/android/sdk 
+          ls -l /usr/local/lib/android/sdk/build-tools
+          /usr/local/lib/android/sdk/build-tools/apksigner sign --in composeApp/build/outputs/apk/release/composeApp-release-unsigned.apk --ks key.jks --ks-pass pass:android
         env:
           RELEASE_KEY: ${{ secrets.RELEASE_KEY }}
       - name: Publish release apk

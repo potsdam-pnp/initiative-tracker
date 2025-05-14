@@ -33,8 +33,6 @@ jobs:
         with:
           java-version: '21' # Or your desired JDKversion
           distribution: 'temurin'
-      - name: sdk path
-        run: ./gradlew printSdkPath
       - name: Tests
         run: ./gradlew allTests -x wasmJsBrowserTest
       - name: Test Report
