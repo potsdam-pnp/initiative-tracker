@@ -46,9 +46,10 @@ jobs:
       - name: Sign app
         run: |
           echo $RELEASE_KEY | base64 --decode > key.jks
-          ls -l /usr/local/lib/android/sdk 
+          ls -l /usr/local/lib/android/sdk
           ls -l /usr/local/lib/android/sdk/build-tools
-          /usr/local/lib/android/sdk/build-tools/apksigner sign --in composeApp/build/outputs/apk/release/composeApp-release-unsigned.apk --ks key.jks --ks-pass pass:android
+          ls -l /usr/local/lib/android/sdk/build-tools/35.0.0
+          /usr/local/lib/android/sdk/build-tools/35.0.0/apksigner sign --in composeApp/build/outputs/apk/release/composeApp-release-unsigned.apk --ks key.jks --ks-pass pass:android
         env:
           RELEASE_KEY: ${{ secrets.RELEASE_KEY }}
       - name: Publish release apk
