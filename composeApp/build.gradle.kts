@@ -146,3 +146,9 @@ compose.desktop {
         }
     }
 }
+
+tasks.register("printSdkPath") {
+    doLast {
+        println("Android SDK path: ${project.android.sdkDirectory}")
+    }
+}
