@@ -7,6 +7,8 @@ import io.github.potsdam_pnp.initiative_tracker.Turn
 import io.github.potsdam_pnp.initiative_tracker.TurnAction
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.State
+import io.github.potsdam_pnp.initiative_tracker.crdt.ClientIdentifier
+import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
 import io.github.potsdam_pnp.initiative_tracker.crdt.Message
 import io.github.potsdam_pnp.initiative_tracker.deserializeAction
 import io.github.potsdam_pnp.initiative_tracker.serializeAction
@@ -88,9 +90,14 @@ class ActionStateTests {
     }
 
     @Test
-    fun decodeStartTurn() {
-        val action = Turn(TurnAction.StartTurn(CharacterId("character")), null)
-        assertEquals(deserializeAction(serializeAction(action)), action)
+    fun checkDecode() {
+        val actions = listOf(
+            Turn(TurnAction.StartTurn(CharacterId("character")), null),
+            Turn(TurnAction.ResolveConflicts, Dot(ClientIdentifier("af6f6f"), 2))
+        )
+        for (action in actions) {
+            assertEquals(deserializeAction(serializeAction(action)), action)
+        }
     }
 }
 

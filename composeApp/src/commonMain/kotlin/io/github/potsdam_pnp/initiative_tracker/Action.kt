@@ -107,7 +107,7 @@ fun deserializeAction(it: String): Action? {
             'D' -> turn(1) { TurnAction.Delay(CharacterId(it[0])) }
             'd' -> turn(1) { TurnAction.Die(CharacterId(it[0])) }
             'f' -> turn(1) { TurnAction.FinishTurn(CharacterId(it[0])) }
-            'r' -> turn(0) { TurnAction.ResolveConflicts }
+            'r' -> turn(1) { TurnAction.ResolveConflicts }
             'q' -> ResetAllInitiatives
             else -> return null
         }
