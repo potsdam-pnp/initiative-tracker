@@ -1,5 +1,4 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
-import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.targets.js.dsl.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpackConfig
@@ -13,7 +12,7 @@ plugins {
 }
 
 kotlin {
-    @OptIn(ExperimentalWasmDsl::class)
+    @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
     wasmJs {
         moduleName = "composeApp"
         browser {
@@ -31,7 +30,6 @@ kotlin {
     }
     
     androidTarget {
-        @OptIn(ExperimentalKotlinGradlePluginApi::class)
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_11)
         }
@@ -105,8 +103,8 @@ android {
         applicationId = "io.github.potsdam_pnp.initiative_tracker"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 21
-        versionName = System.getenv("VERSION_NAME") ?: "2.0.10"
+        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 22
+        versionName = System.getenv("VERSION_NAME") ?: "2.0.11"
     }
     packaging {
         resources {
