@@ -1,3 +1,6 @@
+import androidx.compose.material3.TextField
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.aakira.napier.Napier
@@ -47,12 +50,40 @@ data class UiCharacter(
     val notPlayedYet: Boolean = true,
 )
 
+data class EditedCharacterPositions<T>(
+    val selection: Pair<T, T>,
+    val composition: Pair<T, T>?
+) {
+    fun <U> map(f: (T) -> U): EditedCharacterPositions<U> {
+        val composition = composition?.let { f(it.first) to f(it.second) }
+        return EditedCharacterPositions(
+            selection = f(selection.first) to f(selection.second),
+            composition = composition
+        )
+    }
+}
+
+fun EditedCharacterPositions<Int>.asTextFieldValue(text: String): TextFieldValue {
+    return TextFieldValue(text, selection = TextRange(selection.first, selection.second), composition = composition?.let {
+        TextRange(it.first, it.second)
+    })
+}
+
+fun TextFieldValue.asEditedCharacterPositions(): EditedCharacterPositions<Int> {
+    return EditedCharacterPositions(
+        selection = selection.start to selection.end,
+        composition = composition?.let { it.start to it.end }
+    )
+}
+
+data class CurrentlyEditedCharacter(val key: String, val positions: EditedCharacterPositions<Dot?>)
+
 data class UiState(
     val characters: List<UiCharacter> = listOf(),
     val currentlySelectedCharacter: String? = null,
     val actions: List<Triple<Dot, ConflictState, TurnAction>> = listOf(),
     val turnConflicts: Boolean = false,
-    val currentlyEditedCharacter: Pair<String, Dot?>? = null,
+    val currentlyEditedCharacter: CurrentlyEditedCharacter? = null,
     val shownView: ShownView
     )
 
@@ -70,7 +101,7 @@ interface Actions {
     fun pickAction(dot: Dot?)
     fun restartEncounter()
     fun toggleEditCharacter(key: String)
-    fun updateName(characterKey: String, name: ImmutableStringRegister?, text: String, start: Int)
+    fun updateName(characterKey: String, name: ImmutableStringRegister?, text: TextFieldValue)
     fun showView(shownView: ShownView)
 }
 
@@ -119,7 +150,7 @@ class Model private constructor (val repository: Repository<Action, State>) : Vi
                 if (p != null && vc.contains(p.first) || p == null) {
                     _state.update { prevState ->
                         val currentlyEditedCharacter = if (p == null) prevState.currentlyEditedCharacter else
-                            prevState.currentlyEditedCharacter?.copy(second = p.second)
+                            prevState.currentlyEditedCharacter?.copy(positions = p.second)
                         val result = repository.state.toUiState(repository, prevState.shownView)
                             .copy(currentlyEditedCharacter = currentlyEditedCharacter)
                         if (result.currentlySelectedCharacter != prevState.currentlySelectedCharacter && result.currentlyEditedCharacter == null) {
@@ -227,9 +258,9 @@ class Model private constructor (val repository: Repository<Action, State>) : Vi
     }
 
     private val doNameActionLock: Channel<Unit> = Channel(1)
-    private val positionLock: Channel<Pair<Dot?, Dot?>> = Channel(1)
+    private val positionLock: Channel<Pair<Dot?, EditedCharacterPositions<Dot?>>> = Channel(1)
 
-    override fun updateName(characterKey: String, name: ImmutableStringRegister?, text: String, start: Int) {
+    override fun updateName(characterKey: String, name: ImmutableStringRegister?, text: TextFieldValue) {
          if (doNameActionLock.trySend(Unit).isSuccess) {
              val c = repository.state.characters[CharacterId(characterKey)]
              if (c == null || c.name.asString() != (name?.asString() ?: "")) {
@@ -237,7 +268,7 @@ class Model private constructor (val repository: Repository<Action, State>) : Vi
                  return
              }
 
-             val upd = (name ?: ImmutableStringRegister(listOf())).operationsToUpdateTo(text, start)
+             val upd = (name ?: ImmutableStringRegister(listOf())).operationsToUpdateTo(text.text, text.asEditedCharacterPositions())
 
              val dots = repository.produce {
                  upd.first(it).map {
@@ -245,11 +276,14 @@ class Model private constructor (val repository: Repository<Action, State>) : Vi
                  }
              }
 
-             val dot = when (val newPosition = upd.second) {
-                 is ImmutableStringRegister.DotGenerator.FromDot -> newPosition.dot
-                 is ImmutableStringRegister.DotGenerator.FromResult -> dots[newPosition.index]
+             val dotPositions = upd.second.map {
+                 when (it) {
+                     is ImmutableStringRegister.DotGenerator.FromDot -> it.dot
+                     is ImmutableStringRegister.DotGenerator.FromResult -> dots[it.index]
+                 }
              }
-             positionLock.trySend(dots.lastOrNull() to dot)
+
+             positionLock.trySend(dots.lastOrNull() to dotPositions)
 
          } else {
              Napier.i("Don't update because of lock")
@@ -258,10 +292,10 @@ class Model private constructor (val repository: Repository<Action, State>) : Vi
 
     override fun toggleEditCharacter(key: String) {
         _state.update {
-            if (it.currentlyEditedCharacter?.first == key) {
+            if (it.currentlyEditedCharacter?.key == key) {
                 it.copy(currentlyEditedCharacter = null)
             } else {
-                it.copy(currentlyEditedCharacter = key to null)
+                it.copy(currentlyEditedCharacter = CurrentlyEditedCharacter(key, EditedCharacterPositions(Pair(null, null), null)))
             }
         }
     }

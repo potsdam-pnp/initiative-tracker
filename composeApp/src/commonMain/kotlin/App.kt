@@ -147,7 +147,7 @@ enum class ShownView {
 @Composable
 fun ShowCharacter(
     uiCharacter: UiCharacter,
-    currentlyEditedCharacter: Pair<String, Dot?>?,
+    currentlyEditedCharacter: CurrentlyEditedCharacter?,
     isActive: Boolean,
     actions: Actions,
     shownView: ShownView,
@@ -173,7 +173,7 @@ fun ShowCharacter(
         }
         if (!uiCharacter.dead) {
             Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
-                if (currentlyEditedCharacter?.first != uiCharacter.key) {
+                if (currentlyEditedCharacter?.key != uiCharacter.key) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(uiCharacter.name?.asString() ?: "")
                         ShowPlayerVsNonPlayerCharacter(shownView, uiCharacter, actions)
@@ -189,18 +189,15 @@ fun ShowCharacter(
                         }
                     }
                 } else {
-                    val pos = uiCharacter.name?.indexPosition(currentlyEditedCharacter.second) ?: 0
                     val persistedName = uiCharacter.name?.asString() ?: ""
-                    //val currentName by remember(persistedName) { mutableStateOf(persistedName) }
-                    val value = TextFieldValue(persistedName, selection = TextRange(pos))
+                    val value = currentlyEditedCharacter.positions.map {
+                        uiCharacter.name?.indexPosition(it) ?: 0
+                    }.asTextFieldValue(persistedName)
                     Napier.i("generated value: $value")
 
                     val onValueChange = { newValue: TextFieldValue ->
-                        Napier.i("change value to $newValue")
-                        val newPos = newValue.selection
-                        if (newPos.start == newPos.end) {
-                            actions.updateName(uiCharacter.key, uiCharacter.name, newValue.text, newPos.start)
-                        }
+                        Napier.i("change value to $newValue (current: $value)")
+                        actions.updateName(uiCharacter.key, uiCharacter.name, newValue)
                     }
 
                     TextField(
@@ -230,14 +227,14 @@ fun ShowCharacter(
                     }
                 }
             }
-            val toggleEditIcon = if (currentlyEditedCharacter?.first != uiCharacter.key) {
+            val toggleEditIcon = if (currentlyEditedCharacter?.key != uiCharacter.key) {
                 Icons.Default.Edit
             } else {
                 Icons.Default.Check
             }
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (currentlyEditedCharacter?.first != uiCharacter.key) {
+                    if (currentlyEditedCharacter?.key != uiCharacter.key) {
                         Text(
                             modifier = Modifier.padding(horizontal = 5.dp),
                             text = uiCharacter.initiative?.toString() ?: ""
@@ -321,7 +318,7 @@ fun ListCharacters(
     uiCharacters: List<UiCharacter>,
     actions: Actions,
     listState: LazyListState,
-    currentlyEditedCharacter: Pair<String, Dot?>?) {
+    currentlyEditedCharacter: CurrentlyEditedCharacter?) {
     LazyColumn(state = listState, modifier = with(columnScope) { Modifier.fillMaxWidth().weight(1f) }) {
         items(uiCharacters, key = { it.key }) { character ->
             Box(modifier = Modifier.animateItemPlacement()) {
@@ -376,9 +373,8 @@ fun ListConflictTurns(columnScope: ColumnScope, hasConflict: Boolean, showAction
 }
 
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ListTurns(uiCharacters: List<UiCharacter>, currentlyEditedCharacter: Pair<String, Dot?>?, active: String?, actions: Actions) {
+fun ListTurns(uiCharacters: List<UiCharacter>, active: String?, actions: Actions) {
     SubcomposeLayout(modifier = Modifier.clipToBounds()) { constraints ->
         if (uiCharacters.isEmpty()) {
             return@SubcomposeLayout layout(0, 0) {}
@@ -465,12 +461,12 @@ fun ListTurns(uiCharacters: List<UiCharacter>, currentlyEditedCharacter: Pair<St
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-fun InitOrder(columnScope: ColumnScope, uiCharacters: List<UiCharacter>, currentlyEditedCharacter: Pair<String, Dot?>?, active: String?, actions: Actions, listState: LazyListState, shownView: ShownView, hasConflict: Boolean, showActionList: () -> Unit) {
+fun InitOrder(columnScope: ColumnScope, uiCharacters: List<UiCharacter>, currentlyEditedCharacter: CurrentlyEditedCharacter?, active: String?, actions: Actions, listState: LazyListState, shownView: ShownView, hasConflict: Boolean, showActionList: () -> Unit) {
     if (shownView == ShownView.CHARACTERS) {
         ListCharacters(columnScope, uiCharacters, actions, listState, currentlyEditedCharacter)
     } else {
         ListConflictTurns(columnScope, hasConflict, showActionList) {
-            ListTurns(uiCharacters, currentlyEditedCharacter, active, actions)
+            ListTurns(uiCharacters, active, actions)
         }
     }
 }

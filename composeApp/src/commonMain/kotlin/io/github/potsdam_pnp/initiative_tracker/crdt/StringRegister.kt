@@ -1,5 +1,8 @@
 package io.github.potsdam_pnp.initiative_tracker.crdt
 
+import EditedCharacterPositions
+import androidx.compose.ui.text.input.TextFieldValue
+
 
 sealed class StringOperation {
     data class InsertAfter(val character: Char, val after: Dot?): StringOperation()
@@ -194,7 +197,7 @@ data class ImmutableStringRegister(
     }
 
 
-    fun operationsToUpdateTo(newString: String, cursor: Int): Pair<((Int) -> Dot) -> List<StringOperation>, DotGenerator> {
+    fun operationsToUpdateTo(newString: String, positions: EditedCharacterPositions<Int>): Pair<((Int) -> Dot) -> List<StringOperation>, EditedCharacterPositions<DotGenerator>> {
         val s = asString()
         val sameFront = s.withIndex().indexOfFirst { newString.length <= it.index || newString[it.index] != it.value }
         val sameEnd = s.withIndex().indexOfLast { it.index - s.length + newString.length < 0 || newString[it.index - s.length + newString.length] != it.value}
@@ -211,6 +214,6 @@ data class ImmutableStringRegister(
             Change.DeleteAndAdd(sameFront, sameEnd + 1, newString.substring(sameFront, sameEnd + 1 - s.length + newString.length))
         }
 
-        return operation.operations(this) to operation.cursorPosition(this, cursor)
+        return operation.operations(this) to positions.map { operation.cursorPosition(this, it) }
     }
 }
