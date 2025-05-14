@@ -103,8 +103,8 @@ android {
         applicationId = "io.github.potsdam_pnp.initiative_tracker"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 23
-        versionName = System.getenv("VERSION_NAME") ?: "2.0.12"
+        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 24
+        versionName = System.getenv("VERSION_NAME") ?: "2.0.13"
     }
     packaging {
         resources {
