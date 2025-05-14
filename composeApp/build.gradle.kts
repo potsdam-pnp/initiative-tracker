@@ -103,8 +103,8 @@ android {
         applicationId = "io.github.potsdam_pnp.initiative_tracker"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 22
-        versionName = System.getenv("VERSION_NAME") ?: "2.0.11"
+        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 23
+        versionName = System.getenv("VERSION_NAME") ?: "2.0.12"
     }
     packaging {
         resources {
@@ -130,6 +130,10 @@ android {
 
     lint {
         disable += "NullSafeMutableLiveData"
+    }
+
+    packaging {
+        resources.excludes.add("kotlin-tooling-metadata.json")
     }
 }
 
