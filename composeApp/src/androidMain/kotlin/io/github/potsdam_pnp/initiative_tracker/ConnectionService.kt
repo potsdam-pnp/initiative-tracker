@@ -88,7 +88,9 @@ class ConnectionService: LifecycleService() {
         }
         lifecycleScope.launch {
             delay(1000)
-            server!!.toggle(true)
+            if (!isShuttingDown) {
+                server!!.toggle(true)
+            }
         }
         lifecycleScope.launch {
             var currentDelay: Duration? = null
