@@ -81,6 +81,13 @@ kotlin {
             implementation(libs.kotest.property)
             implementation(libs.kotest.framework.engine)
         }
+        androidUnitTest.dependencies {
+            implementation(libs.kotest.runner.junit5)
+        }
+        jvmTest.dependencies {
+            implementation(libs.kotest.runner.junit5)
+        }
+
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.ktor.client.cio)
