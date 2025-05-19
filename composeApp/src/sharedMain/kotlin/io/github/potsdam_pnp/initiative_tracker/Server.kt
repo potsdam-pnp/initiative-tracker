@@ -28,168 +28,175 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-
 sealed class ServerState {
-    object Stopped : ServerState()
-    object Starting : ServerState()
-    data class Running(val port: Int, val connectedClients: Int) : ServerState()
-    object Stopping : ServerState()
+  object Stopped : ServerState()
 
-    fun message(): String =
-        when (this) {
-            is Stopped -> "Server stopped"
-            is Starting -> "Server starting"
-            is Running -> "Server running on port $port, $connectedClients clients connected"
-            is Stopping -> "Server stopping"
-        }
+  object Starting : ServerState()
 
-    fun isChangeEnabled(): Boolean =
-        when (this) {
-            is Stopped -> true
-            is Starting -> false
-            is Running -> true
-            is Stopping -> false
-        }
+  data class Running(val port: Int, val connectedClients: Int) : ServerState()
 
-    fun isTargetRunning(): Boolean =
-        when (this) {
-            is Stopped -> false
-            is Starting -> true
-            is Running -> true
-            is Stopping -> false
-        }
+  object Stopping : ServerState()
 
-    fun connectedClients(): Int =
-        when (this) {
-            is Stopped -> 0
-            is Starting -> 0
-            is Running -> connectedClients
-            is Stopping -> 0
-        }
+  fun message(): String =
+    when (this) {
+      is Stopped -> "Server stopped"
+      is Starting -> "Server starting"
+      is Running -> "Server running on port $port, $connectedClients clients connected"
+      is Stopping -> "Server stopping"
+    }
+
+  fun isChangeEnabled(): Boolean =
+    when (this) {
+      is Stopped -> true
+      is Starting -> false
+      is Running -> true
+      is Stopping -> false
+    }
+
+  fun isTargetRunning(): Boolean =
+    when (this) {
+      is Stopped -> false
+      is Starting -> true
+      is Running -> true
+      is Stopping -> false
+    }
+
+  fun connectedClients(): Int =
+    when (this) {
+      is Stopped -> 0
+      is Starting -> 0
+      is Running -> connectedClients
+      is Stopping -> 0
+    }
 }
 
 private sealed class Actions {
-    object Start: Actions()
-    object End: Actions()
+  object Start : Actions()
+
+  object End : Actions()
 }
 
-class Server(private val name: String, private val repository: Repository<Action, State>, private val connectionManager: ConnectionManager) {
-    private val state = MutableStateFlow<ServerState>(ServerState.Stopped)
-    private val actions = Channel<Actions>()
+class Server(
+  private val name: String,
+  private val repository: Repository<Action, State>,
+  private val connectionManager: ConnectionManager,
+) {
+  private val state = MutableStateFlow<ServerState>(ServerState.Stopped)
+  private val actions = Channel<Actions>()
 
-    suspend fun runOnce() {
-        Napier.i("waiting to start server")
-        while (actions.receive() != Actions.Start) {
-            Napier.w("Received Stop while server was already stopped")
-        }
-        state.update { ServerState.Starting }
+  suspend fun runOnce() {
+    Napier.i("waiting to start server")
+    while (actions.receive() != Actions.Start) {
+      Napier.w("Received Stop while server was already stopped")
+    }
+    state.update { ServerState.Starting }
 
-        Napier.i("starting server")
-        val server = startServer()
-        server.start(wait = false)
-        val resolvedPort = server.engine.resolvedConnectors()[0].port
-        connectionManager.registerService(name, resolvedPort)
+    Napier.i("starting server")
+    val server = startServer()
+    server.start(wait = false)
+    val resolvedPort = server.engine.resolvedConnectors()[0].port
+    connectionManager.registerService(name, resolvedPort)
 
-        state.update { ServerState.Running(resolvedPort, 0) }
+    state.update { ServerState.Running(resolvedPort, 0) }
 
-        while (actions.receive() != Actions.End) {
-            Napier.w("Received Start while server is already running")
-        }
-
-        state.update { ServerState.Stopping }
-
-        withContext(Dispatchers.IO) {
-            connectionManager.unregisterService()
-            server.stop()
-        }
+    while (actions.receive() != Actions.End) {
+      Napier.w("Received Start while server is already running")
     }
 
-    suspend fun run() {
-        while (true) {
-            runOnce()
-        }
+    state.update { ServerState.Stopping }
+
+    withContext(Dispatchers.IO) {
+      connectionManager.unregisterService()
+      server.stop()
     }
+  }
 
-    private fun startServer(): EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration> {
-        return embeddedServer(Netty, port = 8080) {
-            install(WebSockets)
-            routing {
-                get("/") {
-                    call.respondText("Initiative Tracker server running succesfully")
-                }
-                get("/app") {
-                    val website = "https://potsdam-pnp.github.io/initiative-tracker"
-                    call.respondText(
-                        contentType = ContentType.Text.Html,
-                        text = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n"
-                                + "    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n"
-                                + "    <title>KotlinProject</title>\n"
-                                + "    <link type=\"text/css\" rel=\"stylesheet\" href=\"$website/styles.css\">\n"
-                                + "    <script type=\"application/javascript\" src=\"$website/composeApp.js\"></script>\n"
-                                + "</head>\n<body>\n</body>\n</html>"
-                    )
-                }
-                get("/composeApp.wasm") {
-                    call.respondRedirect("https://potsdam-pnp.github.io/initiative-tracker/composeApp.wasm")
-                }
-                get("/composeResources/{...}") {
-                    val newPath =
-                        "https://potsdam-pnp.github.io/initiative-tracker" + call.request.origin.uri
-                    call.respondRedirect(newPath)
-                }
-                get("/client") {
-                    call.respondText(repository.clientIdentifier.name)
-                }
-                webSocket("/ws/{client}") {
-                    val clientId = ClientIdentifier(call.parameters["client"].orEmpty())
+  suspend fun run() {
+    while (true) {
+      runOnce()
+    }
+  }
 
-                    state.update { (it as ServerState.Running).let { it.copy(connectedClients = it.connectedClients + 1) } }
+  private fun startServer():
+    EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration> {
+    return embeddedServer(Netty, port = 8080) {
+      install(WebSockets)
+      routing {
+        get("/") { call.respondText("Initiative Tracker server running succesfully") }
+        get("/app") {
+          val website = "https://potsdam-pnp.github.io/initiative-tracker"
+          call.respondText(
+            contentType = ContentType.Text.Html,
+            text =
+              "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n" +
+                "    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n" +
+                "    <title>KotlinProject</title>\n" +
+                "    <link type=\"text/css\" rel=\"stylesheet\" href=\"$website/styles.css\">\n" +
+                "    <script type=\"application/javascript\" src=\"$website/composeApp.js\"></script>\n" +
+                "</head>\n<body>\n</body>\n</html>",
+          )
+        }
+        get("/composeApp.wasm") {
+          call.respondRedirect("https://potsdam-pnp.github.io/initiative-tracker/composeApp.wasm")
+        }
+        get("/composeResources/{...}") {
+          val newPath = "https://potsdam-pnp.github.io/initiative-tracker" + call.request.origin.uri
+          call.respondRedirect(newPath)
+        }
+        get("/client") { call.respondText(repository.clientIdentifier.name) }
+        webSocket("/ws/{client}") {
+          val clientId = ClientIdentifier(call.parameters["client"].orEmpty())
 
-                    try {
-                        val receiveChannel = Channel<Message<Action>>()
-                        val sendChannel = Channel<Message<Action>>()
+          state.update {
+            (it as ServerState.Running).let { it.copy(connectedClients = it.connectedClients + 1) }
+          }
 
-                        launch {
-                            state.first { it !is ServerState.Running }
-                            receiveChannel.send(Message.StopConnection(Unit))
-                        }
+          try {
+            val receiveChannel = Channel<Message<Action>>()
+            val sendChannel = Channel<Message<Action>>()
 
-                        launch {
-                            while (true) {
-                                val msg = incoming.receive()
-                                val decoded = Encoders.decode((msg as Frame.Text).readText())
-                                if (decoded is Message.CurrentState) {
-                                    connectionManager.serverInfoUpdate(clientId, decoded.vectorClock)
-                                }
-                                receiveChannel.send(Encoders.decode((msg as Frame.Text).readText()))
-                            }
-                        }
-
-                        launch {
-                            while (true) {
-                                val msg = sendChannel.receive()
-                                send(Frame.Text(Encoders.encode(msg)))
-                            }
-                        }
-
-
-                        MessageHandler(repository).run(this, receiveChannel, sendChannel)
-                    } finally {
-                        connectionManager.serverInfoConnectionStopped(clientId)
-                        state.update {
-                            Napier.w("Updating connections")
-                            (it as ServerState.Running).let { it.copy(connectedClients = it.connectedClients - 1) }
-                        }
-                    }
-                }
+            launch {
+              state.first { it !is ServerState.Running }
+              receiveChannel.send(Message.StopConnection(Unit))
             }
-        }
-    }
 
-    fun toggle(to: Boolean) {
-        when(to) {
-            true -> actions.trySend(Actions.Start)
-            false -> actions.trySend(Actions.End)
+            launch {
+              while (true) {
+                val msg = incoming.receive()
+                val decoded = Encoders.decode((msg as Frame.Text).readText())
+                if (decoded is Message.CurrentState) {
+                  connectionManager.serverInfoUpdate(clientId, decoded.vectorClock)
+                }
+                receiveChannel.send(Encoders.decode((msg as Frame.Text).readText()))
+              }
+            }
+
+            launch {
+              while (true) {
+                val msg = sendChannel.receive()
+                send(Frame.Text(Encoders.encode(msg)))
+              }
+            }
+
+            MessageHandler(repository).run(this, receiveChannel, sendChannel)
+          } finally {
+            connectionManager.serverInfoConnectionStopped(clientId)
+            state.update {
+              Napier.w("Updating connections")
+              (it as ServerState.Running).let {
+                it.copy(connectedClients = it.connectedClients - 1)
+              }
+            }
+          }
         }
+      }
     }
+  }
+
+  fun toggle(to: Boolean) {
+    when (to) {
+      true -> actions.trySend(Actions.Start)
+      false -> actions.trySend(Actions.End)
+    }
+  }
 }

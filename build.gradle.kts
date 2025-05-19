@@ -9,6 +9,7 @@ plugins {
     alias(libs.plugins.jetbrainsCompose) apply false
     alias(libs.plugins.compose.compiler) apply false
     alias(libs.plugins.kotlinMultiplatform) apply false
+    id("com.ncorti.ktfmt.gradle") version("0.22.0") apply false
 }
 
 val nixManaged = hasProperty("nixManaged") && property("nixManaged") == "true"
