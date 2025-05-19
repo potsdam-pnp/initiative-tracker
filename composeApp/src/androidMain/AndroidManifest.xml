@@ -18,6 +18,7 @@
             android:exported="true"
             android:launchMode="singleInstance"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
+            android:windowSoftInputMode="adjustNothing"
             android:name="io.github.potsdam_pnp.initiative_tracker.MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

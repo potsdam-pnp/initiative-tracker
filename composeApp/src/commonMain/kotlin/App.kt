@@ -3,6 +3,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -13,12 +14,20 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -152,7 +161,7 @@ fun ShowCharacter(
         modifier = modifier.then(Modifier.background(color = Color.Yellow.copy(alpha = isActiveAlpha)))
     }
     modifier =
-        modifier.then(Modifier.padding(vertical = 10.dp, horizontal = 20.dp).heightIn(min = 60.dp))
+        modifier.then(Modifier.padding(vertical = 10.dp, horizontal = 20.dp).heightIn(min = 60.dp).windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)))
 
     val focusManager = LocalFocusManager.current
 
@@ -310,7 +319,8 @@ fun ListCharacters(
     actions: Actions,
     listState: LazyListState,
     currentlyEditedCharacter: CurrentlyEditedCharacter?) {
-    LazyColumn(state = listState, modifier = with(columnScope) { Modifier.fillMaxWidth().weight(1f) }) {
+    LazyColumn(state = listState, modifier = with(columnScope) { Modifier.fillMaxWidth().weight(1f).
+    windowInsetsPadding(WindowInsets.ime.only(WindowInsetsSides.Bottom)) }) {
         items(uiCharacters, key = { it.key }) { character ->
             Box(modifier = Modifier.animateItemPlacement()) {
                 ShowCharacter(
@@ -528,9 +538,12 @@ fun App(data: String? = null) {
             drawerState = drawerState,
             drawerContent = {
                 ModalDrawerSheet {
-                    Text("Initiative Tracker", Modifier.padding(16.dp))
+                    Text("Initiative Tracker", Modifier.padding(16.dp).windowInsetsPadding(WindowInsets.safeDrawing.only(
+                        WindowInsetsSides.Start)))
                     HorizontalDivider()
                     NavigationDrawerItem(
+                        modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(
+                            WindowInsetsSides.Start)),
                         label = { Text("Connection Settings") },
                         badge = { ConnectionState() },
                         selected = backStackEntry?.destination?.route == Screens.ConnectionSettings.name,
@@ -543,6 +556,7 @@ fun App(data: String? = null) {
                         }
                     )
                     NavigationDrawerItem(
+                        modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Start)),
                         label = { Text("Characters") },
                         selected = backStackEntry?.destination?.route == Screens.MainScreen.name && uiState.shownView == ShownView.CHARACTERS,
                         onClick = {
@@ -555,6 +569,7 @@ fun App(data: String? = null) {
                         }
                     )
                     NavigationDrawerItem(
+                        modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Start)),
                         label = { Text("Turns") },
                         selected = backStackEntry?.destination?.route == Screens.MainScreen.name && uiState.shownView == ShownView.TURNS,
                         onClick = {
@@ -568,6 +583,7 @@ fun App(data: String? = null) {
                     )
                     HorizontalDivider()
                     NavigationDrawerItem(
+                        modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Start)),
                         label = { Text("List Actions") },
                         selected = backStackEntry?.destination?.route == Screens.ListActions.name,
                         onClick = {
@@ -580,7 +596,7 @@ fun App(data: String? = null) {
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     Row(modifier = Modifier.fillMaxWidth().align(Alignment.CenterHorizontally).padding(all = 10.dp)) {
-                        Column() {
+                        Column(modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Start))) {
                             Text("${uiState.actions.filterIsInstance<TurnAction.StartTurn>().size} turns played so far in current encounter")
                             Text("${uiState.characters.filter { !it.dead }.size} characters still alive")
                             Button(onClick = {
@@ -769,7 +785,8 @@ fun ServerConnectionSettings() {
 fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope: CoroutineScope) {
     val scrollState = rememberScrollState()
 
-    Column(modifier = Modifier.padding(innerPadding).verticalScroll(
+    Column(modifier = Modifier.padding(innerPadding).windowInsetsPadding(WindowInsets.ime.only(
+        WindowInsetsSides.Bottom).union(WindowInsets.safeDrawing)).verticalScroll(
         scrollState
     )) {
         val serverStatus = getPlatform().serverStatus()
@@ -864,9 +881,7 @@ fun MainScreen(innerPadding: PaddingValues, uiState: UiState, model: Model, page
                     showActionList,
                 )
                 if (thisShownView == ShownView.TURNS) {
-                    BottomAppBar(
-                        windowInsets = BottomAppBarDefaults.windowInsets,
-                    ) {
+                    BottomAppBar(windowInsets = WindowInsets(0, 0, 0, 0)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceAround
@@ -903,7 +918,8 @@ fun MainScreen(innerPadding: PaddingValues, uiState: UiState, model: Model, page
 @Composable
 fun ListActions(innerPadding: PaddingValues, uiState: UiState, actions: Actions) {
     var showModalDialogOfDot by remember { mutableStateOf<Dot?>(null) }
-    LazyColumn(contentPadding = innerPadding) {
+    LazyColumn(contentPadding = innerPadding, modifier = Modifier.windowInsetsPadding(WindowInsets.ime.only(
+        WindowInsetsSides.Bottom))) {
         items(uiState.actions.reversed(), key = { it.first.clientIdentifier.name + "-" + it.first.position }) { item ->
             Row(
                 modifier =
