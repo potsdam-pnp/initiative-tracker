@@ -119,10 +119,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import initiative_tracker.composeapp.generated.resources.Res
-import initiative_tracker.composeapp.generated.resources.baseline_sync_24
-import initiative_tracker.composeapp.generated.resources.baseline_sync_disabled_24
-import initiative_tracker.composeapp.generated.resources.baseline_sync_problem_24
+import initiative_tracker.composeapp.generated.resources.*
 import io.github.aakira.napier.Napier
 import io.github.potsdam_pnp.initiative_tracker.CharacterId
 import io.github.potsdam_pnp.initiative_tracker.State
@@ -133,6 +130,7 @@ import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -179,8 +177,14 @@ fun ShowCharacter(
             Text(uiCharacter.name?.asString() ?: "")
             ShowPlayerVsNonPlayerCharacter(shownView, uiCharacter, actions)
             if (uiCharacter.isDelayed && shownView == ShownView.TURNS) {
-              Text("Delayed", Modifier.padding(horizontal = 10.dp), fontStyle = FontStyle.Italic)
-              OutlinedButton(onClick = { actions.startTurn(uiCharacter.key) }) { Text("Take") }
+              Text(
+                stringResource(Res.string.delayed),
+                Modifier.padding(horizontal = 10.dp),
+                fontStyle = FontStyle.Italic,
+              )
+              OutlinedButton(onClick = { actions.startTurn(uiCharacter.key) }) {
+                Text(stringResource(Res.string.take_delayed))
+              }
             }
           }
         } else {
@@ -212,7 +216,7 @@ fun ShowCharacter(
                 onDone = { actions.toggleEditCharacter(uiCharacter.key) },
                 onNext = { focusManager.moveFocus(FocusDirection.Next) },
               ),
-            label = { Text("Name") },
+            label = { Text(stringResource(Res.string.name)) },
           )
           if (uiCharacter.name == null || uiCharacter.initiative == null) {
             DisposableEffect(Unit) {
@@ -304,7 +308,13 @@ fun ShowPlayerVsNonPlayerCharacter(
       modifier = Modifier.padding(start = 10.dp),
       onClick = { actions.togglePlayerCharacter(uiCharacter.key, !isPlayerCharacter) },
     ) {
-      Text(text = if (isPlayerCharacter) "PC" else "NPC")
+      Text(
+        text =
+          stringResource(
+            if (isPlayerCharacter) Res.string.shortPlayerCharacter
+            else Res.string.shortNonPlayerCharacter
+          )
+      )
     }
   }
 }

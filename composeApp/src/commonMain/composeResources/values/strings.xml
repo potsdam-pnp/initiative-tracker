@@ -1,0 +1,7 @@
+<resources>
+    <string name="shortPlayerCharacter">PC</string>
+    <string name="shortNonPlayerCharacter">NPC</string>
+    <string name="delayed">Delayed</string>
+    <string name="take_delayed">Take</string>
+    <string name="name">Name</string>
+</resources>
