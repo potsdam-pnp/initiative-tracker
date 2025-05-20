@@ -9,6 +9,7 @@ plugins {
   alias(libs.plugins.compose.compiler)
   id("io.kotest.multiplatform") version "5.9.1"
   id("com.ncorti.ktfmt.gradle") version "0.22.0"
+  id("com.google.osdetector") version "1.7.3"
 }
 
 kotlin {
@@ -44,6 +45,8 @@ kotlin {
       jvmMain.get().dependsOn(this)
     }
 
+    commonMain { kotlin.srcDir("build/generated/proto-kotlin") }
+
     tasks.withType<Test>().configureEach { useJUnitPlatform() }
 
     androidMain.dependencies {
@@ -69,6 +72,7 @@ kotlin {
       implementation(libs.ktor.client.core)
       implementation(libs.napier)
       implementation(libs.multiplatform.settings.no.arg)
+      api(libs.pbandk.runtime)
     }
     commonTest.dependencies {
       implementation(libs.kotlin.test)
@@ -132,8 +136,41 @@ compose.desktop {
   }
 }
 
-tasks.register("printSdkPath") {
-  doLast { println("Android SDK path: ${project.android.sdkDirectory}") }
+ktfmt { googleStyle() }
+
+val protocConfig by configurations.creating
+
+dependencies {
+  protocConfig("com.google.protobuf:protoc:4.31.0:${osdetector.os}-${osdetector.arch}@exe")
+  protocConfig("pro.streem.pbandk:protoc-gen-pbandk-jvm:0.16.0:jvm8@jar")
 }
 
-ktfmt { googleStyle() }
+val copyTask =
+  tasks.register<Copy>("copyProtocAndMakeExecutable") {
+    from(protocConfig.files.map { it.path })
+    into("build/protoc")
+    rename { if (it.endsWith(".exe")) "protoc.exe" else "protoc-gen-pbandk" }
+    doLast {
+      file("build/protoc/protoc.exe").setExecutable(true)
+      file("build/protoc/protoc-gen-pbandk").setExecutable(true)
+    }
+  }
+
+val generateCommonProto =
+  tasks.register<Exec>("generateCommonProto") {
+    val outputDir = layout.buildDirectory.dir("generated/proto-kotlin")
+    outputs.dir(outputDir)
+    inputs.files("src/jvmMain/proto/message.proto")
+    executable = project.layout.buildDirectory.file("protoc/protoc.exe").get().asFile.path
+    setEnvironment(
+      "PATH" to "${project.layout.buildDirectory.dir("protoc").get().asFile.path}:/usr/bin:/bin"
+    )
+    setArgs(
+      listOf("--pbandk_out=${outputDir.get().asFile.path}", "src/jvmMain/proto/message.proto")
+    )
+    dependsOn(copyTask)
+  }
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+  dependsOn(generateCommonProto)
+}

@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package io.github.potsdam_pnp.initiative_tracker.proto;
+
+enum ActionType {
+  AddCharacter = 0;
+  ChangeNameInsertAfter = 1;
+  ChangeNameDelete = 2;
+  ChangeInitiative = 3;
+  ChangePlayerCharacterToPlayer = 4;
+  ChangePlayerCharacterToNonPlayer = 5;
+  DeleteCharacter = 6;
+  ResetAllInitiative = 7;
+  StartTurn = 8;
+  FinishTurn = 9;
+  Die = 10;
+  Delay = 11;
+  ResolveConflicts = 12;
+}
+
+message OperationAction {
+  repeated uint64 clock = 1;
+  uint32 client = 2;
+  ActionType action = 3;
+  optional string characterId = 4;
+  optional uint32 dotClient = 5;
+  optional uint32 dotPosition = 6;
+  optional int32 arg = 7; // initiative (ChangeInitiative) or character (ChangeNameInsertAfter)
+}
+
+enum MessageKind {
+  StopConnection = 0;
+  CurrentState = 1;
+  RequestVersions = 2;
+  SendVersions = 3;
+}
+
+message Message {
+  MessageKind messageKind = 1;
+  repeated string clientIdentifiers = 2;
+  repeated int64 clock = 3;
+  repeated int64 dots = 4; // clientIdentifier index (even indices) and position (odd indices)
+  repeated OperationAction actions = 5;
+}

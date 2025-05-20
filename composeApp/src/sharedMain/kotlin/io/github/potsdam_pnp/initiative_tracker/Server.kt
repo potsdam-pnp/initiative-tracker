@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import upgradeProtocol
 
 sealed class ServerState {
   object Stopped : ServerState()
@@ -163,18 +164,31 @@ class Server(
             launch {
               while (true) {
                 val msg = incoming.receive()
-                val decoded = Encoders.decode((msg as Frame.Text).readText())
+                val decoded =
+                  when (msg) {
+                    is Frame.Text -> Encoders.decode(msg.readText())
+                    is Frame.Binary -> Encoders.decodePb(msg.data)
+                    is Frame.Close -> Message.StopConnection(Unit)
+                    is Frame.Ping -> null
+                    is Frame.Pong -> null
+                  }
                 if (decoded is Message.CurrentState) {
                   connectionManager.serverInfoUpdate(clientId, decoded.vectorClock)
                 }
-                receiveChannel.send(Encoders.decode((msg as Frame.Text).readText()))
+                if (decoded != null) {
+                  receiveChannel.send(decoded)
+                }
               }
             }
 
             launch {
               while (true) {
                 val msg = sendChannel.receive()
-                send(Frame.Text(Encoders.encode(msg)))
+                if (!upgradeProtocol) {
+                  send(Frame.Text(Encoders.encode(msg)))
+                } else {
+                  send(Frame.Binary(true, Encoders.encodePb(msg)))
+                }
               }
             }
 

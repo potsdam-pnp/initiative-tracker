@@ -8,12 +8,15 @@ compose-plugin = "1.6.11"
 kotestProperty = "5.9.1"
 kotlin = "2.1.21"
 kotlinxBrowser = "0.3"
+kotlinxSerializationProtobuf = "1.8.1"
 ktor_version="3.1.3"
 lifecycleViewmodelCompose = "2.8.0"
 multiplatformSettingsNoArg = "1.1.1"
 napier = "2.7.1"
 navigationCompose = "2.7.0-alpha07"
 lifecycleService = "2.9.0"
+pbandkRuntime = "0.16.0"
+protobufJava = "4.26.1"
 
 [libraries]
 kotest-framework-engine = { module = "io.kotest:kotest-framework-engine", version.ref = "kotestProperty" }
@@ -22,6 +25,7 @@ kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref 
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
 kotlinx-browser = { module = "org.jetbrains.kotlinx:kotlinx-browser", version.ref = "kotlinxBrowser" }
+kotlinx-serialization-protobuf = { module = "org.jetbrains.kotlinx:kotlinx-serialization-protobuf", version.ref = "kotlinxSerializationProtobuf" }
 ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor_version" }
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor_version" }
 ktor-server-core = { module = "io.ktor:ktor-server-core", version.ref = "ktor_version" }
@@ -32,6 +36,8 @@ androidx-navigation-compose = { module = "org.jetbrains.androidx.navigation:navi
 multiplatform-settings-no-arg = { module = "com.russhwolf:multiplatform-settings-no-arg", version.ref = "multiplatformSettingsNoArg" }
 napier = { module = "io.github.aakira:napier", version.ref = "napier" }
 androidx-lifecycle-service = { group = "androidx.lifecycle", name = "lifecycle-service", version.ref = "lifecycleService" }
+pbandk-runtime = { module = "pro.streem.pbandk:pbandk-runtime", version.ref = "pbandkRuntime" }
+protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protobufJava" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

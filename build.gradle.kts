@@ -1,5 +1,5 @@
+import org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsEnvSpec
 import org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsRootPlugin
-import org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsRootExtension
 
 plugins {
     // this is necessary to avoid the plugins to be loaded multiple times
@@ -16,6 +16,6 @@ val nixManaged = hasProperty("nixManaged") && property("nixManaged") == "true"
 
 if (nixManaged) {
     rootProject.plugins.withType<NodeJsRootPlugin> {
-        rootProject.the<NodeJsRootExtension>().download = false
+        rootProject.the<NodeJsEnvSpec>().download = false
     }
 }
