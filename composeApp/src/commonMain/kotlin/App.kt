@@ -981,7 +981,10 @@ fun ListActions(innerPadding: PaddingValues, uiState: UiState, actions: Actions)
   var showModalDialogOfDot by remember { mutableStateOf<Dot?>(null) }
   LazyColumn(
     contentPadding = innerPadding,
-    modifier = Modifier.windowInsetsPadding(WindowInsets.ime.only(WindowInsetsSides.Bottom)),
+    modifier =
+      Modifier.windowInsetsPadding(
+        WindowInsets.safeDrawing.union(WindowInsets.ime.only(WindowInsetsSides.Bottom))
+      ),
   ) {
     items(
       uiState.actions.reversed(),
