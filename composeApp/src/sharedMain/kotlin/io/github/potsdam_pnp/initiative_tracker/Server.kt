@@ -147,6 +147,7 @@ class Server(
         get("/client") { call.respondText(repository.clientIdentifier.name) }
         webSocket("/ws/{client}") {
           val clientId = ClientIdentifier(call.parameters["client"].orEmpty())
+          val supportProtobuf = call.request.queryParameters.get("supportProtobuf") == "true"
 
           state.update {
             (it as ServerState.Running).let { it.copy(connectedClients = it.connectedClients + 1) }
@@ -184,7 +185,7 @@ class Server(
             launch {
               while (true) {
                 val msg = sendChannel.receive()
-                if (!upgradeProtocol) {
+                if (!upgradeProtocol && !supportProtobuf) {
                   send(Frame.Text(Encoders.encode(msg)))
                 } else {
                   send(Frame.Binary(true, Encoders.encodePb(msg)))

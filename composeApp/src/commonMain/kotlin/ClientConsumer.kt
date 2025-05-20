@@ -60,8 +60,9 @@ object ClientConsumer {
               method = HttpMethod.Get,
               host = clientStatus.value.host,
               port = 8080,
-              path = "/ws/${model.repository.clientIdentifier.name}",
+              path = "/ws/${model.repository.clientIdentifier.name}?supportProtobuf=true",
             ) {
+              var supportProtobuf = false
               _clientStatus.update { it.copy(status = ClientStatusState.Running(0, 0)) }
 
               val receiveChannel = Channel<Message<Action>>()
@@ -77,7 +78,10 @@ object ClientConsumer {
                   val msg = incoming.receive()
                   val decoded =
                     when (msg) {
-                      is Frame.Binary -> Encoders.decodePb(msg.data)
+                      is Frame.Binary -> {
+                        supportProtobuf = true
+                        Encoders.decodePb(msg.data)
+                      }
                       is Frame.Close -> Message.StopConnection(Unit)
                       is Frame.Ping -> null
                       is Frame.Pong -> null
@@ -93,7 +97,7 @@ object ClientConsumer {
               launch {
                 while (true) {
                   val msg = sendChannel.receive()
-                  if (!upgradeProtocol) {
+                  if (!upgradeProtocol && !supportProtobuf) {
                     send(Frame.Text(Encoders.encode(msg)))
                   } else {
                     send(Frame.Binary(true, Encoders.encodePb(msg)))

@@ -47,8 +47,9 @@ class ClientConnections(
               method = HttpMethod.Get,
               host = connectionInformation.hosts.first(),
               port = connectionInformation.port,
-              path = "/ws/${repository.clientIdentifier.name}",
+              path = "/ws/${repository.clientIdentifier.name}?supportProtobuf=true",
             ) {
+              var supportProtobuf = false
               val receiveChannel = Channel<Message<Action>>()
               val sendChannel = Channel<Message<Action>>()
 
@@ -63,7 +64,10 @@ class ClientConnections(
                   val decoded =
                     when (msg) {
                       is Frame.Text -> Encoders.decode(msg.readText())
-                      is Frame.Binary -> Encoders.decodePb(msg.data)
+                      is Frame.Binary -> {
+                        supportProtobuf = true
+                        Encoders.decodePb(msg.data)
+                      }
                       is Frame.Close -> Message.StopConnection(Unit)
                       is Frame.Ping -> null
                       is Frame.Pong -> null
@@ -80,7 +84,7 @@ class ClientConnections(
               launch {
                 while (true) {
                   val msg = sendChannel.receive()
-                  if (!upgradeProtocol) {
+                  if (!upgradeProtocol && !supportProtobuf) {
                     send(Frame.Text(Encoders.encode(msg)))
                   } else {
                     send(Frame.Binary(true, Encoders.encodePb(msg)))
