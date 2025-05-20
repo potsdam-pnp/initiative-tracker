@@ -18,7 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-const val upgradeProtocol = true
+const val upgradeProtocol = false
 
 object ClientConsumer {
   private val _clientStatus = MutableStateFlow(ClientStatus())
