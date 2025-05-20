@@ -1,6 +1,5 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import org.jetbrains.kotlin.gradle.targets.js.dsl.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpackConfig
 
 plugins {
@@ -15,7 +14,7 @@ plugins {
 kotlin {
   @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
   wasmJs {
-    moduleName = "composeApp"
+    outputModuleName = "composeApp"
     browser {
       commonWebpackConfig {
         outputFileName = "composeApp.js"
@@ -34,17 +33,15 @@ kotlin {
 
   androidTarget { compilerOptions { jvmTarget.set(JvmTarget.JVM_11) } }
 
-  jvm("desktop")
+  jvm()
+
+  applyDefaultHierarchyTemplate()
 
   sourceSets {
-    val desktopMain by getting
-    val androidMain by getting
-    val commonMain by getting
-
     val sharedMain by creating {
-      dependsOn(commonMain)
-      androidMain.dependsOn(this)
-      desktopMain.dependsOn(this)
+      dependsOn(commonMain.get())
+      androidMain.get().dependsOn(this)
+      jvmMain.get().dependsOn(this)
     }
 
     tasks.withType<Test>().configureEach { useJUnitPlatform() }
@@ -81,7 +78,7 @@ kotlin {
     androidUnitTest.dependencies { implementation(libs.kotest.runner.junit5) }
     jvmTest.dependencies { implementation(libs.kotest.runner.junit5) }
 
-    desktopMain.dependencies {
+    jvmMain.dependencies {
       implementation(compose.desktop.currentOs)
       implementation(libs.ktor.client.cio)
     }
