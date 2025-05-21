@@ -1,6 +1,9 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpackConfig
+import org.jetbrains.kotlin.gradle.tasks.Kotlin2JsCompile
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompileCommon
 
 plugins {
   alias(libs.plugins.kotlinMultiplatform)
@@ -171,6 +174,9 @@ val generateCommonProto =
     dependsOn(copyTask)
   }
 
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-  dependsOn(generateCommonProto)
-}
+listOf(
+    tasks.withType<KotlinCompileCommon>(),
+    tasks.withType<KotlinCompile>(),
+    tasks.withType<Kotlin2JsCompile>(),
+  )
+  .forEach { it.configureEach { dependsOn(generateCommonProto) } }
