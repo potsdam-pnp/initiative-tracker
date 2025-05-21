@@ -1,0 +1,4 @@
+Fix issues with edge-to-edge drawing and always use edge-to-edge drawing.
+Introduce protobuf encoding for message exchange. 
+The old encoding is still used to connect to old clients.
+Fixes bugs, that certain characters can't be used in names for players and characters.
