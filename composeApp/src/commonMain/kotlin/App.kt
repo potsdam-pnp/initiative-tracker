@@ -130,6 +130,7 @@ import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -260,7 +261,7 @@ fun ShowCharacter(
                   onDone = { actions.toggleEditCharacter(uiCharacter.key) },
                   onPrevious = { focusManager.moveFocus(FocusDirection.Previous) },
                 ),
-              label = { Text("In") },
+              label = { Text(stringResource(Res.string.initiative_short)) },
             )
           }
           if (shownView == ShownView.CHARACTERS) {
@@ -380,7 +381,7 @@ fun ListConflictTurns(
         modifier = Modifier.align(Alignment.BottomEnd).padding(all = 20.dp),
         onClick = { showActionList() },
       ) {
-        Text("Resolve conflicts")
+        Text( stringResource(Res.string.resolveConflicts))
       }
     }
     Box(
@@ -534,10 +535,10 @@ val deathIcon: ImageVector =
     }
   }
 
-enum class Screens(val title: String) {
-  MainScreen("Initiative Tracker"),
-  ListActions("List Actions"),
-  ConnectionSettings("Connection Settings"),
+enum class Screens(val title: StringResource) {
+  MainScreen(Res.string.InitiativeTracker),
+  ListActions(Res.string.ListActions),
+  ConnectionSettings(Res.string.ConnectionSettings),
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -580,7 +581,7 @@ fun App(data: String? = null) {
       drawerContent = {
         ModalDrawerSheet {
           Text(
-            "Initiative Tracker",
+            stringResource(Res.string.InitiativeTracker),
             Modifier.padding(16.dp)
               .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Start)),
           )
@@ -588,7 +589,7 @@ fun App(data: String? = null) {
           NavigationDrawerItem(
             modifier =
               Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Start)),
-            label = { Text("Connection Settings") },
+            label = { Text(stringResource(Res.string.ConnectionSettings)) },
             badge = { ConnectionState() },
             selected = backStackEntry?.destination?.route == Screens.ConnectionSettings.name,
             onClick = {
@@ -602,7 +603,7 @@ fun App(data: String? = null) {
           NavigationDrawerItem(
             modifier =
               Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Start)),
-            label = { Text("Characters") },
+            label = { Text(stringResource(Res.string.Characters)) },
             selected =
               backStackEntry?.destination?.route == Screens.MainScreen.name &&
                 uiState.shownView == ShownView.CHARACTERS,
@@ -618,7 +619,7 @@ fun App(data: String? = null) {
           NavigationDrawerItem(
             modifier =
               Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Start)),
-            label = { Text("Turns") },
+            label = { Text(stringResource(Res.string.Turns)) },
             selected =
               backStackEntry?.destination?.route == Screens.MainScreen.name &&
                 uiState.shownView == ShownView.TURNS,
@@ -635,7 +636,7 @@ fun App(data: String? = null) {
           NavigationDrawerItem(
             modifier =
               Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Start)),
-            label = { Text("List Actions") },
+            label = { Text(stringResource(Res.string.ListActions)) },
             selected = backStackEntry?.destination?.route == Screens.ListActions.name,
             onClick = {
               navController.navigate(Screens.ListActions.name) {
@@ -711,7 +712,7 @@ fun App(data: String? = null) {
             title = {
               val currentScreen =
                 Screens.valueOf(backStackEntry?.destination?.route ?: Screens.MainScreen.name)
-              Text(currentScreen.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+              Text(stringResource(currentScreen.title), maxLines = 1, overflow = TextOverflow.Ellipsis)
             },
             actions = {
               ConnectionState()

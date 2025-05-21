@@ -4,4 +4,11 @@
     <string name="delayed">Delayed</string>
     <string name="take_delayed">Take</string>
     <string name="name">Name</string>
+    <string name="initiative_short">In</string>
+    <string name="resolveConflicts">Resolve conflicts</string>
+    <string name="InitiativeTracker">Initiative Tracker</string>
+    <string name="ListActions">List Actions</string>
+    <string name="ConnectionSettings">Connection Settings</string>
+    <string name="Characters">Characters</string>
+    <string name="Turns">Turns</string>
 </resources>
