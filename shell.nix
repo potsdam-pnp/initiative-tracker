@@ -20,7 +20,7 @@ let
   android = pkgs.androidenv.composeAndroidPackages {
     toolsVersion = null;
     includeEmulator = false;
-    platformVersions = [ "34" ];
+    platformVersions = [ "35" ];
     includeSources = false;
     includeSystemImages = false;
     systemImageTypes = [];
