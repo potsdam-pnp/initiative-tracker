@@ -381,7 +381,7 @@ fun ListConflictTurns(
         modifier = Modifier.align(Alignment.BottomEnd).padding(all = 20.dp),
         onClick = { showActionList() },
       ) {
-        Text( stringResource(Res.string.resolveConflicts))
+        Text(stringResource(Res.string.resolveConflicts))
       }
     }
     Box(
@@ -712,7 +712,11 @@ fun App(data: String? = null) {
             title = {
               val currentScreen =
                 Screens.valueOf(backStackEntry?.destination?.route ?: Screens.MainScreen.name)
-              Text(stringResource(currentScreen.title), maxLines = 1, overflow = TextOverflow.Ellipsis)
+              Text(
+                stringResource(currentScreen.title),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+              )
             },
             actions = {
               ConnectionState()
