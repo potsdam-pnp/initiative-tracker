@@ -165,8 +165,11 @@ val generateCommonProto =
     outputs.dir(outputDir)
     inputs.files("src/jvmMain/proto/message.proto")
     executable = project.layout.buildDirectory.file("protoc/protoc.exe").get().asFile.path
+    standardOutput = System.out
+    errorOutput = System.err
     setEnvironment(
-      "PATH" to "${project.layout.buildDirectory.dir("protoc").get().asFile.path}:/usr/bin:/bin"
+      "PATH" to
+        "${project.layout.buildDirectory.dir("protoc").get().asFile.path}:${System.getenv("PATH")}"
     )
     setArgs(
       listOf("--pbandk_out=${outputDir.get().asFile.path}", "src/jvmMain/proto/message.proto")

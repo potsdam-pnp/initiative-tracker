@@ -9,6 +9,7 @@ let
 
     # used by some gradle tasks
     pkgs.nodejs
+    pkgs.jre
   ];
 
   # needed for desktop target (via downloaded skiko)
@@ -20,6 +21,7 @@ let
   android = pkgs.androidenv.composeAndroidPackages {
     toolsVersion = null;
     includeEmulator = false;
+    buildToolsVersions = [ "34.0.0" ];
     platformVersions = [ "35" ];
     includeSources = false;
     includeSystemImages = false;
