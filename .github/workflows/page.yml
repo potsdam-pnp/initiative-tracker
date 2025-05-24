@@ -75,3 +75,6 @@ jobs:
           name: bundle
           path: composeApp/build/outputs/bundle/release/composeApp-release.aab
         if: success() || failure()
+      - run: ./gradlew packageMsi
+      - run: ./gradlew packageDeb
+      - run: ./gradlew packageDmg
