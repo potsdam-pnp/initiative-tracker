@@ -183,3 +183,9 @@ listOf(
     tasks.withType<Kotlin2JsCompile>(),
   )
   .forEach { it.configureEach { dependsOn(generateCommonProto) } }
+
+tasks.withType<Test>().configureEach {
+  testLogging {
+    showStandardStreams = true
+  }
+}
