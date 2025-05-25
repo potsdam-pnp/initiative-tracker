@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ main ] # Or your main branch name
+    branches: [ main, windows ] # Or your main branch name
 
 permissions:
   contents: read
@@ -78,3 +78,13 @@ jobs:
       - run: ./gradlew packageMsi
       - run: ./gradlew packageDeb
       - run: ./gradlew packageDmg
+  windows-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '21' # Or your desired JDKversion
+          distribution: 'temurin'
+      - run: .\gradlew packageMsi
