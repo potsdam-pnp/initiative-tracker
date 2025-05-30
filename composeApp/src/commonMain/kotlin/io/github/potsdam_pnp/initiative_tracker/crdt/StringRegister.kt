@@ -57,7 +57,9 @@ class StringRegister() : Iterable<Operation<Char>> {
               return true
             }
           } else {
-            position.removeLast()
+            position.apply {
+              if (isEmpty()) throw NoSuchElementException("List is empty.") else removeAt(lastIndex)
+            }
           }
         }
         return false
