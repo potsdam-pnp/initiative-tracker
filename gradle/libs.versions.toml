@@ -1,4 +1,5 @@
 [versions]
+acraVersion = "5.12.0"
 agp = "8.7.2"
 android-compileSdk = "35"
 android-minSdk = "26"
@@ -19,6 +20,8 @@ pbandkRuntime = "0.16.0"
 protobufJava = "4.26.1"
 
 [libraries]
+acra-dialog = { module = "ch.acra:acra-dialog", version.ref = "acraVersion" }
+acra-mail = { module = "ch.acra:acra-mail", version.ref = "acraVersion" }
 kotest-framework-engine = { module = "io.kotest:kotest-framework-engine", version.ref = "kotestProperty" }
 kotest-property = { module = "io.kotest:kotest-property", version.ref = "kotestProperty" }
 kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotestProperty" }

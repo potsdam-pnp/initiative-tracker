@@ -56,6 +56,9 @@ kotlin {
       implementation(compose.preview)
       implementation(libs.androidx.activity.compose)
       implementation(libs.ktor.client.cio)
+      implementation(libs.acra.mail)
+      implementation(libs.acra.dialog)
+
     }
     sharedMain.dependencies {
       implementation(libs.ktor.server.core)
