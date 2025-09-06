@@ -16,7 +16,6 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
-import upgradeProtocol
 
 class ClientConnections(
   val repository: Repository<Action, State>,
@@ -63,7 +62,7 @@ class ClientConnections(
                   val msg = incoming.receive()
                   val decoded =
                     when (msg) {
-                      is Frame.Text -> Encoders.decode(msg.readText())
+                      is Frame.Text -> null
                       is Frame.Binary -> {
                         supportProtobuf = true
                         Encoders.decodePb(msg.data)
@@ -84,11 +83,7 @@ class ClientConnections(
               launch {
                 while (true) {
                   val msg = sendChannel.receive()
-                  if (!upgradeProtocol && !supportProtobuf) {
-                    send(Frame.Text(Encoders.encode(msg)))
-                  } else {
-                    send(Frame.Binary(true, Encoders.encodePb(msg)))
-                  }
+                  send(Frame.Binary(true, Encoders.encodePb(msg)))
                 }
               }
 

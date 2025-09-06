@@ -18,8 +18,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-const val upgradeProtocol = false
-
 object ClientConsumer {
   private val _clientStatus = MutableStateFlow(ClientStatus())
   val clientStatus: StateFlow<ClientStatus> = _clientStatus
@@ -85,7 +83,7 @@ object ClientConsumer {
                       is Frame.Close -> Message.StopConnection(Unit)
                       is Frame.Ping -> null
                       is Frame.Pong -> null
-                      is Frame.Text -> Encoders.decode(msg.readText())
+                      is Frame.Text -> null
                       else -> null
                     }
                   if (decoded != null) {
@@ -97,11 +95,7 @@ object ClientConsumer {
               launch {
                 while (true) {
                   val msg = sendChannel.receive()
-                  if (!upgradeProtocol && !supportProtobuf) {
-                    send(Frame.Text(Encoders.encode(msg)))
-                  } else {
-                    send(Frame.Binary(true, Encoders.encodePb(msg)))
-                  }
+                  send(Frame.Binary(true, Encoders.encodePb(msg)))
                 }
               }
 
