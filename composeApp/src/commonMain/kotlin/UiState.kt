@@ -164,7 +164,15 @@ class Model private constructor(val repository: Repository<Action, State>) : Vie
               result.currentlySelectedCharacter != prevState.currentlySelectedCharacter &&
                 result.currentlyEditedCharacter == null
             ) {
-              result.copy(shownView = ShownView.TURNS)
+              val turns = result.actions.any { it.third != TurnAction.ResolveConflicts }
+              val noInitiatives = result.characters.all { it.initiative == null }
+              if (turns) {
+                result.copy(shownView = ShownView.TURNS)
+              } else if (noInitiatives) {
+                result.copy(shownView = ShownView.CHARACTERS)
+              } else {
+                result
+              }
             } else {
               result
             }

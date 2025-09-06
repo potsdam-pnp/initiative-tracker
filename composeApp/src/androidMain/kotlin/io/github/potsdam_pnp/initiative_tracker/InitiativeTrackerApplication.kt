@@ -33,13 +33,14 @@ class InitiativeTrackerApplication : Application() {
       mailSender {
         mailTo = "initiative-tracker-crash-reports@schmitthenner.eu"
         subject = "Initiative Tracker Crash Report"
-        //reportFileName = "CrashReport.txt"
+        // reportFileName = "CrashReport.txt"
         reportAsFile = false
       }
 
       dialog {
         title = "Initiative Tracker has crashed"
-        text = "An unexpected error occurred forcing the application to stop. Please help us fix this by sending us error data."
+        text =
+          "An unexpected error occurred forcing the application to stop. Please help us fix this by sending us error data."
         commentPrompt = "You might add your comments about the problem below:"
       }
     }

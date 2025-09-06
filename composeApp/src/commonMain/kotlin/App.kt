@@ -1,8 +1,15 @@
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -48,6 +55,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.materialIcon
 import androidx.compose.material.icons.materialPath
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.BasicAlertDialog
@@ -72,7 +80,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -348,21 +355,6 @@ fun ListCharacters(
           ShownView.CHARACTERS,
           false,
         )
-      }
-    }
-    item(key = "") {
-      Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-        FloatingActionButton(
-          modifier = Modifier.padding(top = 4.dp),
-          onClick = { actions.addCharacter() },
-        ) {
-          Icon(
-            imageVector = Icons.Default.AddCircle,
-            // tint = Color.Green,
-            modifier = Modifier.size(40.dp),
-            contentDescription = "Add character",
-          )
-        }
       }
     }
   }
@@ -659,24 +651,6 @@ fun App(data: String? = null) {
                 "${uiState.actions.filterIsInstance<TurnAction.StartTurn>().size} turns played so far in current encounter"
               )
               Text("${uiState.characters.filter { !it.dead }.size} characters still alive")
-              Button(
-                onClick = {
-                  scope.launch {
-                    drawerState.close()
-                    val snackbarResult =
-                      snackBarHostState.showSnackbar(
-                        "Really delete current encounter?",
-                        actionLabel = "Yes",
-                        withDismissAction = true,
-                      )
-                    if (snackbarResult == SnackbarResult.ActionPerformed) {
-                      model.restartEncounter()
-                    }
-                  }
-                }
-              ) {
-                Text("Start new encounter")
-              }
             }
           }
         }
@@ -746,6 +720,37 @@ fun App(data: String? = null) {
               }
             },
           )
+        },
+        floatingActionButton = {
+          val visible =
+            backStackEntry?.destination?.route == Screens.MainScreen.name &&
+              pagerState.currentPage == ShownView.CHARACTERS.ordinal
+          val visibleState = remember { MutableTransitionState(visible) }
+          LaunchedEffect(visible) { visibleState.targetState = visible }
+          AnimatedVisibility(
+            visibleState = visibleState,
+            enter = scaleIn(tween(300)) + fadeIn(tween(300)),
+            exit = scaleOut(tween(300)) + fadeOut(tween(300)),
+          ) {
+            FloatingActionButton(
+              modifier = Modifier.padding(top = 4.dp),
+              onClick = { model.addCharacter() },
+            ) {
+              Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                modifier = Modifier.padding(horizontal = 5.dp),
+              ) {
+                Icon(
+                  imageVector = Icons.Default.AddCircle,
+                  // tint = Color.Green,
+                  modifier = Modifier.size(40.dp),
+                  contentDescription = "Add character",
+                )
+                Text(modifier = Modifier, text = "Add character")
+              }
+            }
+          }
         },
       ) { innerPadding ->
         NavHost(navController = navController, startDestination = Screens.MainScreen.name) {
@@ -961,28 +966,90 @@ fun MainScreen(
           showActionList,
         )
         if (thisShownView == ShownView.TURNS) {
+          val ongoingTurn = uiState.currentlySelectedCharacter != null
           BottomAppBar(windowInsets = WindowInsets(0, 0, 0, 0)) {
             Row(
               modifier = Modifier.fillMaxWidth(),
               horizontalArrangement = Arrangement.SpaceAround,
             ) {
-              OutlinedButton(enabled = !uiState.turnConflicts, onClick = { model.delay() }) {
-                Text("Delay turn")
+              Box(modifier = Modifier.weight(1f)) {
+                OutlinedButton(
+                  modifier = Modifier.align(Alignment.Center),
+                  enabled = uiState.actions.any { it.third != TurnAction.ResolveConflicts },
+                  onClick = {
+                    model.pickAction(
+                      uiState.actions.let { actions ->
+                        val index =
+                          actions.indexOfLast { it.third != TurnAction.ResolveConflicts } - 1
+                        actions.getOrNull(index)?.first
+                      }
+                    )
+                  },
+                ) {
+                  Text("Undo")
+                }
               }
 
-              Button(enabled = !uiState.turnConflicts, onClick = { model.next() }) {
-                Text("Start next turn")
+              Box(modifier = Modifier.weight(1f)) {
+                if (ongoingTurn) {
+                  Button(
+                    modifier = Modifier.align(Alignment.Center),
+                    enabled = !uiState.turnConflicts,
+                    onClick = {
+                      uiState.currentlySelectedCharacter.let {
+                        if (it != null) model.finishTurn(it)
+                      }
+                    },
+                  ) {
+                    Text("Finish")
+                  }
+                } else {
+                  Button(
+                    modifier = Modifier.align(Alignment.Center),
+                    enabled = !uiState.turnConflicts,
+                    onClick = { model.next() },
+                  ) {
+                    Text("Start")
+                  }
+                }
               }
 
-              OutlinedButton(
-                enabled = !uiState.turnConflicts,
-                onClick = {
-                  uiState.currentlySelectedCharacter.let { if (it != null) model.finishTurn(it) }
-                },
-              ) {
-                Text("Finish turn")
+              Box(modifier = Modifier.weight(1f)) {
+                OutlinedButton(
+                  modifier = Modifier.align(Alignment.Center),
+                  enabled = !uiState.turnConflicts && ongoingTurn,
+                  onClick = { model.delay() },
+                ) {
+                  Text("Delay")
+                }
               }
             }
+          }
+        } else {
+          var showDialog by remember { mutableStateOf(false) }
+          Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 5.dp),
+            horizontalArrangement = Arrangement.Start,
+          ) {
+            OutlinedButton(onClick = { showDialog = true }) { Text("Start new encounter") }
+          }
+          if (showDialog) {
+            AlertDialog(
+              onDismissRequest = { showDialog = false },
+              title = { Text("Restart encounter") },
+              text = { Text("This action deletes current turn order and initiatives values") },
+              confirmButton = {
+                TextButton(
+                  onClick = {
+                    showDialog = false
+                    model.restartEncounter()
+                  }
+                ) {
+                  Text("Proceed")
+                }
+              },
+              dismissButton = { TextButton(onClick = { showDialog = false }) { Text("Cancel") } },
+            )
           }
         }
       }

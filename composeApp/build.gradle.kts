@@ -58,7 +58,6 @@ kotlin {
       implementation(libs.ktor.client.cio)
       implementation(libs.acra.mail)
       implementation(libs.acra.dialog)
-
     }
     sharedMain.dependencies {
       implementation(libs.ktor.server.core)
