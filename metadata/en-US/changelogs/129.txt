@@ -1,0 +1,2 @@
+- Improve UI slightly, add Undo button
+- Remove old encoding format
