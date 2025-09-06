@@ -26,8 +26,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
@@ -229,7 +227,9 @@ class Model private constructor(val repository: Repository<Action, State>) : Vie
   }
 
   override fun addCharacter() {
-    repository.produce(AddCharacter(nextKey()))
+    val key = nextKey()
+    repository.produce(AddCharacter(key))
+    toggleEditCharacter(key)
   }
 
   override fun die(characterKey: String) {
