@@ -5,6 +5,7 @@ import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.rememberTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
@@ -30,7 +32,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -114,6 +115,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.changedToUp
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.layout.onPlaced
@@ -584,6 +587,9 @@ fun App(data: String? = null) {
 
     val snackBarHostState = remember { SnackbarHostState() }
 
+    var floatingActionMenuExpanded by rememberSaveable { mutableStateOf(false) }
+    BackHandler(floatingActionMenuExpanded) { floatingActionMenuExpanded = false }
+
     ModalNavigationDrawer(
       drawerState = drawerState,
       drawerContent = {
@@ -738,8 +744,19 @@ fun App(data: String? = null) {
           )
         },
         floatingActionButton = {
-          var expanded by rememberSaveable { mutableStateOf(false) }
-          BackHandler(expanded) { expanded = false }
+          var playersToAddList by remember { mutableStateOf<List<String?>?>(null) }
+          LaunchedEffect(floatingActionMenuExpanded) {
+            if (floatingActionMenuExpanded) {
+              playersToAddList =
+                uiState.knownPlayerCharacters.filter { name ->
+                  !uiState.characters.any {
+                    it.playerCharacter == true && !it.dead && it.name?.asString() == name
+                  }
+                }
+            } else {
+              playersToAddList = null
+            }
+          }
           val visible =
             backStackEntry?.destination?.route == Screens.MainScreen.name &&
               pagerState.currentPage == ShownView.CHARACTERS.ordinal
@@ -751,19 +768,19 @@ fun App(data: String? = null) {
             exit = scaleOut(tween(300)) + fadeOut(tween(300)),
           ) {
             FloatingActionButtonMenu(
-              expanded = expanded,
+              expanded = floatingActionMenuExpanded,
               button = {
                 ExtendedFloatingActionButton(
                   onClick = {
-                    if (!expanded) {
-                      expanded = true
+                    if (!floatingActionMenuExpanded) {
+                      floatingActionMenuExpanded = true
                     } else {
                       model.addCharacter(playerCharacter = false)
-                      expanded = false
+                      floatingActionMenuExpanded = false
                     }
                   },
                   text = {
-                    if (!expanded) {
+                    if (!floatingActionMenuExpanded) {
                       Text("Add character")
                     } else {
                       Text("Add NPC")
@@ -780,27 +797,21 @@ fun App(data: String? = null) {
                 )
               },
             ) {
-              uiState.knownPlayerCharacters.forEach { name ->
-                if (
-                  !uiState.characters.any {
-                    it.playerCharacter == true && !it.dead && it.name?.asString() == name
-                  }
-                ) {
-                  key(name) {
-                    FloatingActionButtonMenuItem(
-                      onClick = {
-                        model.addCharacter(playerCharacter = true, name)
-                        expanded = false
-                      },
-                      text = { Text(name ?: "Add PC") },
-                      icon = {
-                        Icon(
-                          imageVector = Icons.Default.PersonAdd,
-                          contentDescription = "Add Player Character",
-                        )
-                      },
-                    )
-                  }
+              playersToAddList?.forEach { name ->
+                key(name) {
+                  FloatingActionButtonMenuItem(
+                    onClick = {
+                      model.addCharacter(playerCharacter = true, name)
+                      floatingActionMenuExpanded = false
+                    },
+                    text = { Text(name ?: "Add PC") },
+                    icon = {
+                      Icon(
+                        imageVector = Icons.Default.PersonAdd,
+                        contentDescription = "Add Player Character",
+                      )
+                    },
+                  )
                 }
               }
             }
@@ -823,6 +834,32 @@ fun App(data: String? = null) {
             ConnectionSettings(innerPadding, model, globalCoroutineScope)
           }
         }
+
+        val alphaState = remember { MutableTransitionState(0.0f) }
+        val alphaTransition = rememberTransition(alphaState)
+        LaunchedEffect(floatingActionMenuExpanded) {
+          alphaState.targetState = if (floatingActionMenuExpanded) 0.15f else 0.0f
+        }
+
+        Box(
+          modifier =
+            Modifier.fillMaxSize()
+              .background(Color.Black.copy(alpha = alphaTransition.currentState))
+              .then(
+                if (floatingActionMenuExpanded)
+                  Modifier.pointerInput(Unit) {
+                    awaitPointerEventScope {
+                      while (true) {
+                        val event = awaitPointerEvent()
+                        if (event.changes.any { it.changedToUp() }) {
+                          floatingActionMenuExpanded = false
+                        }
+                      }
+                    }
+                  }
+                else Modifier
+              )
+        )
       }
     }
   }
