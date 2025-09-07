@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.materialIcon
 import androidx.compose.material.icons.materialPath
@@ -64,8 +65,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonMenu
+import androidx.compose.material3.FloatingActionButtonMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -97,9 +100,12 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
@@ -346,7 +352,7 @@ fun ListCharacters(
       },
   ) {
     items(uiCharacters, key = { it.key }) { character ->
-      Box(modifier = Modifier.animateItemPlacement()) {
+      Box(modifier = Modifier.animateItem()) {
         ShowCharacter(
           character,
           currentlyEditedCharacter,
@@ -533,12 +539,16 @@ enum class Screens(val title: StringResource) {
   ConnectionSettings(Res.string.ConnectionSettings),
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(
+  ExperimentalMaterial3Api::class,
+  ExperimentalMaterial3ExpressiveApi::class,
+  ExperimentalComposeUiApi::class,
+)
 @Composable
 @Preview
 fun App(data: String? = null) {
   val globalCoroutineScope = rememberCoroutineScope()
-  val model = viewModel { Model(Repository(State()), data) }
+  val model = viewModel { Model(Repository(State()), null, data) }
   LaunchedEffect(Unit) {
     val predefinedServerHost =
       data?.split("&")?.firstOrNull { it.startsWith("server=") }?.let { it.substring(7) }
@@ -548,7 +558,13 @@ fun App(data: String? = null) {
     }
   }
   val uiState by
-    model.state.collectAsState(UiState(turnConflicts = false, shownView = ShownView.CHARACTERS))
+    model.state.collectAsState(
+      UiState(
+        turnConflicts = false,
+        shownView = ShownView.CHARACTERS,
+        knownPlayerCharacters = listOf(null),
+      )
+    )
 
   MaterialTheme {
     val navController = rememberNavController()
@@ -722,6 +738,8 @@ fun App(data: String? = null) {
           )
         },
         floatingActionButton = {
+          var expanded by rememberSaveable { mutableStateOf(false) }
+          BackHandler(expanded) { expanded = false }
           val visible =
             backStackEntry?.destination?.route == Screens.MainScreen.name &&
               pagerState.currentPage == ShownView.CHARACTERS.ordinal
@@ -732,22 +750,58 @@ fun App(data: String? = null) {
             enter = scaleIn(tween(300)) + fadeIn(tween(300)),
             exit = scaleOut(tween(300)) + fadeOut(tween(300)),
           ) {
-            FloatingActionButton(
-              modifier = Modifier.padding(top = 4.dp),
-              onClick = { model.addCharacter() },
-            ) {
-              Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                modifier = Modifier.padding(horizontal = 5.dp),
-              ) {
-                Icon(
-                  imageVector = Icons.Default.AddCircle,
-                  // tint = Color.Green,
-                  modifier = Modifier.size(40.dp),
-                  contentDescription = "Add character",
+            FloatingActionButtonMenu(
+              expanded = expanded,
+              button = {
+                ExtendedFloatingActionButton(
+                  onClick = {
+                    if (!expanded) {
+                      expanded = true
+                    } else {
+                      model.addCharacter(playerCharacter = false)
+                      expanded = false
+                    }
+                  },
+                  text = {
+                    if (!expanded) {
+                      Text("Add character")
+                    } else {
+                      Text("Add NPC")
+                    }
+                  },
+                  icon = {
+                    Icon(
+                      imageVector = Icons.Default.AddCircle,
+                      // tint = Color.Green,
+                      // modifier = Modifier.size(40.dp),
+                      contentDescription = "Add character",
+                    )
+                  },
                 )
-                Text(modifier = Modifier, text = "Add character")
+              },
+            ) {
+              uiState.knownPlayerCharacters.forEach { name ->
+                if (
+                  !uiState.characters.any {
+                    it.playerCharacter == true && !it.dead && it.name?.asString() == name
+                  }
+                ) {
+                  key(name) {
+                    FloatingActionButtonMenuItem(
+                      onClick = {
+                        model.addCharacter(playerCharacter = true, name)
+                        expanded = false
+                      },
+                      text = { Text(name ?: "Add PC") },
+                      icon = {
+                        Icon(
+                          imageVector = Icons.Default.PersonAdd,
+                          contentDescription = "Add Player Character",
+                        )
+                      },
+                    )
+                  }
+                }
               }
             }
           }
@@ -1042,6 +1096,11 @@ fun MainScreen(
                 TextButton(
                   onClick = {
                     showDialog = false
+                    val currentPlayers =
+                      uiState.characters
+                        .filter { it.playerCharacter == true && !it.dead }
+                        .mapNotNull { it.name?.asString() }
+                    model.addPlayerCharacters(currentPlayers)
                     model.restartEncounter()
                   }
                 ) {

@@ -49,7 +49,7 @@ fun main() {
 
   application {
     Window(onCloseRequest = ::exitApplication, title = "Initiative Tracker") {
-      val _model = viewModel { Model(repository, null) }
+      val _model = viewModel { Model(repository, null, null) }
       App()
     }
   }

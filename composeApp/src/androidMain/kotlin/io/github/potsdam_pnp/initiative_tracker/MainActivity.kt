@@ -3,8 +3,10 @@ package io.github.potsdam_pnp.initiative_tracker
 import App
 import JoinLink
 import Model
+import PersistData
 import PlatformContext
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -18,6 +20,20 @@ import getPlatform
 import io.github.aakira.napier.DebugAntilog
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.MainScope
+import org.json.JSONArray
+
+class SharedPreferencesPersistData(val sharedPreferences: SharedPreferences) : PersistData {
+  override fun fetchKnownPlayerCharacters(): List<String> {
+    val players = JSONArray(sharedPreferences.getString("players", "[]"))
+    return (0 until players.length()).map { players.getString(it) }
+  }
+
+  override fun storeKnownPlayerCharacters(data: List<String>) {
+    val editor = sharedPreferences.edit()
+    editor.putString("players", JSONArray(data.toTypedArray()).toString(0))
+    editor.apply()
+  }
+}
 
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -28,13 +44,17 @@ class MainActivity : ComponentActivity() {
 
     super.onCreate(savedInstanceState)
 
-    val data = intent.data?.fragment
+    val persistData =
+      SharedPreferencesPersistData(getSharedPreferences("knownPlayerCharacters", MODE_PRIVATE))
+
     val factory = viewModelFactory {
-      initializer { Model((application as InitiativeTrackerApplication).repository, null) }
+      initializer {
+        Model((application as InitiativeTrackerApplication).repository, persistData, null)
+      }
     }
     ViewModelProvider.create(viewModelStore, factory)[Model::class]
 
-    setContent { App(data) }
+    setContent { App(null) }
   }
 
   override fun onStart() {

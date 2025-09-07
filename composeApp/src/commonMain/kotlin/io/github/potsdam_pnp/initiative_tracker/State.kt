@@ -220,7 +220,11 @@ class State(
     return null
   }
 
-  fun toUiState(repository: Repository<Action, State>, shownView: ShownView): UiState =
+  fun toUiState(
+    repository: Repository<Action, State>,
+    shownView: ShownView,
+    knownPlayerCharacters: List<String?>,
+  ): UiState =
     UiState(
       characters = predictNextTurns(withCurrent = true, repository),
       currentlySelectedCharacter = currentTurn(repository)?.id,
@@ -231,5 +235,6 @@ class State(
         },
       turnConflicts = turnActions.value.size > 1,
       shownView = shownView,
+      knownPlayerCharacters = knownPlayerCharacters,
     )
 }

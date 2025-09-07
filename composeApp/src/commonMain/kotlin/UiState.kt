@@ -75,6 +75,7 @@ data class UiState(
   val turnConflicts: Boolean = false,
   val currentlyEditedCharacter: CurrentlyEditedCharacter? = null,
   val shownView: ShownView,
+  val knownPlayerCharacters: List<String?>,
 )
 
 interface Actions {
@@ -84,7 +85,7 @@ interface Actions {
 
   fun editInitiative(characterKey: String, initiative: String)
 
-  fun addCharacter()
+  fun addCharacter(playerCharacter: Boolean, name: String? = null)
 
   fun die(characterKey: String)
 
@@ -107,10 +108,26 @@ interface Actions {
   fun updateName(characterKey: String, name: ImmutableStringRegister?, text: TextFieldValue)
 
   fun showView(shownView: ShownView)
+
+  fun addPlayerCharacters(players: List<String>)
 }
 
-class Model private constructor(val repository: Repository<Action, State>) : ViewModel(), Actions {
-  private val _state = MutableStateFlow(UiState(shownView = ShownView.CHARACTERS))
+interface PersistData {
+  fun fetchKnownPlayerCharacters(): List<String>
+
+  fun storeKnownPlayerCharacters(data: List<String>)
+}
+
+class Model
+private constructor(val repository: Repository<Action, State>, val persist: PersistData? = null) :
+  ViewModel(), Actions {
+  private val _state =
+    MutableStateFlow(
+      UiState(
+        shownView = ShownView.CHARACTERS,
+        knownPlayerCharacters = listOf(null) + (persist?.fetchKnownPlayerCharacters() ?: listOf()),
+      )
+    )
   val state: StateFlow<UiState> = _state
 
   @OptIn(ExperimentalStdlibApi::class)
@@ -122,7 +139,11 @@ class Model private constructor(val repository: Repository<Action, State>) : Vie
     return "${thisDevice}$lastKey"
   }
 
-  constructor(repository: Repository<Action, State>, data: String?) : this(repository) {
+  constructor(
+    repository: Repository<Action, State>,
+    persist: PersistData?,
+    data: String?,
+  ) : this(repository, persist) {
     addCharacters(data)
 
     val scope =
@@ -156,7 +177,7 @@ class Model private constructor(val repository: Repository<Action, State>) : Vie
               else prevState.currentlyEditedCharacter?.copy(positions = p.second)
             val result =
               repository.state
-                .toUiState(repository, prevState.shownView)
+                .toUiState(repository, prevState.shownView, prevState.knownPlayerCharacters)
                 .copy(currentlyEditedCharacter = currentlyEditedCharacter)
             if (
               result.currentlySelectedCharacter != prevState.currentlySelectedCharacter &&
@@ -226,9 +247,20 @@ class Model private constructor(val repository: Repository<Action, State>) : Vie
     }
   }
 
-  override fun addCharacter() {
+  override fun addCharacter(playerCharacter: Boolean, name: String?) {
     val key = nextKey()
-    repository.produce(AddCharacter(key))
+    val versions = { d: (Int) -> Dot ->
+      val result = mutableListOf(AddCharacter(key), ChangePlayerCharacter(key, playerCharacter))
+      if (name != null) {
+        var dot: Dot? = null
+        for (c in name) {
+          result.add(ChangeName(key, StringOperation.InsertAfter(c, dot)))
+          dot = d(result.size - 1)
+        }
+      }
+      result
+    }
+    repository.produce(versions)
     toggleEditCharacter(key)
   }
 
@@ -322,5 +354,13 @@ class Model private constructor(val repository: Repository<Action, State>) : Vie
 
   override fun showView(shownView: ShownView) {
     _state.update { it.copy(shownView = shownView) }
+  }
+
+  override fun addPlayerCharacters(players: List<String>) {
+    _state.update { state ->
+      val toAdd = players.filter { !state.knownPlayerCharacters.contains(it) }
+      state.copy(knownPlayerCharacters = state.knownPlayerCharacters + toAdd)
+    }
+    persist?.storeKnownPlayerCharacters(state.value.knownPlayerCharacters.filterNotNull())
   }
 }
