@@ -10,6 +10,7 @@ data class ServerSettings(
   val isAllowed: Boolean = true,
   val minutesAfterAppClose: Int = 60,
   val disableActivateServer: Boolean = false,
+  val wifiAwareEnabled: Boolean = false,
 )
 
 sealed class ServerEvent
@@ -20,7 +21,7 @@ data object StopServer : ServerEvent()
 
 data class KillIn(val minutes: Int) : ServerEvent()
 
-class ServerLifecycleManager(application: InitiativeTrackerApplication) {
+class ServerLifecycleManager(val application: InitiativeTrackerApplication) {
   private val _serverSettings = MutableStateFlow(ServerSettings())
   val serverSettings: StateFlow<ServerSettings> = _serverSettings
   val serverEventChannel = Channel<ServerEvent>()
@@ -61,5 +62,14 @@ class ServerLifecycleManager(application: InitiativeTrackerApplication) {
 
   fun finishedShuttingDown() {
     _serverSettings.update { it.copy(disableActivateServer = false) }
+  }
+
+  suspend fun changeWifiAwareEnabled(value: Boolean, activity: MainActivity) {
+    _serverSettings.update { it.copy(wifiAwareEnabled = value) }
+    if (value) {
+      application.wifiAwareConnectionManager.startAndMaybeAskPermissions(activity)
+    } else {
+      application.wifiAwareConnectionManager.stop()
+    }
   }
 }

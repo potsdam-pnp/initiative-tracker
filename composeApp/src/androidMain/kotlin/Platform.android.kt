@@ -10,6 +10,7 @@ import android.os.Build
 import android.service.chooser.ChooserAction
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -17,13 +18,17 @@ import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.core.content.ContextCompat.startActivity
+import androidx.lifecycle.lifecycleScope
 import io.github.potsdam_pnp.initiative_tracker.InitiativeTrackerApplication
 import io.github.potsdam_pnp.initiative_tracker.MainActivity
 import io.github.potsdam_pnp.initiative_tracker.R
+import io.github.potsdam_pnp.initiative_tracker.WifiAwareAvailableState
 import io.github.potsdam_pnp.initiative_tracker.toServerStatus
+import kotlinx.coroutines.launch
 
 class AndroidPlatform : Platform {
   override val name: String = "Android ${Build.VERSION.SDK_INT}"
@@ -113,6 +118,24 @@ class AndroidPlatform : Platform {
     val application = LocalContext.current.applicationContext as InitiativeTrackerApplication
     val activity = LocalActivity.current as MainActivity
     val serverSettings by application.serverLifecycleManager.serverSettings.collectAsState()
+    val scope = rememberCoroutineScope()
+    val state by application.wifiAwareConnectionManager.available(scope).collectAsState()
+    ListItem(
+      headlineContent = { Text("Connect to nearby devices") },
+      trailingContent = {
+        Switch(
+          checked = serverSettings.wifiAwareEnabled,
+          enabled = state != WifiAwareAvailableState.DeviceNotSupported,
+          onCheckedChange = { newValue ->
+            activity.lifecycleScope.launch {
+              application.serverLifecycleManager.changeWifiAwareEnabled(newValue, activity)
+            }
+          },
+        )
+      },
+      supportingContent = { Text("Current state: $state") },
+    )
+    HorizontalDivider()
     ListItem(
       headlineContent = { Text("Allow to run server") },
       trailingContent = {
