@@ -634,7 +634,7 @@ class PartialCollector(val identifier: Long, var data: Array<ByteArray?>? = null
     if (data == null) {
       data = Array(pb.messageCount.toInt(), { null })
     }
-    data!![index.toInt()] = msg
+    data!![index.toInt()] = pb.partialPayload.array
     return true
   }
 
