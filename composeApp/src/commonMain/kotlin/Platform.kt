@@ -49,6 +49,7 @@ interface Platform {
   fun shareLink(context: PlatformContext, link: JoinLink, allLinks: List<JoinLink>) {}
 
   @Composable fun ServerSettings() {}
+
   @Composable fun ServerSettingsBelow() {}
 
   @Composable fun connectionStateClickableEnabled(): Boolean = false

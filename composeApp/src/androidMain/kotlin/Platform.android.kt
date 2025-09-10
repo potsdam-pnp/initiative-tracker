@@ -6,7 +6,6 @@ import android.os.Build
 import android.service.chooser.ChooserAction
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -25,7 +24,6 @@ import io.github.potsdam_pnp.initiative_tracker.R
 import io.github.potsdam_pnp.initiative_tracker.ServerState
 import io.github.potsdam_pnp.initiative_tracker.WifiAwareAvailableState
 import io.github.potsdam_pnp.initiative_tracker.crdt.ClientIdentifier
-import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 import kotlinx.coroutines.launch
 
 class AndroidPlatform : Platform {
@@ -34,18 +32,20 @@ class AndroidPlatform : Platform {
   @Composable
   override fun serverStatus(): ServerStatus {
     val app = LocalContext.current.applicationContext as InitiativeTrackerApplication
-    val serverState1 by app
-        .serverLifecycleManager
-        ._serverState
-        .collectAsState()
+    val serverState1 by app.serverLifecycleManager._serverState.collectAsState()
     val serverState by serverState1.collectAsState()
     val wifiAware by app.wifiAwareConnectionManager.details.collectAsState()
-    val wifiAwareS by app.wifiAwareConnectionManager.available(rememberCoroutineScope()).collectAsState()
+    val wifiAwareS by
+      app.wifiAwareConnectionManager.available(rememberCoroutineScope()).collectAsState()
     val wifiAwareState = "Nearby devices: ${wifiAwareS.name}"
 
     return ServerStatus(
-      isRunning = serverState is ServerState.Running || (wifiAware.publish.isActive && wifiAware.subscribe.isActive),
-      message = wifiAwareState + (if (serverState != ServerState.Stopped) "\n${serverState.message()}" else ""),
+      isRunning =
+        serverState is ServerState.Running ||
+          (wifiAware.publish.isActive && wifiAware.subscribe.isActive),
+      message =
+        wifiAwareState +
+          (if (serverState != ServerState.Stopped) "\n${serverState.message()}" else ""),
       isSupported = true,
       joinLinks = listOf(),
       connections = serverState.connectedClients() + wifiAware.peers.size,
@@ -59,16 +59,17 @@ class AndroidPlatform : Platform {
             state = it.value,
             errorMsg = null,
           )
-        } + wifiAware.peers.map {
-          ConnectedClient(
-            connectedViaServer = false,
-            connectedViaClient = false,
-            connectedViaWifiAware = true,
-            id = ClientIdentifier("Connected client"),
-            state = it.value,
-            errorMsg = null,
-          )
-        },
+        } +
+          wifiAware.peers.map {
+            ConnectedClient(
+              connectedViaServer = false,
+              connectedViaClient = false,
+              connectedViaWifiAware = true,
+              id = ClientIdentifier("Connected client"),
+              state = it.value,
+              errorMsg = null,
+            )
+          },
     )
   }
 
@@ -191,7 +192,8 @@ class AndroidPlatform : Platform {
     val app = LocalContext.current.applicationContext as InitiativeTrackerApplication
     val scope = rememberCoroutineScope()
     val available by app.wifiAwareConnectionManager.available(scope).collectAsState()
-    return available != WifiAwareAvailableState.DeviceNotSupported && available != WifiAwareAvailableState.Unknown
+    return available != WifiAwareAvailableState.DeviceNotSupported &&
+      available != WifiAwareAvailableState.Unknown
   }
 
   @Composable
@@ -199,11 +201,7 @@ class AndroidPlatform : Platform {
     val app = LocalContext.current.applicationContext as InitiativeTrackerApplication
     val activity = LocalActivity.current as MainActivity
     val scope = rememberCoroutineScope()
-    return {
-      scope.launch {
-        app.serverLifecycleManager.changeWifiAwareEnabled(true, activity)
-      }
-    }
+    return { scope.launch { app.serverLifecycleManager.changeWifiAwareEnabled(true, activity) } }
   }
 }
 

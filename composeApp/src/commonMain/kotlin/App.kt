@@ -874,10 +874,13 @@ fun ConnectionState(
   val clientStatus by ClientConsumer.clientStatus.collectAsState()
   val serverStatus = getPlatform().serverStatus()
   BadgedBox(
-    modifier = modifier.then(Modifier.clickable(
-      enabled = getPlatform().connectionStateClickableEnabled(),
-      onClick = getPlatform().connectionStateOnClick(),
-    )),
+    modifier =
+      modifier.then(
+        Modifier.clickable(
+          enabled = getPlatform().connectionStateClickableEnabled(),
+          onClick = getPlatform().connectionStateOnClick(),
+        )
+      ),
     badge = {
       if (serverStatus.isRunning) {
         Badge { Text(serverStatus.connections.toString()) }
@@ -920,7 +923,6 @@ private fun prettyClock(remote: VectorClock, here: VectorClock): String {
   return "$count versions, $ahead ahead, $behind behind"
 }
 
-
 @Composable
 fun ServerConnectionSettings(m: Model) {
   val serverStatus = getPlatform().serverStatus()
@@ -941,9 +943,9 @@ fun ServerConnectionSettings(m: Model) {
 
     val additional =
       stateInfo +
-      ((if (connectedClient.connectedViaServer) listOf("server connection") else listOf()) +
-        (if (connectedClient.connectedViaClient) listOf("manually connected") else listOf()) +
-        (if (connectedClient.connectedViaWifiAware) listOf("nearby device") else listOf())) +
+        ((if (connectedClient.connectedViaServer) listOf("server connection") else listOf()) +
+          (if (connectedClient.connectedViaClient) listOf("manually connected") else listOf()) +
+          (if (connectedClient.connectedViaWifiAware) listOf("nearby device") else listOf())) +
         connectedClient.errorMsg.orEmpty()
 
     key(connectedClient.id?.name) {

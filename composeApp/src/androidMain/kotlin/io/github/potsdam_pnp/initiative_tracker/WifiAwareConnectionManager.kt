@@ -19,6 +19,7 @@ import android.net.wifi.aware.SubscribeDiscoverySession
 import android.net.wifi.aware.WifiAwareManager
 import android.net.wifi.aware.WifiAwareSession
 import android.os.Build
+import io.github.aakira.napier.Napier
 import io.github.potsdam_pnp.initiative_tracker.crdt.ClientIdentifier
 import io.github.potsdam_pnp.initiative_tracker.crdt.CompareResult
 import io.github.potsdam_pnp.initiative_tracker.crdt.InsertResult
@@ -31,7 +32,9 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
@@ -47,8 +50,9 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.onTimeout
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withTimeout
 import pbandk.ByteArr
 import pbandk.decodeFromByteArray
 import pbandk.encodeToByteArray
@@ -367,6 +371,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
     }
   }
 
+  @OptIn(ExperimentalCoroutinesApi::class)
   private suspend fun runSubscribe(wifiAwareSession: WifiAwareSession) {
     val subscribeSession =
       MutableStateFlow<Pair<SubscribeDiscoverySession?, Map<PeerHandle, VectorClock>>>(
@@ -381,6 +386,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
     coroutineScope {
       launch {
         subscribeSession.collect { (session, peers) ->
+          Napier.i("start subscribe loop")
           val vc = repository.version.value
           val v =
             peers.firstNotNullOfOrNull { (peer, value) ->
@@ -392,6 +398,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
           if (v != null) {
             when (val r = repository.insert(v.second, listOf())) {
               is InsertResult.MissingVersions -> {
+                Napier.i("about to request ${r.missingDots.size} versions")
                 val msgIdentifier = Random.nextLong()
                 val dotsMap = mutableMapOf<ClientIdentifier, Int>()
                 r.missingDots.forEach { dot ->
@@ -424,14 +431,42 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                       it.subscribe.copy(messagesConstructed = it.subscribe.messagesConstructed + 1)
                   )
                 }
-
+                Napier.i("sent message")
                 when (messageState.first { it.third.first != null }.third.first) {
                   MessageState.MessageSentFailed -> {}
                   MessageState.MessageReceived -> {}
                   MessageState.MessageSentSucceeded -> {
-                    withTimeout(1000) {
-                      messageState.first { it.third.first == MessageState.MessageReceived }
+                    Napier.i("message sent succeeded")
+
+                    suspend fun waitSucceed(receivedMessagesSoFar: Int) {
+                      val nextValue = async {
+                        messageState.first {
+                          it.third.first == MessageState.MessageReceived ||
+                            (it.third.second?.data?.filterNotNull()?.size ?: 0) >
+                              receivedMessagesSoFar
+                        }
+                      }
+
+                      val selected =
+                        select<Pair<Boolean, Int>?> {
+                          nextValue.onAwait {
+                            val nr = it.third.second?.data?.filterNotNull()?.size ?: 0
+                            val received = it.third.first == MessageState.MessageReceived
+                            received to nr
+                          }
+                          onTimeout(1500) { null }
+                        }
+
+                      if (selected == null) {
+                        nextValue.cancelAndJoin()
+                      } else {
+                        if (!selected.first) {
+                          waitSucceed(selected.second)
+                        }
+                      }
                     }
+
+                    waitSucceed(0)
                   }
                   null -> {}
                 }
@@ -440,6 +475,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
               is InsertResult.Success -> {}
             }
           }
+          Napier.i("end of subscribe loop")
         }
       }
 
