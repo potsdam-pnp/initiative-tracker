@@ -33,6 +33,22 @@ jobs:
         with:
           java-version: '21' # Or your desired JDKversion
           distribution: 'temurin'
+      - name: Build Android app bundle
+        run: VERSION_CODE=$GITHUB_RUN_NUMBER VERSION_NAME=$(git rev-parse --short HEAD) ./gradlew bundle
+      - name: Sign app bundle
+        run: |
+          echo $RELEASE_KEY | base64 --decode > key.jks
+          jarsigner -keystore key.jks -storepass android composeApp/build/outputs/bundle/release/composeApp-release.aab my-alias
+        env:
+          RELEASE_KEY: ${{ secrets.RELEASE_KEY }}
+      - name: Publish app
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+          packageName: io.github.potsdam_pnp.initiative_tracker
+          releaseFiles: composeApp/build/outputs/bundle/release/composeApp-release.aab
+          track: internal
+          status: draft
       - name: Check formatting
         run: ./gradlew ktfmtCheck
       - name: Tests
@@ -53,22 +69,6 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deploy
         uses: actions/deploy-pages@v4
-      - name: Build Android app bundle
-        run: VERSION_CODE=$GITHUB_RUN_NUMBER VERSION_NAME=$(git rev-parse --short HEAD) ./gradlew bundle
-      - name: Sign app bundle
-        run: |
-          echo $RELEASE_KEY | base64 --decode > key.jks
-          jarsigner -keystore key.jks -storepass android composeApp/build/outputs/bundle/release/composeApp-release.aab my-alias
-        env:
-          RELEASE_KEY: ${{ secrets.RELEASE_KEY }}
-      - name: Publish app
-        uses: r0adkll/upload-google-play@v1
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
-          packageName: io.github.potsdam_pnp.initiative_tracker
-          releaseFiles: composeApp/build/outputs/bundle/release/composeApp-release.aab
-          track: internal
-          status: draft
       - name: Publish app bundle artefact
         uses: actions/upload-artifact@v4
         with:
