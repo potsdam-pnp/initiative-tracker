@@ -195,9 +195,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
         suspendCancellableCoroutine {
           it.invokeOnCancellation {
             _available.value.second.current?.close()
-            _available.update {
-              it.copy(second = it.second.copy(current = null, isFailed = false))
-            }
+            _available.update { it.copy(second = it.second.copy(current = null, isFailed = false)) }
           }
         }
       }
@@ -370,10 +368,8 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
         continuation.invokeOnCancellation {
           try {
             publishSession.value.first?.close()
-            _details.update {
-              it.copy(publish = it.publish.copy(isActive = false))
-            }
           } catch (_: SecurityException) {}
+          _details.update { it.copy(publish = it.publish.copy(isActive = false)) }
         }
       }
     }
@@ -622,10 +618,10 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
         continuation.invokeOnCancellation {
           try {
             subscribeSession.value.first?.close()
-            _details.update {
-              it.copy(subscribe = it.subscribe.copy(isActive = false))
-            }
           } catch (_: SecurityException) {}
+          _details.update {
+            it.copy(subscribe = it.subscribe.copy(isActive = false), peers = mapOf())
+          }
         }
       }
     }
