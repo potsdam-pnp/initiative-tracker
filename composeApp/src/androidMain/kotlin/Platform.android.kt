@@ -118,12 +118,12 @@ class AndroidPlatform : Platform {
     val count = remote.clock.values.sum()
     val behind =
       remote.clock.mapValues { (k, v) ->
-        val vv = here.clock[k] ?: -1
+        val vv = here.clock[k] ?: 0
         if (v >= vv) v - vv else 0
       }.values.sum()
     val ahead =
       here.clock.mapValues { (k, v) ->
-        val vv = remote.clock[k] ?: -1
+        val vv = remote.clock[k] ?: 0
         if (v >= vv) v - vv else 0
       }.values.sum()
     return "$count versions, $ahead ahead, $behind behind"
