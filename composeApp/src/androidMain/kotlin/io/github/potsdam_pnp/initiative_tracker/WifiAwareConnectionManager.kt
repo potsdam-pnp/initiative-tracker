@@ -353,6 +353,12 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                     Triple(previous.first + 1, v.second, null)
                   }
                 session?.sendMessage(v.first, messageNr, requestMsg)
+                _details.update {
+                  it.copy(
+                    subscribe =
+                      it.subscribe.copy(messagesConstructed = it.subscribe.messagesConstructed + 1)
+                  )
+                }
 
                 when (messageState.first { it.third != null }.third) {
                   MessageState.MessageSentFailed -> {}
@@ -466,7 +472,9 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                   _details.update {
                     it.copy(
                       subscribe =
-                        it.subscribe.copy(messagesFailedSent = it.subscribe.messagesFailedSent + 1)
+                        it.subscribe.copy(
+                          messagesSuccessfulSent = it.subscribe.messagesSuccessfulSent + 1
+                        )
                     )
                   }
                 }
