@@ -86,6 +86,7 @@ object Encoders {
               }
               .toList(),
           messageIdentifier = msg.msgIdentifier,
+          maxMessageLength = msg.maxMessageSize,
         )
       }
       is Message.SendVersions -> {
@@ -222,6 +223,8 @@ object Encoders {
           pb.dots.chunked(2) {
             Dot(ClientIdentifier(pb.clientIdentifiers[it[0].toInt()]), it[1].toInt())
           },
+          msgIdentifier = pb.messageIdentifier,
+          maxMessageSize = pb.maxMessageLength,
         )
       MessageKind.SEND_VERSIONS ->
         Message.SendVersions(asClock(pb.clock), pb.actions.map { decodePbAction(it) })

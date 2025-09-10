@@ -283,7 +283,8 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                     is Message.RequestVersions -> {
                       val versions = msg.dots.mapNotNull { repository.fetchVersion(it) }
                       val bytes = Encoders.encodePb(Message.SendVersions(msg.vectorClock, versions))
-                      if (bytes.size < (maxMessageSize ?: 128)) {
+                      val maxSize = (maxMessageSize ?: 128).coerceAtMost(msg.maxMessageSize ?: 128)
+                      if (bytes.size < maxSize) {
                         publishSession.value.first?.sendMessage(peerHandle, 0, bytes)
                         _details.update {
                           it.copy(
@@ -294,7 +295,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                           )
                         }
                       } else {
-                        val splitSize = (maxMessageSize ?: 128) - 32
+                        val splitSize = maxSize - 32
                         val messageCount =
                           bytes.size / splitSize + if (bytes.size % splitSize > 0) 1 else 0
 
@@ -392,7 +393,9 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
               is InsertResult.MissingVersions -> {
                 val msgIdentifier = Random.nextLong()
                 val requestMsg =
-                  Encoders.encodePb(Message.RequestVersions(v.second, r.missingDots, msgIdentifier))
+                  Encoders.encodePb(
+                    Message.RequestVersions(v.second, r.missingDots, msgIdentifier, maxMessageSize)
+                  )
                 val (messageNr, _, _) =
                   messageState.updateAndGet { previous ->
                     Triple(previous.first + 1, v.second, null to PartialCollector(msgIdentifier))
@@ -490,7 +493,24 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                       if (messageState.value.third.second?.receive(message) == true) {
                         val fin = messageState.value.third.second?.finished()
                         if (fin != null) {
-                          onMessageReceived(peerHandle, fin)
+                          when (val m = Encoders.decodePb(fin)) {
+                            is Message.SendVersions -> {
+                              repository.insert(m.vectorClock, m.versions)
+                              messageState.update {
+                                val vc = it.second
+                                if (vc == null) {
+                                  it
+                                } else if (m.vectorClock.contains(vc)) {
+                                  it.copy(third = MessageState.MessageReceived to null)
+                                } else {
+                                  it
+                                }
+                              }
+                            }
+                            else -> {
+                              throw RuntimeException("Invalid payload ${m}")
+                            }
+                          }
                         }
                       }
                     }

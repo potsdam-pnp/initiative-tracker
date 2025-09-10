@@ -13,6 +13,7 @@ sealed class Message<Op> {
     val vectorClock: VectorClock,
     val dots: List<Dot>,
     val msgIdentifier: Long? = null,
+    val maxMessageSize: Int? = null,
   ) : Message<Op>()
 
   data class SendVersions<Op>(val vectorClock: VectorClock, val versions: List<Operation<Op>>) :
