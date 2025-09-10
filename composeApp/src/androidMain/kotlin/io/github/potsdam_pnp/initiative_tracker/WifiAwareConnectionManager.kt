@@ -19,8 +19,6 @@ import android.net.wifi.aware.SubscribeDiscoverySession
 import android.net.wifi.aware.WifiAwareManager
 import android.net.wifi.aware.WifiAwareSession
 import android.os.Build
-import androidx.activity.result.ActivityResultCaller
-import androidx.activity.result.contract.ActivityResultContracts
 import io.github.potsdam_pnp.initiative_tracker.crdt.CompareResult
 import io.github.potsdam_pnp.initiative_tracker.crdt.InsertResult
 import io.github.potsdam_pnp.initiative_tracker.crdt.Message
@@ -126,58 +124,29 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
     }
   }
 
-  suspend fun <T> requestPermissions(context: T): Boolean where
-  T : Context,
-  T : ActivityResultCaller {
+  fun neededMissingPermission(context: Context): String? {
     if (_available.value.first != WifiAwareAvailableState.MissingPermissions) {
-      return true
+      return null
     }
-
-    val succeeded =
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        if (context.checkSelfPermission(NEARBY_WIFI_DEVICES) != PERMISSION_GRANTED) {
-          suspendCoroutine<Boolean> { continuation ->
-            val launcher =
-              context.registerForActivityResult(ActivityResultContracts.RequestPermission()) {
-                continuation.resume(it)
-              }
-            launcher.launch(NEARBY_WIFI_DEVICES)
-          }
-        } else {
-          true
-        }
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      if (context.checkSelfPermission(NEARBY_WIFI_DEVICES) != PERMISSION_GRANTED) {
+        NEARBY_WIFI_DEVICES
       } else {
-        if (context.checkSelfPermission(ACCESS_FINE_LOCATION) != PERMISSION_GRANTED) {
-          suspendCoroutine<Boolean> { continuation ->
-            val launcher =
-              context.registerForActivityResult(ActivityResultContracts.RequestPermission()) {
-                continuation.resume(it)
-              }
-            launcher.launch(ACCESS_FINE_LOCATION)
-          }
-        } else {
-          true
-        }
+        initialize(context)
+        null
       }
-    if (succeeded) {
-      initialize(context)
-      return true
     } else {
-      return false
+      if (context.checkSelfPermission(ACCESS_FINE_LOCATION) != PERMISSION_GRANTED) {
+        ACCESS_FINE_LOCATION
+      } else {
+        initialize(context)
+        null
+      }
     }
   }
 
   fun start() {
     _available.update { it.copy(second = it.second.copy(enabled = true)) }
-  }
-
-  suspend fun <T> startAndMaybeAskPermissions(context: T) where
-  T : Context,
-  T : ActivityResultCaller {
-    start()
-    if (_available.value.first == WifiAwareAvailableState.MissingPermissions) {
-      requestPermissions(context)
-    }
   }
 
   fun stop() {

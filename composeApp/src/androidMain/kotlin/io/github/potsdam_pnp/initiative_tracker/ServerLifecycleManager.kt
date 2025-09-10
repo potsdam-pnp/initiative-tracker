@@ -67,7 +67,11 @@ class ServerLifecycleManager(val application: InitiativeTrackerApplication) {
   suspend fun changeWifiAwareEnabled(value: Boolean, activity: MainActivity) {
     _serverSettings.update { it.copy(wifiAwareEnabled = value) }
     if (value) {
-      application.wifiAwareConnectionManager.startAndMaybeAskPermissions(activity)
+      val permission = application.wifiAwareConnectionManager.neededMissingPermission(activity)
+      if (permission != null) {
+        activity.permissionRequestLauncher.launch(permission)
+      }
+      application.wifiAwareConnectionManager.start()
     } else {
       application.wifiAwareConnectionManager.stop()
     }
