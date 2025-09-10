@@ -258,7 +258,13 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
         }
 
         publish()
-        continuation.invokeOnCancellation { publishSession.value.first?.close() }
+        continuation.invokeOnCancellation {
+          try {
+            publishSession.value.first?.close()
+          } catch (_: SecurityException) {
+
+          }
+        }
       }
     }
   }
@@ -393,7 +399,13 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
 
         subscribe()
 
-        continuation.invokeOnCancellation { subscribeSession.value.first?.close() }
+        continuation.invokeOnCancellation {
+          try {
+            subscribeSession.value.first?.close()
+          } catch (_: SecurityException) {
+
+          }
+        }
       }
     }
   }
