@@ -1,4 +1,5 @@
 import androidx.compose.runtime.Composable
+import io.github.potsdam_pnp.initiative_tracker.crdt.ClientIdentifier
 import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 
 data class JoinLink(val host: String) {
@@ -8,13 +9,12 @@ data class JoinLink(val host: String) {
   }
 }
 
-data class DiscoveredClient(
-  val name: String,
-  val hosts: List<String>?,
-  val port: Int?,
+data class ConnectedClient(
+  val id: ClientIdentifier?,
   val state: VectorClock?,
-  val isServerConnected: Boolean,
-  val isClientConnected: Boolean,
+  val connectedViaClient: Boolean,
+  val connectedViaServer: Boolean,
+  val connectedViaWifiAware: Boolean,
   val errorMsg: String? = null,
 )
 
@@ -24,7 +24,7 @@ data class ServerStatus(
   val isSupported: Boolean,
   val joinLinks: List<JoinLink> = emptyList(),
   val connections: Int,
-  val discoveredClients: List<DiscoveredClient>,
+  val discoveredClients: List<ConnectedClient>,
 )
 
 val unsupportedPlatform =
@@ -48,7 +48,12 @@ interface Platform {
 
   fun shareLink(context: PlatformContext, link: JoinLink, allLinks: List<JoinLink>) {}
 
-  @Composable fun ServerSettings(): Unit {}
+  @Composable fun ServerSettings() {}
+  @Composable fun ServerSettingsBelow() {}
+
+  @Composable fun connectionStateClickableEnabled(): Boolean = false
+
+  @Composable fun connectionStateOnClick(): () -> Unit = {}
 }
 
 expect fun getPlatform(): Platform

@@ -24,6 +24,7 @@ import io.github.potsdam_pnp.initiative_tracker.MainActivity
 import io.github.potsdam_pnp.initiative_tracker.R
 import io.github.potsdam_pnp.initiative_tracker.ServerState
 import io.github.potsdam_pnp.initiative_tracker.WifiAwareAvailableState
+import io.github.potsdam_pnp.initiative_tracker.crdt.ClientIdentifier
 import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 import kotlinx.coroutines.launch
 
@@ -32,28 +33,39 @@ class AndroidPlatform : Platform {
 
   @Composable
   override fun serverStatus(): ServerStatus {
-    val serverState1 by
-      (LocalContext.current.applicationContext as InitiativeTrackerApplication)
+    val app = LocalContext.current.applicationContext as InitiativeTrackerApplication
+    val serverState1 by app
         .serverLifecycleManager
         ._serverState
         .collectAsState()
     val serverState by serverState1.collectAsState()
+    val wifiAware by app.wifiAwareConnectionManager.details.collectAsState()
+    val wifiAwareS by app.wifiAwareConnectionManager.available(rememberCoroutineScope()).collectAsState()
+    val wifiAwareState = "Nearby devices: ${wifiAwareS.name}"
 
     return ServerStatus(
-      isRunning = serverState is ServerState.Running,
-      message = serverState.message(),
+      isRunning = serverState is ServerState.Running || (wifiAware.publish.isActive && wifiAware.subscribe.isActive),
+      message = wifiAwareState + (if (serverState != ServerState.Stopped) "\n${serverState.message()}" else ""),
       isSupported = true,
       joinLinks = listOf(),
-      connections = serverState.connectedClients(),
+      connections = serverState.connectedClients() + wifiAware.peers.size,
       discoveredClients =
         ((serverState as? ServerState.Running)?.connectedClients ?: mapOf()).map {
-          DiscoveredClient(
-            name = "",
-            hosts = null,
-            port = null,
+          ConnectedClient(
+            connectedViaServer = true,
+            connectedViaClient = false,
+            connectedViaWifiAware = false,
+            id = it.key,
             state = it.value,
-            isServerConnected = false,
-            isClientConnected = true,
+            errorMsg = null,
+          )
+        } + wifiAware.peers.map {
+          ConnectedClient(
+            connectedViaServer = false,
+            connectedViaClient = false,
+            connectedViaWifiAware = true,
+            id = ClientIdentifier("Connected client"),
+            state = it.value,
             errorMsg = null,
           )
         },
@@ -102,27 +114,6 @@ class AndroidPlatform : Platform {
     startActivity(context.context, shareIntent, null)
   }
 
-  private fun prettyClock(remote: VectorClock, here: VectorClock): String {
-    val count = remote.clock.values.sum()
-    val behind =
-      remote.clock
-        .mapValues { (k, v) ->
-          val vv = here.clock[k] ?: 0
-          if (v >= vv) v - vv else 0
-        }
-        .values
-        .sum()
-    val ahead =
-      here.clock
-        .mapValues { (k, v) ->
-          val vv = remote.clock[k] ?: 0
-          if (v >= vv) v - vv else 0
-        }
-        .values
-        .sum()
-    return "$count versions, $ahead ahead, $behind behind"
-  }
-
   @Composable
   override fun ServerSettings() {
     val application = LocalContext.current.applicationContext as InitiativeTrackerApplication
@@ -152,18 +143,16 @@ class AndroidPlatform : Platform {
         )
       },
     )
-    for (clock in details.peers.values) {
-      ListItem(
-        headlineContent = { Text("Connected client") },
-        supportingContent = {
-          val vc by application.repository.version.collectAsState()
-          Text(prettyClock(clock, vc))
-        },
-      )
-    }
-    HorizontalDivider()
+  }
+
+  @Composable
+  override fun ServerSettingsBelow() {
+    val application = LocalContext.current.applicationContext as InitiativeTrackerApplication
+    val serverSettings by application.serverLifecycleManager.serverSettings.collectAsState()
+    val activity = LocalActivity.current as MainActivity
+
     ListItem(
-      headlineContent = { Text("Allow to run server") },
+      headlineContent = { Text("Run server") },
       trailingContent = {
         Switch(
           checked = serverSettings.isAllowed,
@@ -175,7 +164,7 @@ class AndroidPlatform : Platform {
       },
       supportingContent = {
         Text(
-          "Server is needed to let other devices and clients connect manually and share the initiative tracker state. It's not needed to connect to nearby devices."
+          "Running server allows clients to connect. Not needed for nearby connections or when connecting as client."
         )
       },
     )
@@ -195,6 +184,26 @@ class AndroidPlatform : Platform {
         )
       }
     )
+  }
+
+  @Composable
+  override fun connectionStateClickableEnabled(): Boolean {
+    val app = LocalContext.current.applicationContext as InitiativeTrackerApplication
+    val scope = rememberCoroutineScope()
+    val available by app.wifiAwareConnectionManager.available(scope).collectAsState()
+    return available != WifiAwareAvailableState.DeviceNotSupported && available != WifiAwareAvailableState.Unknown
+  }
+
+  @Composable
+  override fun connectionStateOnClick(): () -> Unit {
+    val app = LocalContext.current.applicationContext as InitiativeTrackerApplication
+    val activity = LocalActivity.current as MainActivity
+    val scope = rememberCoroutineScope()
+    return {
+      scope.launch {
+        app.serverLifecycleManager.changeWifiAwareEnabled(true, activity)
+      }
+    }
   }
 }
 

@@ -143,6 +143,7 @@ import io.github.potsdam_pnp.initiative_tracker.TurnAction
 import io.github.potsdam_pnp.initiative_tracker.crdt.ConflictState
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
+import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -873,7 +874,10 @@ fun ConnectionState(
   val clientStatus by ClientConsumer.clientStatus.collectAsState()
   val serverStatus = getPlatform().serverStatus()
   BadgedBox(
-    modifier = modifier,
+    modifier = modifier.then(Modifier.clickable(
+      enabled = getPlatform().connectionStateClickableEnabled(),
+      onClick = getPlatform().connectionStateOnClick(),
+    )),
     badge = {
       if (serverStatus.isRunning) {
         Badge { Text(serverStatus.connections.toString()) }
@@ -895,45 +899,59 @@ fun ConnectionState(
   }
 }
 
+private fun prettyClock(remote: VectorClock, here: VectorClock): String {
+  val count = remote.clock.values.sum()
+  val behind =
+    remote.clock
+      .mapValues { (k, v) ->
+        val vv = here.clock[k] ?: 0
+        if (v >= vv) v - vv else 0
+      }
+      .values
+      .sum()
+  val ahead =
+    here.clock
+      .mapValues { (k, v) ->
+        val vv = remote.clock[k] ?: 0
+        if (v >= vv) v - vv else 0
+      }
+      .values
+      .sum()
+  return "$count versions, $ahead ahead, $behind behind"
+}
+
+
 @Composable
-fun ServerConnectionSettings() {
+fun ServerConnectionSettings(m: Model) {
   val serverStatus = getPlatform().serverStatus()
+  val vc by m.repository.version.collectAsState()
 
   ListItem(headlineContent = { Text(serverStatus.message) })
+  HorizontalDivider()
   for (connectedClient in serverStatus.discoveredClients) {
     val connectionState =
       @Composable {
-        if (connectedClient.isClientConnected || connectedClient.isServerConnected) {
-          Icon(
-            imageVector = vectorResource(Res.drawable.baseline_sync_24),
-            contentDescription = "Synced",
-          )
-        } else {
-          Icon(
-            imageVector = vectorResource(Res.drawable.baseline_sync_problem_24),
-            contentDescription = "Not synced",
-          )
-        }
+        Icon(
+          imageVector = vectorResource(Res.drawable.baseline_sync_24),
+          contentDescription = "Synced",
+        )
       }
 
+    val stateInfo = connectedClient.state?.let { listOf(prettyClock(it, vc)) } ?: listOf()
+
     val additional =
-      when {
-        connectedClient.isServerConnected && connectedClient.isClientConnected ->
-          listOf("as server and client")
+      stateInfo +
+      ((if (connectedClient.connectedViaServer) listOf("server connection") else listOf()) +
+        (if (connectedClient.connectedViaClient) listOf("manually connected") else listOf()) +
+        (if (connectedClient.connectedViaWifiAware) listOf("nearby device") else listOf())) +
+        connectedClient.errorMsg.orEmpty()
 
-        connectedClient.isClientConnected -> listOf("as server")
-
-        connectedClient.isServerConnected -> listOf("as client")
-
-        else -> emptyList()
-      } + connectedClient.errorMsg.orEmpty()
-
-    key(connectedClient.name) {
+    key(connectedClient.id?.name) {
       ListItem(
-        headlineContent = { Text(connectedClient.name) },
+        headlineContent = { Text(connectedClient.id?.name ?: "") },
         trailingContent = { connectionState() },
         supportingContent = {
-          val text = (connectedClient.hosts.orEmpty() + additional).joinToString("\n")
+          val text = additional.joinToString("\n")
           if (text != "") {
             Text(text = text)
           }
@@ -960,7 +978,7 @@ fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope
     val clientStatus by ClientConsumer.clientStatus.collectAsState()
     val context = getPlatform().getContext()
     getPlatform().ServerSettings()
-    ServerConnectionSettings()
+    ServerConnectionSettings(model)
     HorizontalDivider()
     ListItem(
       headlineContent = { Text("Connect manually") },
@@ -1011,6 +1029,8 @@ fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope
           Modifier.clickable { getPlatform().shareLink(context, joinLink, serverStatus.joinLinks) },
       )
     }
+    HorizontalDivider()
+    getPlatform().ServerSettingsBelow()
   }
 }
 

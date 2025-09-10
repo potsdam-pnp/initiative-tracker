@@ -75,7 +75,7 @@ data class MessageDetails(
   val messagesReceived: Int = 0,
 ) {
   fun pretty(name: String): String {
-    return "$name ${if (isActive) "up" else "down"}\n  Constructed: $messagesConstructed\n  Sent: $messagesSuccessfulSent\n  Failed: $messagesFailedSent\n  Received: $messagesReceived"
+    return "$name ${if (isActive) "up" else "down"}\n  Constructed: $messagesConstructed  Sent: $messagesSuccessfulSent  Failed: $messagesFailedSent\n  Received: $messagesReceived"
   }
 }
 

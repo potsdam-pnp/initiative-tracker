@@ -14,6 +14,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.core.content.edit
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -30,9 +31,7 @@ class SharedPreferencesPersistData(val sharedPreferences: SharedPreferences) : P
   }
 
   override fun storeKnownPlayerCharacters(data: List<String>) {
-    val editor = sharedPreferences.edit()
-    editor.putString("players", JSONArray(data.toTypedArray()).toString(0))
-    editor.apply()
+    sharedPreferences.edit { putString("players", JSONArray(data.toTypedArray()).toString(0)) }
   }
 }
 

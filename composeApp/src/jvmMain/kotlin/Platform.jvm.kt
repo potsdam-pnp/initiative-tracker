@@ -19,13 +19,12 @@ class JVMPlatform : Platform {
       connections = serverState.connectedClients(),
       discoveredClients =
         ((serverState as? ServerState.Running)?.connectedClients ?: mapOf()).map {
-          DiscoveredClient(
-            name = "",
-            hosts = null,
-            port = null,
+          ConnectedClient(
+            id = it.key,
             state = it.value,
-            isServerConnected = false,
-            isClientConnected = true,
+            connectedViaServer = true,
+            connectedViaClient = false,
+            connectedViaWifiAware = false,
             errorMsg = null,
           )
         },
