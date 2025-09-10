@@ -60,9 +60,31 @@ data class WifiAwareSession(
   val isFailed: Boolean,
 )
 
+data class MessageDetails(
+  val isActive: Boolean = false,
+  val messagesConstructed: Int = 0,
+  val messagesSuccessfulSent: Int = 0,
+  val messagesFailedSent: Int = 0,
+  val messagesReceived: Int = 0,
+) {
+  fun pretty(name: String): String {
+    return "$name ${if (isActive) "up" else "down"}\n  Constructed: $messagesConstructed\n  Sent: $messagesSuccessfulSent\n  Failed: $messagesFailedSent\n  Received: $messagesReceived"
+  }
+}
+
+data class Details(
+  val subscribe: MessageDetails = MessageDetails(),
+  val publish: MessageDetails = MessageDetails(),
+  val peers: Map<PeerHandle, VectorClock> = mapOf(),
+)
+
 class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
   private val _available =
     MutableStateFlow(WifiAwareAvailableState.Unknown to WifiAwareSession(false, null, false))
+
+  private val _details = MutableStateFlow(Details())
+  val details: StateFlow<Details>
+    get() = _details
 
   fun available(scope: CoroutineScope): StateFlow<WifiAwareAvailableState> {
     return _available
@@ -218,6 +240,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
       suspendCancellableCoroutine<Unit> { continuation ->
         @SuppressLint("MissingPermission")
         fun publish() {
+          _details.update { it.copy(subscribe = it.subscribe.copy(isActive = false)) }
           if (continuation.isActive) {
             val vc = repository.version.value
             val publishConfig =
@@ -234,6 +257,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                 }
 
                 override fun onPublishStarted(session: PublishDiscoverySession) {
+                  _details.update { it.copy(publish = it.subscribe.copy(isActive = true)) }
                   publishSession.update { session to vc }
                 }
 
@@ -242,13 +266,46 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                 override fun onSessionConfigFailed() {}
 
                 override fun onMessageReceived(peerHandle: PeerHandle, message: ByteArray) {
+                  _details.update {
+                    it.copy(
+                      publish = it.publish.copy(messagesReceived = it.publish.messagesReceived + 1)
+                    )
+                  }
                   when (val msg = Encoders.decodePb(message)) {
                     is Message.RequestVersions -> {
                       val versions = msg.dots.mapNotNull { repository.fetchVersion(it) }
                       val bytes = Encoders.encodePb(Message.SendVersions(msg.vectorClock, versions))
                       publishSession.value.first?.sendMessage(peerHandle, 0, bytes)
+                      _details.update {
+                        it.copy(
+                          publish =
+                            it.publish.copy(
+                              messagesConstructed = it.publish.messagesConstructed + 1
+                            )
+                        )
+                      }
                     }
                     else -> {}
+                  }
+                }
+
+                override fun onMessageSendSucceeded(messageId: Int) {
+                  _details.update {
+                    it.copy(
+                      publish =
+                        it.publish.copy(
+                          messagesSuccessfulSent = it.publish.messagesSuccessfulSent + 1
+                        )
+                    )
+                  }
+                }
+
+                override fun onMessageSendFailed(messageId: Int) {
+                  _details.update {
+                    it.copy(
+                      publish =
+                        it.publish.copy(messagesFailedSent = it.publish.messagesFailedSent + 1)
+                    )
                   }
                 }
               },
@@ -261,9 +318,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
         continuation.invokeOnCancellation {
           try {
             publishSession.value.first?.close()
-          } catch (_: SecurityException) {
-
-          }
+          } catch (_: SecurityException) {}
         }
       }
     }
@@ -320,6 +375,9 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
       suspendCancellableCoroutine<Unit> { continuation ->
         @SuppressLint("MissingPermission")
         fun subscribe() {
+          _details.update {
+            it.copy(subscribe = it.subscribe.copy(isActive = false), peers = mapOf())
+          }
           if (continuation.isActive) {
             wifiAwareSession.subscribe(
               subscribeConfig,
@@ -331,6 +389,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
 
                 override fun onSubscribeStarted(session: SubscribeDiscoverySession) {
                   subscribeSession.update { session to mapOf() }
+                  _details.update { it.copy(subscribe = it.subscribe.copy(isActive = true)) }
                 }
 
                 override fun onServiceDiscovered(
@@ -343,6 +402,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                       subscribeSession.update {
                         it.copy(second = it.second + (peerHandle to msg.vectorClock))
                       }
+                      _details.update { it.copy(peers = subscribeSession.value.second) }
                     }
 
                     else -> {}
@@ -351,9 +411,16 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
 
                 override fun onServiceLost(peerHandle: PeerHandle, reason: Int) {
                   subscribeSession.update { it.copy(second = it.second - peerHandle) }
+                  _details.update { it.copy(peers = subscribeSession.value.second) }
                 }
 
                 override fun onMessageReceived(peerHandle: PeerHandle, message: ByteArray) {
+                  _details.update {
+                    it.copy(
+                      subscribe =
+                        it.subscribe.copy(messagesReceived = it.subscribe.messagesReceived + 1)
+                    )
+                  }
                   when (val msg = Encoders.decodePb(message)) {
                     is Message.SendVersions -> {
                       repository.insert(msg.vectorClock, msg.versions)
@@ -380,6 +447,12 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                       it
                     }
                   }
+                  _details.update {
+                    it.copy(
+                      subscribe =
+                        it.subscribe.copy(messagesFailedSent = it.subscribe.messagesFailedSent + 1)
+                    )
+                  }
                 }
 
                 override fun onMessageSendSucceeded(messageId: Int) {
@@ -389,6 +462,12 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                     } else {
                       it
                     }
+                  }
+                  _details.update {
+                    it.copy(
+                      subscribe =
+                        it.subscribe.copy(messagesFailedSent = it.subscribe.messagesFailedSent + 1)
+                    )
                   }
                 }
               },
@@ -402,9 +481,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
         continuation.invokeOnCancellation {
           try {
             subscribeSession.value.first?.close()
-          } catch (_: SecurityException) {
-
-          }
+          } catch (_: SecurityException) {}
         }
       }
     }

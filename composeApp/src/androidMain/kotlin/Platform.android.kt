@@ -27,6 +27,7 @@ import io.github.potsdam_pnp.initiative_tracker.InitiativeTrackerApplication
 import io.github.potsdam_pnp.initiative_tracker.MainActivity
 import io.github.potsdam_pnp.initiative_tracker.R
 import io.github.potsdam_pnp.initiative_tracker.WifiAwareAvailableState
+import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 import io.github.potsdam_pnp.initiative_tracker.toServerStatus
 import kotlinx.coroutines.launch
 
@@ -113,6 +114,21 @@ class AndroidPlatform : Platform {
     startActivity(context.context, shareIntent, null)
   }
 
+  private fun prettyClock(remote: VectorClock, here: VectorClock): String {
+    val count = remote.clock.values.sum()
+    val ahead =
+      remote.clock.mapValues { (k, v) ->
+        val vv = here.clock[k] ?: -1
+        if (vv >= v) vv - v else 0
+      }
+    val behind =
+      here.clock.mapValues { (k, v) ->
+        val vv = remote.clock[k] ?: -1
+        if (vv >= v) vv - v else 0
+      }
+    return "$count versions, $ahead ahead, $behind behind"
+  }
+
   @Composable
   override fun ServerSettings() {
     val application = LocalContext.current.applicationContext as InitiativeTrackerApplication
@@ -120,6 +136,7 @@ class AndroidPlatform : Platform {
     val serverSettings by application.serverLifecycleManager.serverSettings.collectAsState()
     val scope = rememberCoroutineScope()
     val state by application.wifiAwareConnectionManager.available(scope).collectAsState()
+    val details by application.wifiAwareConnectionManager.details.collectAsState()
     ListItem(
       headlineContent = { Text("Connect to nearby devices") },
       trailingContent = {
@@ -133,8 +150,21 @@ class AndroidPlatform : Platform {
           },
         )
       },
-      supportingContent = { Text("Current state: $state") },
+      supportingContent = {
+        Text(
+          "Current state: $state\n${details.publish.pretty("publish")}\n${details.subscribe.pretty("subscribe")}"
+        )
+      },
     )
+    for (clock in details.peers.values) {
+      ListItem(
+        headlineContent = { Text("Connected client") },
+        supportingContent = {
+          val vc by application.repository.version.collectAsState()
+          Text(prettyClock(clock, vc))
+        },
+      )
+    }
     HorizontalDivider()
     ListItem(
       headlineContent = { Text("Allow to run server") },
