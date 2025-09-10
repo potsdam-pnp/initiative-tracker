@@ -136,7 +136,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
           WifiAwareAvailableState.Available
         } else {
           WifiAwareAvailableState.NotAvailable
-        } to x
+        } to x.copy(isFailed = false)
       }
     }
 
