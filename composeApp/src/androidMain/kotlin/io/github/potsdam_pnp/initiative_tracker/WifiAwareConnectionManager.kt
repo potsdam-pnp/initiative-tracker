@@ -19,6 +19,7 @@ import android.net.wifi.aware.SubscribeDiscoverySession
 import android.net.wifi.aware.WifiAwareManager
 import android.net.wifi.aware.WifiAwareSession
 import android.os.Build
+import io.github.potsdam_pnp.initiative_tracker.crdt.ClientIdentifier
 import io.github.potsdam_pnp.initiative_tracker.crdt.CompareResult
 import io.github.potsdam_pnp.initiative_tracker.crdt.InsertResult
 import io.github.potsdam_pnp.initiative_tracker.crdt.Message
@@ -392,15 +393,30 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
             when (val r = repository.insert(v.second, listOf())) {
               is InsertResult.MissingVersions -> {
                 val msgIdentifier = Random.nextLong()
+                val dotsMap = mutableMapOf<ClientIdentifier, Int>()
+                r.missingDots.forEach { dot ->
+                  dotsMap.merge(dot.clientIdentifier, dot.position, { x, y -> x.coerceAtMost(y) })
+                }
+                val clientIdentifiers = v.second.clock.keys.toList().map { it.name }
                 val requestMsg =
-                  Encoders.encodePb(
-                    Message.RequestVersions(v.second, r.missingDots, msgIdentifier, maxMessageSize)
+                  io.github.potsdam_pnp.initiative_tracker.proto.Message(
+                    messageKind = MessageKind.REQUEST_VERSIONS_OPTIMIZED,
+                    messageIdentifier = msgIdentifier,
+                    maxMessageLength = maxMessageSize,
+                    clock =
+                      clientIdentifiers.map { v.second.clock[ClientIdentifier(it)]?.toLong() ?: 0 },
+                    dots =
+                      dotsMap
+                        .flatMap {
+                          listOf(clientIdentifiers.indexOf(it.key.name).toLong(), it.value.toLong())
+                        }
+                        .toList(),
                   )
                 val (messageNr, _, _) =
                   messageState.updateAndGet { previous ->
                     Triple(previous.first + 1, v.second, null to PartialCollector(msgIdentifier))
                   }
-                session?.sendMessage(v.first, messageNr, requestMsg)
+                session?.sendMessage(v.first, messageNr, requestMsg.encodeToByteArray())
                 _details.update {
                   it.copy(
                     subscribe =

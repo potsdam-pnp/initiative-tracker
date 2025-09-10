@@ -226,6 +226,22 @@ object Encoders {
           msgIdentifier = pb.messageIdentifier,
           maxMessageSize = pb.maxMessageLength,
         )
+      MessageKind.REQUEST_VERSIONS_OPTIMIZED -> {
+        val clock = asClock(pb.clock)
+        val dots =
+          pb.dots.chunked(2) {
+            val clientIdentifier = ClientIdentifier(pb.clientIdentifiers[it[0].toInt()])
+            val position = it[1].toInt()
+            val clockPosition = clock.clock[clientIdentifier] ?: 0
+            (position until (clockPosition + 1)).map { Dot(clientIdentifier, it) }
+          }
+        Message.RequestVersions(
+          clock,
+          dots.flatten(),
+          msgIdentifier = pb.messageIdentifier,
+          maxMessageSize = pb.maxMessageLength,
+        )
+      }
       MessageKind.SEND_VERSIONS ->
         Message.SendVersions(asClock(pb.clock), pb.actions.map { decodePbAction(it) })
       MessageKind.STOP_CONNECTION -> Message.StopConnection(Unit)
