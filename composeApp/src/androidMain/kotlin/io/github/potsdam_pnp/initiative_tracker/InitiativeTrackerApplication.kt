@@ -16,7 +16,6 @@ import org.acra.ktx.initAcra
 
 class InitiativeTrackerApplication : Application() {
   val repository: Repository<Action, State> = Repository(State())
-  val connectionManager: ConnectionManager = ConnectionManagerAndroid(this, repository)
   val serverLifecycleManager = ServerLifecycleManager(this)
   val wifiAwareConnectionManager = WifiAwareConnectionManager(repository)
 

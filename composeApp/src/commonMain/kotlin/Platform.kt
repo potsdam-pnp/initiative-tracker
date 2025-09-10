@@ -39,10 +39,6 @@ val unsupportedPlatform =
 interface Platform {
   val name: String
 
-  fun isGeneratePlayerShortcutSupported(): Boolean = false
-
-  fun generatePlayerShortcut(context: PlatformContext, playerList: List<String>) {}
-
   @Composable
   fun serverStatus(): ServerStatus {
     return unsupportedPlatform

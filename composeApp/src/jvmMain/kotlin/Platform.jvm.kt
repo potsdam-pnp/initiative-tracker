@@ -1,7 +1,7 @@
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import io.github.potsdam_pnp.initiative_tracker.toServerStatus
+import io.github.potsdam_pnp.initiative_tracker.ServerState
 
 class JVMPlatform : Platform {
   override val name: String = "Java ${System.getProperty("java.version")}"
@@ -10,10 +10,26 @@ class JVMPlatform : Platform {
 
   @Composable
   override fun serverStatus(): ServerStatus {
-    val connectionStates by connectionManager!!.connectionStates.collectAsState()
-    val serviceInfoStates by connectionManager!!.serviceInfoState.collectAsState()
-    val name by connectionManager!!.name.collectAsState()
-    return toServerStatus(connectionStates, serviceInfoStates, name)
+    val serverState by Global.server!!.state.collectAsState()
+    return ServerStatus(
+      isRunning = serverState is ServerState.Running,
+      message = serverState.message(),
+      isSupported = true,
+      joinLinks = listOf(),
+      connections = serverState.connectedClients(),
+      discoveredClients =
+        ((serverState as? ServerState.Running)?.connectedClients ?: mapOf()).map {
+          DiscoveredClient(
+            name = "",
+            hosts = null,
+            port = null,
+            state = it.value,
+            isServerConnected = false,
+            isClientConnected = true,
+            errorMsg = null,
+          )
+        },
+    )
   }
 }
 

@@ -5,6 +5,7 @@ import io.github.potsdam_pnp.initiative_tracker.crdt.ClientIdentifier
 import io.github.potsdam_pnp.initiative_tracker.crdt.Message
 import io.github.potsdam_pnp.initiative_tracker.crdt.MessageHandler
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
+import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 import io.ktor.http.ContentType
 import io.ktor.server.application.install
 import io.ktor.server.engine.EmbeddedServer
@@ -22,6 +23,7 @@ import io.ktor.websocket.Frame
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -32,7 +34,8 @@ sealed class ServerState {
 
   object Starting : ServerState()
 
-  data class Running(val port: Int, val connectedClients: Int) : ServerState()
+  data class Running(val port: Int, val connectedClients: Map<ClientIdentifier, VectorClock?>) :
+    ServerState()
 
   object Stopping : ServerState()
 
@@ -40,7 +43,7 @@ sealed class ServerState {
     when (this) {
       is Stopped -> "Server stopped"
       is Starting -> "Server starting"
-      is Running -> "Server running on port $port, $connectedClients clients connected"
+      is Running -> "Server running on port $port, ${connectedClients.size} clients connected"
       is Stopping -> "Server stopping"
     }
 
@@ -64,7 +67,7 @@ sealed class ServerState {
     when (this) {
       is Stopped -> 0
       is Starting -> 0
-      is Running -> connectedClients
+      is Running -> connectedClients.size
       is Stopping -> 0
     }
 }
@@ -75,39 +78,34 @@ private sealed class Actions {
   object End : Actions()
 }
 
-class Server(
-  private val name: String,
-  private val repository: Repository<Action, State>,
-  private val connectionManager: ConnectionManager,
-) {
-  private val state = MutableStateFlow<ServerState>(ServerState.Stopped)
+class Server(private val repository: Repository<Action, State>) {
+  private val _state = MutableStateFlow<ServerState>(ServerState.Stopped)
   private val actions = Channel<Actions>()
+
+  val state: StateFlow<ServerState>
+    get() = _state
 
   suspend fun runOnce() {
     Napier.i("waiting to start server")
     while (actions.receive() != Actions.Start) {
       Napier.w("Received Stop while server was already stopped")
     }
-    state.update { ServerState.Starting }
+    _state.update { ServerState.Starting }
 
     Napier.i("starting server")
     val server = startServer()
     server.start(wait = false)
     val resolvedPort = server.engine.resolvedConnectors()[0].port
-    connectionManager.registerService(name, resolvedPort)
 
-    state.update { ServerState.Running(resolvedPort, 0) }
+    _state.update { ServerState.Running(resolvedPort, mapOf()) }
 
     while (actions.receive() != Actions.End) {
       Napier.w("Received Start while server is already running")
     }
 
-    state.update { ServerState.Stopping }
+    _state.update { ServerState.Stopping }
 
-    withContext(Dispatchers.IO) {
-      connectionManager.unregisterService()
-      server.stop()
-    }
+    withContext(Dispatchers.IO) { server.stop() }
   }
 
   suspend fun run() {
@@ -145,10 +143,11 @@ class Server(
         get("/client") { call.respondText(repository.clientIdentifier.name) }
         webSocket("/ws/{client}") {
           val clientId = ClientIdentifier(call.parameters["client"].orEmpty())
-          val supportProtobuf = call.request.queryParameters.get("supportProtobuf") == "true"
 
-          state.update {
-            (it as ServerState.Running).let { it.copy(connectedClients = it.connectedClients + 1) }
+          _state.update {
+            (it as ServerState.Running).let {
+              it.copy(connectedClients = it.connectedClients + (clientId to null))
+            }
           }
 
           try {
@@ -156,7 +155,7 @@ class Server(
             val sendChannel = Channel<Message<Action>>()
 
             launch {
-              state.first { it !is ServerState.Running }
+              _state.first { it !is ServerState.Running }
               receiveChannel.send(Message.StopConnection(Unit))
             }
 
@@ -172,7 +171,15 @@ class Server(
                     is Frame.Pong -> null
                   }
                 if (decoded is Message.CurrentState) {
-                  connectionManager.serverInfoUpdate(clientId, decoded.vectorClock)
+                  _state.update {
+                    when (it) {
+                      is ServerState.Running ->
+                        it.copy(
+                          connectedClients = it.connectedClients + (clientId to decoded.vectorClock)
+                        )
+                      else -> it
+                    }
+                  }
                 }
                 if (decoded != null) {
                   receiveChannel.send(decoded)
@@ -189,11 +196,10 @@ class Server(
 
             MessageHandler(repository).run(this, receiveChannel, sendChannel)
           } finally {
-            connectionManager.serverInfoConnectionStopped(clientId)
-            state.update {
+            _state.update {
               Napier.w("Updating connections")
               (it as ServerState.Running).let {
-                it.copy(connectedClients = it.connectedClients - 1)
+                it.copy(connectedClients = it.connectedClients - clientId)
               }
             }
           }

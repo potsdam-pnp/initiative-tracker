@@ -1,11 +1,7 @@
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.content.Intent.ACTION_VIEW
-import android.content.pm.ShortcutInfo
-import android.content.pm.ShortcutManager
 import android.graphics.drawable.Icon
-import android.net.Uri
 import android.os.Build
 import android.service.chooser.ChooserAction
 import androidx.activity.compose.LocalActivity
@@ -26,50 +22,42 @@ import androidx.lifecycle.lifecycleScope
 import io.github.potsdam_pnp.initiative_tracker.InitiativeTrackerApplication
 import io.github.potsdam_pnp.initiative_tracker.MainActivity
 import io.github.potsdam_pnp.initiative_tracker.R
+import io.github.potsdam_pnp.initiative_tracker.ServerState
 import io.github.potsdam_pnp.initiative_tracker.WifiAwareAvailableState
 import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
-import io.github.potsdam_pnp.initiative_tracker.toServerStatus
 import kotlinx.coroutines.launch
 
 class AndroidPlatform : Platform {
   override val name: String = "Android ${Build.VERSION.SDK_INT}"
 
-  override fun isGeneratePlayerShortcutSupported(): Boolean = true
-
-  override fun generatePlayerShortcut(context: PlatformContext, players: List<String>) {
-    val shortcutManager = context.context.getSystemService(ShortcutManager::class.java)
-
-    if (shortcutManager!!.isRequestPinShortcutSupported) {
-      val uri =
-        Uri.Builder()
-          .scheme("https")
-          .authority("potsdam-pnp.github.io")
-          .path("/initiative-tracker")
-          .fragment(players.joinToString(","))
-          .build()
-      val intent = Intent(ACTION_VIEW, uri)
-
-      val pinShortcutInfo =
-        ShortcutInfo.Builder(context.context, "party-${players.joinToString(",")}")
-          .setShortLabel("${players.first()}+${players.size-1}")
-          .setLongLabel(
-            "Start initiative tracker for party of ${players.size} players: ${players.joinToString()}"
-          )
-          .setIntent(intent)
-          .setIcon(Icon.createWithResource(context.context, R.drawable.ic_launcher_background))
-          .build()
-
-      shortcutManager.requestPinShortcut(pinShortcutInfo, null)
-    }
-  }
-
   @Composable
   override fun serverStatus(): ServerStatus {
-    val app = LocalContext.current.applicationContext as InitiativeTrackerApplication
-    val connectionStates by app.connectionManager.connectionStates.collectAsState()
-    val serviceInfoStates by app.connectionManager.serviceInfoState.collectAsState()
-    val name by app.connectionManager.name.collectAsState()
-    return toServerStatus(connectionStates, serviceInfoStates, name)
+    val serverState1 by
+      (LocalContext.current.applicationContext as InitiativeTrackerApplication)
+        .serverLifecycleManager
+        ._serverState
+        .collectAsState()
+    val serverState by serverState1.collectAsState()
+
+    return ServerStatus(
+      isRunning = serverState is ServerState.Running,
+      message = serverState.message(),
+      isSupported = true,
+      joinLinks = listOf(),
+      connections = serverState.connectedClients(),
+      discoveredClients =
+        ((serverState as? ServerState.Running)?.connectedClients ?: mapOf()).map {
+          DiscoveredClient(
+            name = "",
+            hosts = null,
+            port = null,
+            state = it.value,
+            isServerConnected = false,
+            isClientConnected = true,
+            errorMsg = null,
+          )
+        },
+    )
   }
 
   @Composable
@@ -187,7 +175,7 @@ class AndroidPlatform : Platform {
       },
       supportingContent = {
         Text(
-          "Server is needed to let other devices and clients join and share the initiative tracker state."
+          "Server is needed to let other devices and clients connect manually and share the initiative tracker state. It's not needed to connect to nearby devices."
         )
       },
     )

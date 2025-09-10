@@ -15,8 +15,8 @@ import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 
@@ -77,14 +77,10 @@ class ConnectionService : LifecycleService() {
 
     val app = application as InitiativeTrackerApplication
 
-    clientConnections = ClientConnections(app.repository, app.connectionManager)
-    server = Server("Unnamed", app.repository, app.connectionManager)
+    server = Server(app.repository)
+    app.serverLifecycleManager._serverState.update { server!!.state }
     server!!.toggle(true)
     serverJob = lifecycleScope.launch(Dispatchers.Default) { server!!.runOnce() }
-    clientConnectionJob =
-      lifecycleScope.launch(Dispatchers.Default) { clientConnections!!.run(lifecycleScope) }
-    connectionManagerJob =
-      lifecycleScope.launch(Dispatchers.Default) { app.connectionManager.run() }
     lifecycleScope.launch {
       delay(1000)
       if (!isShuttingDown) {
@@ -115,8 +111,6 @@ class ConnectionService : LifecycleService() {
               server?.toggle(false)
 
               serverJob?.join()
-              clientConnectionJob?.cancelAndJoin()
-              connectionManagerJob?.cancelAndJoin()
 
               stopForeground(STOP_FOREGROUND_REMOVE)
               stopSelf()
@@ -148,10 +142,7 @@ class ConnectionService : LifecycleService() {
   }
 
   private var isShuttingDown = false
-  private var connectionManagerJob: Job? = null
-  private var clientConnectionJob: Job? = null
   private var serverJob: Job? = null
 
   var server: Server? = null
-  var clientConnections: ClientConnections? = null
 }

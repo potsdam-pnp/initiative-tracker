@@ -25,6 +25,8 @@ class ServerLifecycleManager(val application: InitiativeTrackerApplication) {
   private val _serverSettings = MutableStateFlow(ServerSettings())
   val serverSettings: StateFlow<ServerSettings> = _serverSettings
   val serverEventChannel = Channel<ServerEvent>()
+  val _serverState: MutableStateFlow<StateFlow<ServerState>> =
+    MutableStateFlow(MutableStateFlow(ServerState.Stopped))
 
   fun makeSureServerIsRunning(activity: MainActivity) {
     if (serverSettings.value.isAllowed) {
