@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 
 data class ServerSettings(
-  val isAllowed: Boolean = true,
+  val isAllowed: Boolean = false,
   val minutesAfterAppClose: Int = 60,
   val disableActivateServer: Boolean = false,
   val wifiAwareEnabled: Boolean = false,
