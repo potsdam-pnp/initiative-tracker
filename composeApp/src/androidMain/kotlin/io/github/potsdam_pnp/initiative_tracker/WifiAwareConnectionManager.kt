@@ -193,7 +193,12 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
       var job: Job? = null
       launch {
         suspendCancellableCoroutine {
-          it.invokeOnCancellation { _available.value.second.current?.close() }
+          it.invokeOnCancellation {
+            _available.value.second.current?.close()
+            _available.update {
+              it.copy(second = it.second.copy(current = null, isFailed = false))
+            }
+          }
         }
       }
       _available.collect { (state, value) ->
@@ -253,7 +258,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
       suspendCancellableCoroutine<Unit> { continuation ->
         @SuppressLint("MissingPermission")
         fun publish() {
-          _details.update { it.copy(subscribe = it.subscribe.copy(isActive = false)) }
+          _details.update { it.copy(publish = it.publish.copy(isActive = false)) }
           if (continuation.isActive) {
             val vc = repository.version.value
             val publishConfig =
@@ -270,7 +275,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                 }
 
                 override fun onPublishStarted(session: PublishDiscoverySession) {
-                  _details.update { it.copy(publish = it.subscribe.copy(isActive = true)) }
+                  _details.update { it.copy(publish = it.publish.copy(isActive = true)) }
                   publishSession.update { session to vc }
                 }
 
@@ -365,6 +370,9 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
         continuation.invokeOnCancellation {
           try {
             publishSession.value.first?.close()
+            _details.update {
+              it.copy(publish = it.publish.copy(isActive = false))
+            }
           } catch (_: SecurityException) {}
         }
       }
@@ -614,6 +622,9 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
         continuation.invokeOnCancellation {
           try {
             subscribeSession.value.first?.close()
+            _details.update {
+              it.copy(subscribe = it.subscribe.copy(isActive = false))
+            }
           } catch (_: SecurityException) {}
         }
       }
