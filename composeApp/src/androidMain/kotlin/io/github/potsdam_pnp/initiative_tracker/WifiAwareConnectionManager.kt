@@ -90,7 +90,7 @@ data class Details(
 )
 
 class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
-  private val _available =
+  val _available =
     MutableStateFlow(WifiAwareAvailableState.Unknown to WifiAwareSession(false, null, false))
 
   private val _details = MutableStateFlow(Details())

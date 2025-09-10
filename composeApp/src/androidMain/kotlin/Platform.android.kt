@@ -121,7 +121,7 @@ class AndroidPlatform : Platform {
     val activity = LocalActivity.current as MainActivity
     val serverSettings by application.serverLifecycleManager.serverSettings.collectAsState()
     val scope = rememberCoroutineScope()
-    val state by application.wifiAwareConnectionManager.available(scope).collectAsState()
+    val state by application.wifiAwareConnectionManager._available.collectAsState()
     val details by application.wifiAwareConnectionManager.details.collectAsState()
     ListItem(
       headlineContent = {
@@ -130,7 +130,7 @@ class AndroidPlatform : Platform {
       trailingContent = {
         Switch(
           checked = serverSettings.wifiAwareEnabled,
-          enabled = state != WifiAwareAvailableState.DeviceNotSupported,
+          enabled = state.first != WifiAwareAvailableState.DeviceNotSupported,
           onCheckedChange = { newValue ->
             activity.lifecycleScope.launch {
               application.serverLifecycleManager.changeWifiAwareEnabled(newValue, activity)
