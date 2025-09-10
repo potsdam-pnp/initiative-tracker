@@ -85,6 +85,7 @@ object Encoders {
                 )
               }
               .toList(),
+          messageIdentifier = msg.msgIdentifier,
         )
       }
       is Message.SendVersions -> {
@@ -225,6 +226,7 @@ object Encoders {
       MessageKind.SEND_VERSIONS ->
         Message.SendVersions(asClock(pb.clock), pb.actions.map { decodePbAction(it) })
       MessageKind.STOP_CONNECTION -> Message.StopConnection(Unit)
+      MessageKind.SEND_VERSIONS_PARTIAL -> Message.StopConnection(Unit)
       is MessageKind.UNRECOGNIZED -> Message.StopConnection(Unit)
     }
   }

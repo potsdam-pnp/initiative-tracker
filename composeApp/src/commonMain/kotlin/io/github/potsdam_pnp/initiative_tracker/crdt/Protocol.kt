@@ -9,7 +9,11 @@ import kotlinx.coroutines.launch
 sealed class Message<Op> {
   data class CurrentState<Op>(val vectorClock: VectorClock) : Message<Op>()
 
-  data class RequestVersions<Op>(val vectorClock: VectorClock, val dots: List<Dot>) : Message<Op>()
+  data class RequestVersions<Op>(
+    val vectorClock: VectorClock,
+    val dots: List<Dot>,
+    val msgIdentifier: Long? = null,
+  ) : Message<Op>()
 
   data class SendVersions<Op>(val vectorClock: VectorClock, val versions: List<Operation<Op>>) :
     Message<Op>()

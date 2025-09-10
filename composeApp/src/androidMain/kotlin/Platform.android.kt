@@ -117,15 +117,21 @@ class AndroidPlatform : Platform {
   private fun prettyClock(remote: VectorClock, here: VectorClock): String {
     val count = remote.clock.values.sum()
     val behind =
-      remote.clock.mapValues { (k, v) ->
-        val vv = here.clock[k] ?: 0
-        if (v >= vv) v - vv else 0
-      }.values.sum()
+      remote.clock
+        .mapValues { (k, v) ->
+          val vv = here.clock[k] ?: 0
+          if (v >= vv) v - vv else 0
+        }
+        .values
+        .sum()
     val ahead =
-      here.clock.mapValues { (k, v) ->
-        val vv = remote.clock[k] ?: 0
-        if (v >= vv) v - vv else 0
-      }.values.sum()
+      here.clock
+        .mapValues { (k, v) ->
+          val vv = remote.clock[k] ?: 0
+          if (v >= vv) v - vv else 0
+        }
+        .values
+        .sum()
     return "$count versions, $ahead ahead, $behind behind"
   }
 
@@ -138,7 +144,9 @@ class AndroidPlatform : Platform {
     val state by application.wifiAwareConnectionManager.available(scope).collectAsState()
     val details by application.wifiAwareConnectionManager.details.collectAsState()
     ListItem(
-      headlineContent = { Text("Connect to nearby devices") },
+      headlineContent = {
+        Text("Connect to nearby devices (${application.wifiAwareConnectionManager.maxMessageSize})")
+      },
       trailingContent = {
         Switch(
           checked = serverSettings.wifiAwareEnabled,

@@ -24,8 +24,11 @@ import io.github.potsdam_pnp.initiative_tracker.crdt.InsertResult
 import io.github.potsdam_pnp.initiative_tracker.crdt.Message
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
+import io.github.potsdam_pnp.initiative_tracker.proto.MessageKind
+import java.nio.ByteBuffer
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
+import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -45,6 +48,9 @@ import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
+import pbandk.ByteArr
+import pbandk.decodeFromByteArray
+import pbandk.encodeToByteArray
 
 enum class WifiAwareAvailableState {
   Unknown,
@@ -93,6 +99,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
   }
 
   private lateinit var wifiAwareManager: WifiAwareManager
+  var maxMessageSize: Int? = null
 
   private fun initialize(context: Context) {
     if (!context.packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI_AWARE)) {
@@ -101,6 +108,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
     }
 
     wifiAwareManager = context.getSystemService(Context.WIFI_AWARE_SERVICE) as WifiAwareManager
+    maxMessageSize = wifiAwareManager.characteristics?.maxServiceSpecificInfoLength
 
     if (!hasPermissions(context)) {
       _available.update { (_, x) -> WifiAwareAvailableState.MissingPermissions to x }
@@ -275,14 +283,47 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                     is Message.RequestVersions -> {
                       val versions = msg.dots.mapNotNull { repository.fetchVersion(it) }
                       val bytes = Encoders.encodePb(Message.SendVersions(msg.vectorClock, versions))
-                      publishSession.value.first?.sendMessage(peerHandle, 0, bytes)
-                      _details.update {
-                        it.copy(
-                          publish =
-                            it.publish.copy(
-                              messagesConstructed = it.publish.messagesConstructed + 1
-                            )
-                        )
+                      if (bytes.size < (maxMessageSize ?: 128)) {
+                        publishSession.value.first?.sendMessage(peerHandle, 0, bytes)
+                        _details.update {
+                          it.copy(
+                            publish =
+                              it.publish.copy(
+                                messagesConstructed = it.publish.messagesConstructed + 1
+                              )
+                          )
+                        }
+                      } else {
+                        val splitSize = (maxMessageSize ?: 128) - 32
+                        val messageCount =
+                          bytes.size / splitSize + if (bytes.size % splitSize > 0) 1 else 0
+
+                        (0 until messageCount)
+                          .map { index ->
+                            io.github.potsdam_pnp.initiative_tracker.proto
+                              .Message(
+                                messageKind = MessageKind.SEND_VERSIONS_PARTIAL,
+                                messageIdentifier = (msg.msgIdentifier ?: 0) + index,
+                                messageCount = messageCount.toLong(),
+                                partialPayload =
+                                  ByteArr(
+                                    bytes.copyOfRange(
+                                      index * splitSize,
+                                      ((index + 1) * splitSize).coerceAtMost(bytes.size),
+                                    )
+                                  ),
+                              )
+                              .encodeToByteArray()
+                          }
+                          .forEach { publishSession.value.first?.sendMessage(peerHandle, 0, it) }
+                        _details.update {
+                          it.copy(
+                            publish =
+                              it.publish.copy(
+                                messagesConstructed = it.publish.messagesConstructed + 1
+                              )
+                          )
+                        }
                       }
                     }
                     else -> {}
@@ -331,7 +372,9 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
       )
     val subscribeConfig = SubscribeConfig.Builder().setServiceName(serviceName).build()
     val messageState =
-      MutableStateFlow<Triple<Int, VectorClock?, MessageState?>>(Triple(0, null, null))
+      MutableStateFlow<Triple<Int, VectorClock?, Pair<MessageState?, PartialCollector?>>>(
+        Triple(0, null, null to null)
+      )
 
     coroutineScope {
       launch {
@@ -347,10 +390,12 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
           if (v != null) {
             when (val r = repository.insert(v.second, listOf())) {
               is InsertResult.MissingVersions -> {
-                val requestMsg = Encoders.encodePb(Message.RequestVersions(v.second, r.missingDots))
+                val msgIdentifier = Random.nextLong()
+                val requestMsg =
+                  Encoders.encodePb(Message.RequestVersions(v.second, r.missingDots, msgIdentifier))
                 val (messageNr, _, _) =
                   messageState.updateAndGet { previous ->
-                    Triple(previous.first + 1, v.second, null)
+                    Triple(previous.first + 1, v.second, null to PartialCollector(msgIdentifier))
                   }
                 session?.sendMessage(v.first, messageNr, requestMsg)
                 _details.update {
@@ -360,12 +405,12 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                   )
                 }
 
-                when (messageState.first { it.third != null }.third) {
+                when (messageState.first { it.third.first != null }.third.first) {
                   MessageState.MessageSentFailed -> {}
                   MessageState.MessageReceived -> {}
                   MessageState.MessageSentSucceeded -> {
                     withTimeout(1000) {
-                      messageState.first { it.third == MessageState.MessageReceived }
+                      messageState.first { it.third.first == MessageState.MessageReceived }
                     }
                   }
                   null -> {}
@@ -435,20 +480,27 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                         if (vc == null) {
                           it
                         } else if (msg.vectorClock.contains(vc)) {
-                          it.copy(third = MessageState.MessageReceived)
+                          it.copy(third = MessageState.MessageReceived to null)
                         } else {
                           it
                         }
                       }
                     }
-                    else -> {}
+                    else -> {
+                      if (messageState.value.third.second?.receive(message) == true) {
+                        val fin = messageState.value.third.second?.finished()
+                        if (fin != null) {
+                          onMessageReceived(peerHandle, fin)
+                        }
+                      }
+                    }
                   }
                 }
 
                 override fun onMessageSendFailed(messageId: Int) {
                   messageState.update {
-                    if (it.first == messageId && it.third == null) {
-                      it.copy(third = MessageState.MessageSentFailed)
+                    if (it.first == messageId && it.third.first == null) {
+                      it.copy(third = MessageState.MessageSentFailed to null)
                     } else {
                       it
                     }
@@ -463,8 +515,8 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
 
                 override fun onMessageSendSucceeded(messageId: Int) {
                   messageState.update {
-                    if (it.first == messageId && it.third == null) {
-                      it.copy(third = MessageState.MessageSentSucceeded)
+                    if (it.first == messageId && it.third.first == null) {
+                      it.copy(third = MessageState.MessageSentSucceeded to it.third.second)
                     } else {
                       it
                     }
@@ -542,4 +594,38 @@ enum class MessageState {
   MessageSentFailed,
   MessageSentSucceeded,
   MessageReceived,
+}
+
+class PartialCollector(val identifier: Long, var data: Array<ByteArray?>? = null) {
+  fun receive(msg: ByteArray): Boolean {
+    val pb = io.github.potsdam_pnp.initiative_tracker.proto.Message.decodeFromByteArray(msg)
+    if (
+      pb.messageKind != MessageKind.SEND_VERSIONS_PARTIAL ||
+        pb.messageCount == null ||
+        pb.messageIdentifier == null ||
+        pb.partialPayload == null
+    ) {
+      return false
+    }
+    val index = pb.messageIdentifier - identifier
+    if (index < 0 || index >= pb.messageCount) {
+      return false
+    }
+    if (data == null) {
+      data = Array(pb.messageCount.toInt(), { null })
+    }
+    data!![index.toInt()] = msg
+    return true
+  }
+
+  fun finished(): ByteArray? {
+    val d = data ?: return null
+    val totalSize = d.map { (it ?: return null).size }.sum()
+
+    val buffer = ByteBuffer.allocate(totalSize)
+    for (b in d) {
+      buffer.put(b!!)
+    }
+    return buffer.array()
+  }
 }
