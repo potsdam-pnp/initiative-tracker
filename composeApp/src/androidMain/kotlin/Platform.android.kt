@@ -116,16 +116,16 @@ class AndroidPlatform : Platform {
 
   private fun prettyClock(remote: VectorClock, here: VectorClock): String {
     val count = remote.clock.values.sum()
-    val ahead =
+    val behind =
       remote.clock.mapValues { (k, v) ->
         val vv = here.clock[k] ?: -1
-        if (vv >= v) vv - v else 0
-      }
-    val behind =
+        if (v >= vv) v - vv else 0
+      }.values.sum()
+    val ahead =
       here.clock.mapValues { (k, v) ->
         val vv = remote.clock[k] ?: -1
-        if (vv >= v) vv - v else 0
-      }
+        if (v >= vv) v - vv else 0
+      }.values.sum()
     return "$count versions, $ahead ahead, $behind behind"
   }
 
