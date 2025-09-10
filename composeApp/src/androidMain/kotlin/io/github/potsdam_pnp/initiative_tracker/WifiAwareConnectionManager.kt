@@ -403,6 +403,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                     messageKind = MessageKind.REQUEST_VERSIONS_OPTIMIZED,
                     messageIdentifier = msgIdentifier,
                     maxMessageLength = maxMessageSize,
+                    clientIdentifiers = clientIdentifiers,
                     clock =
                       clientIdentifiers.map { v.second.clock[ClientIdentifier(it)]?.toLong() ?: 0 },
                     dots =
