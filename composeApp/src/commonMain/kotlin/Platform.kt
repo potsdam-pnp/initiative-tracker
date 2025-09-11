@@ -25,6 +25,8 @@ data class ServerStatus(
   val joinLinks: List<JoinLink> = emptyList(),
   val connections: Int,
   val discoveredClients: List<ConnectedClient>,
+  val uploading: Boolean,
+  val downloading: Boolean,
 )
 
 val unsupportedPlatform =
@@ -34,6 +36,8 @@ val unsupportedPlatform =
     isSupported = false,
     connections = 0,
     discoveredClients = listOf(),
+    uploading = false,
+    downloading = false,
   )
 
 interface Platform {

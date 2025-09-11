@@ -3,8 +3,12 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.rememberTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -50,11 +54,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PersonAdd
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.materialIcon
 import androidx.compose.material.icons.materialPath
 import androidx.compose.material3.AlertDialog
@@ -715,28 +720,7 @@ fun App(data: String? = null) {
                 overflow = TextOverflow.Ellipsis,
               )
             },
-            actions = {
-              ConnectionState()
-              val serverStatus = getPlatform().serverStatus()
-              val clientStatus by ClientConsumer.clientStatus.collectAsState()
-              val context = getPlatform().getContext()
-              IconButton(
-                enabled =
-                  serverStatus.isRunning && serverStatus.joinLinks.isNotEmpty() ||
-                    !serverStatus.isRunning && clientStatus.status is ClientStatusState.Running,
-                onClick = {
-                  val links =
-                    if (serverStatus.isRunning && serverStatus.joinLinks.isNotEmpty()) {
-                      Pair(serverStatus.joinLinks[0], serverStatus.joinLinks)
-                    } else {
-                      Pair(JoinLink(clientStatus.host), listOf())
-                    }
-                  getPlatform().shareLink(context, links.first, links.second)
-                },
-              ) {
-                Icon(Icons.Default.Share, contentDescription = "Share join link")
-              }
-            },
+            actions = { ConnectionState() },
             navigationIcon = {
               IconButton(onClick = { scope.launch { drawerState.open() } }) {
                 Icon(Icons.Default.Menu, contentDescription = "Menu")
@@ -873,14 +857,45 @@ fun ConnectionState(
 ) {
   val clientStatus by ClientConsumer.clientStatus.collectAsState()
   val serverStatus = getPlatform().serverStatus()
+
+  val infiniteTransition = rememberInfiniteTransition()
+
+  val (uploadAlpha, downloadAlpha) =
+    if (serverStatus.uploading || serverStatus.downloading) {
+      val position by
+        infiniteTransition.animateFloat(
+          initialValue = 0.0f,
+          targetValue = 1.0f,
+          animationSpec = infiniteRepeatable(tween(1000), RepeatMode.Reverse),
+        )
+      Pair(
+        if (serverStatus.uploading) position else 0.0f,
+        if (serverStatus.downloading) position else 0.0f,
+      )
+    } else {
+      Pair(0.0f, 0.0f)
+    }
+
+  Icon(
+    modifier = Modifier.alpha(uploadAlpha).padding(2.dp),
+    imageVector = Icons.Default.CloudUpload,
+    contentDescription = "sync up",
+  )
+  Icon(
+    modifier = Modifier.alpha(downloadAlpha).padding(2.dp),
+    imageVector = Icons.Default.CloudDownload,
+    contentDescription = "sync down",
+  )
   BadgedBox(
     modifier =
-      modifier.then(
-        Modifier.clickable(
-          enabled = getPlatform().connectionStateClickableEnabled(),
-          onClick = getPlatform().connectionStateOnClick(),
-        )
-      ),
+      modifier
+        .padding(2.dp)
+        .then(
+          Modifier.clickable(
+            enabled = getPlatform().connectionStateClickableEnabled(),
+            onClick = getPlatform().connectionStateOnClick(),
+          )
+        ),
     badge = {
       if (serverStatus.isRunning) {
         Badge { Text(serverStatus.connections.toString()) }

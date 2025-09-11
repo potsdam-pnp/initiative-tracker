@@ -24,6 +24,7 @@ import io.github.potsdam_pnp.initiative_tracker.R
 import io.github.potsdam_pnp.initiative_tracker.ServerState
 import io.github.potsdam_pnp.initiative_tracker.WifiAwareAvailableState
 import io.github.potsdam_pnp.initiative_tracker.crdt.ClientIdentifier
+import io.github.potsdam_pnp.initiative_tracker.crdt.CompareResult
 import kotlinx.coroutines.launch
 
 class AndroidPlatform : Platform {
@@ -38,6 +39,21 @@ class AndroidPlatform : Platform {
     val wifiAwareS by
       app.wifiAwareConnectionManager.available(rememberCoroutineScope()).collectAsState()
     val wifiAwareState = "Nearby devices: ${wifiAwareS.name}"
+    val version by app.repository.version.collectAsState()
+
+    var downloading = false
+    var uploading = false
+    wifiAware.peers.values.forEach { vc ->
+      when (version.compare(vc)) {
+        CompareResult.Equal -> {}
+        CompareResult.Greater -> uploading = true
+        CompareResult.Incomparable -> {
+          downloading = true
+          uploading = true
+        }
+        CompareResult.Smaller -> downloading = true
+      }
+    }
 
     return ServerStatus(
       isRunning =
@@ -70,6 +86,8 @@ class AndroidPlatform : Platform {
               errorMsg = null,
             )
           },
+      uploading = uploading,
+      downloading = downloading,
     )
   }
 
