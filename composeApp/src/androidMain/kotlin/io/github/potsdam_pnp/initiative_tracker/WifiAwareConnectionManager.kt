@@ -317,6 +317,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                           maxSize,
                           msg.fromVectorClock,
                           msg.vectorClock,
+                          msg.msgIdentifier,
                         ) {
                           repository.fetchVersion(it)!!
                         }
@@ -378,7 +379,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
       )
     val subscribeConfig = SubscribeConfig.Builder().setServiceName(serviceName).build()
     val messageState =
-      MutableStateFlow<Triple<Int, VectorClock?, MessageState?>>(Triple(0, null, null))
+      MutableStateFlow<Triple<Int, Pair<VectorClock, Int>?, MessageState?>>(Triple(0, null, null))
 
     coroutineScope {
       launch {
@@ -401,7 +402,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
               .random()
           Napier.i("found value to request")
 
-          val msgIdentifier = Random.nextLong()
+          val msgIdentifier = Random.nextInt()
           val clientIdentifiers = value.clock.keys.toList()
           val requestMsg =
             io.github.potsdam_pnp.initiative_tracker.proto.Message(
@@ -414,7 +415,9 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
             )
 
           val (messageNr, _, _) =
-            messageState.updateAndGet { previous -> Triple(previous.first + 1, value, null) }
+            messageState.updateAndGet { previous ->
+              Triple(previous.first + 1, value to msgIdentifier, null)
+            }
           peer.first?.sendMessage(peer.second, messageNr, requestMsg.encodeToByteArray())
           _details.update {
             it.copy(
@@ -438,7 +441,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                   Napier.i("request processed")
                   true
                 }
-                onTimeout(500) {
+                onTimeout(1000) {
                   Napier.i("request timed out")
                   false
                 }
@@ -515,7 +518,9 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                         val vc = it.second
                         if (vc == null) {
                           it
-                        } else if (msg.vectorClock.contains(vc)) {
+                        } else if (
+                          msg.vectorClock.contains(vc.first) || msg.msgIdentifier == vc.second
+                        ) {
                           it.copy(third = MessageState.MessageReceived)
                         } else {
                           it

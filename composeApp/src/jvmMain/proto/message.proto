@@ -47,11 +47,7 @@ message Message {
 
   repeated int32 requestClock = 10;
 
-  // Attributes for partial sends
-  optional bytes partialPayload = 6;
-  optional fixed64 messageIdentifier = 7;
-  optional int64 messageCount = 8;
-
+  optional fixed32 messageIdentifier = 7;
   // the maximum message length the sender supports
   optional int32 maxMessageLength = 9;
 }

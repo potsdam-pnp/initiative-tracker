@@ -12,12 +12,15 @@ sealed class Message<Op> {
   data class RequestVersions<Op>(
     val vectorClock: VectorClock,
     val fromVectorClock: VectorClock,
-    val msgIdentifier: Long? = null,
+    val msgIdentifier: Int? = null,
     val maxMessageSize: Int? = null,
   ) : Message<Op>()
 
-  data class SendVersions<Op>(val vectorClock: VectorClock, val versions: List<Operation<Op>>) :
-    Message<Op>()
+  data class SendVersions<Op>(
+    val vectorClock: VectorClock,
+    val versions: List<Operation<Op>>,
+    val msgIdentifier: Int? = null,
+  ) : Message<Op>()
 
   data class StopConnection<Op>(val unit: Unit) : Message<Op>()
 }

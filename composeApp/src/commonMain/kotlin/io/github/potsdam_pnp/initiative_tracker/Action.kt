@@ -108,9 +108,10 @@ object Encoders {
     maxSize: Int,
     from: VectorClock,
     to: VectorClock,
+    messageIdentifier: Int?,
     fetchVersion: (Dot) -> Operation<Action>,
   ): ByteArray {
-    var size = encodePb(Message.SendVersions(to, listOf())).size + 3
+    var size = encodePb(Message.SendVersions(to, listOf())).size + 8
     val clients = to.clock.keys.toList()
     val values = mutableListOf<Int>()
     var index: Int = 0
@@ -138,6 +139,7 @@ object Encoders {
         clientIdentifiers = clients.map { it.encodeToProto() },
         clock = clients.map { sendVector[it]?.toLong() ?: 0 },
         actions = values,
+        messageIdentifier = messageIdentifier,
       )
       .encodeToByteArray()
   }
@@ -161,7 +163,11 @@ object Encoders {
           maxMessageSize = pb.maxMessageLength,
         )
       MessageKind.SEND_VERSIONS ->
-        Message.SendVersions(asClock(pb.clock), decodeOperations(pb.clientIdentifiers, pb.actions))
+        Message.SendVersions(
+          asClock(pb.clock),
+          decodeOperations(pb.clientIdentifiers, pb.actions),
+          pb.messageIdentifier,
+        )
       MessageKind.STOP_CONNECTION -> Message.StopConnection(Unit)
       MessageKind.SEND_VERSIONS_PARTIAL -> Message.StopConnection(Unit)
       is MessageKind.UNRECOGNIZED -> Message.StopConnection(Unit)
