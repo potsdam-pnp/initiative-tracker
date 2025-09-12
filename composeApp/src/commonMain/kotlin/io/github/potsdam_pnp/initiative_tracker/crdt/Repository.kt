@@ -84,15 +84,14 @@ constructor(
 
   private fun updateState() {
     val p = prefetched.value
-    val v = version.value
-    var commit = v
+    var commit = version.value
     do {
       var hasProgress = false
 
       p.clock.firstNotNullOfOrNull {
-        val nextDot = Dot(it.key, (v.clock[it.key] ?: 0) + 1)
+        val nextDot = Dot(it.key, (commit.clock[it.key] ?: 0) + 1)
         val version = fetchVersion(nextDot) ?: return@firstNotNullOfOrNull null
-        if (v.contains(version.metadata.clockBefore())) {
+        if (commit.contains(version.metadata.clockBefore())) {
           hasProgress = true
           state.apply(version)
           commit = commit.merge(version.metadata.clock)
