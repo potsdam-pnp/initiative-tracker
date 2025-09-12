@@ -1,5 +1,7 @@
 package io.github.potsdam_pnp.initiative_tracker
 
+import androidx.collection.MutableIntList
+import androidx.collection.buildIntList
 import io.github.potsdam_pnp.initiative_tracker.crdt.ClientIdentifier
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
 import io.github.potsdam_pnp.initiative_tracker.crdt.GrowingListItem
@@ -29,6 +31,8 @@ sealed class TurnAction {
   object ResolveConflicts : TurnAction()
 }
 
+expect fun highestOneBit(value: Int): Int
+
 data class Turn(val turnAction: TurnAction, override val predecessor: Dot?) :
   Action(), GrowingListItem<TurnAction> {
   override val item: TurnAction
@@ -50,13 +54,6 @@ data class DeleteCharacter(val id: CharacterId) : Action()
 object ResetAllInitiatives : Action()
 
 object Encoders {
-  private data class Des(
-    val action: ActionType,
-    val characterId: CharacterId? = null,
-    val dot: Dot? = null,
-    val arg: Int? = null,
-  )
-
   private fun convertMessage(msg: Message<Action>): ProtoMessage {
     return when (msg) {
       is Message.CurrentState -> {
@@ -89,72 +86,11 @@ object Encoders {
       }
       is Message.SendVersions -> {
         val clientIdentifiers = msg.vectorClock.clock.keys.toList()
-        val actions =
-          msg.versions.map { version ->
-            val (action, characterId, dot, arg) =
-              when (version.op) {
-                is AddCharacter -> Des(ActionType.ADD_CHARACTER, version.op.id)
-                is ChangeInitiative ->
-                  Des(ActionType.CHANGE_INITIATIVE, version.op.id, arg = version.op.initiative)
-                is ChangeName ->
-                  when (version.op.operation) {
-                    is StringOperation.Delete ->
-                      Des(ActionType.CHANGE_NAME_DELETE, version.op.id, version.op.operation.dot)
-                    is StringOperation.InsertAfter ->
-                      Des(
-                        ActionType.CHANGE_NAME_INSERT_AFTER,
-                        version.op.id,
-                        version.op.operation.after,
-                        version.op.operation.character.code,
-                      )
-                  }
-                is ChangePlayerCharacter ->
-                  if (version.op.playerCharacter)
-                    Des(ActionType.CHANGE_PLAYER_CHARACTER_TO_PLAYER, version.op.id)
-                  else Des(ActionType.CHANGE_PLAYER_CHARACTER_TO_NON_PLAYER, version.op.id)
-                is DeleteCharacter -> Des(ActionType.DELETE_CHARACTER, version.op.id)
-                ResetAllInitiatives -> Des(ActionType.RESET_ALL_INITIATIVE)
-                is Turn ->
-                  when (version.op.turnAction) {
-                    is TurnAction.StartTurn ->
-                      Des(
-                        ActionType.START_TURN,
-                        version.op.turnAction.characterId,
-                        version.op.predecessor,
-                      )
-                    is TurnAction.Delay ->
-                      Des(
-                        ActionType.DELAY,
-                        version.op.turnAction.characterId,
-                        version.op.predecessor,
-                      )
-                    is TurnAction.Die ->
-                      Des(
-                        ActionType.DIE,
-                        version.op.turnAction.characterId,
-                        version.op.predecessor,
-                      )
-                    is TurnAction.FinishTurn ->
-                      Des(
-                        ActionType.FINISH_TURN,
-                        version.op.turnAction.characterId,
-                        version.op.predecessor,
-                      )
-                    TurnAction.ResolveConflicts ->
-                      Des(ActionType.RESOLVE_CONFLICTS, null, version.op.predecessor)
-                  }
-              }
-            OperationAction(
-              clock = clientIdentifiers.map { version.metadata.clock.clock[it]?.toLong() ?: 0 },
-              client = clientIdentifiers.indexOf(version.metadata.client),
-              action = action,
-              characterIdDotClient = characterId?.let { clientIdentifiers.indexOf(it.dot.clientIdentifier) },
-              characterIdDotPosition = characterId?.dot?.position,
-              dotClient = dot?.let { clientIdentifiers.indexOf(it.clientIdentifier) },
-              dotPosition = dot?.position,
-              arg = arg,
-            )
-          }
+
+        val actions = buildList {
+          msg.versions.forEach { encodeOperation(clientIdentifiers, it, this) }
+        }
+
         ProtoMessage(
           messageKind = MessageKind.SEND_VERSIONS,
           clientIdentifiers = clientIdentifiers.map { it.encodeToProto() },
@@ -178,47 +114,6 @@ object Encoders {
           ClientIdentifier.decodeFromProto(value) to clock[index].toInt()
         }
       return VectorClock(result.toMap())
-    }
-    fun decodePbAction(a: OperationAction): Operation<Action> {
-      val metadata =
-        OperationMetadata(
-          asClock(a.clock),
-          ClientIdentifier.decodeFromProto(pb.clientIdentifiers[a.client]),
-        )
-      val id = a.characterIdDotClient?.let { client ->
-        a.characterIdDotPosition?.let { position ->
-          CharacterId(Dot(ClientIdentifier.decodeFromProto(pb.clientIdentifiers[client]), position))
-        }
-      }
-      val dot =
-        when (a.dotClient to a.dotPosition) {
-          Pair(null, null) -> null
-          else -> {
-            Dot(
-              ClientIdentifier.decodeFromProto(pb.clientIdentifiers[a.dotClient ?: 0]),
-              a.dotPosition ?: 0,
-            )
-          }
-        }
-      val op =
-        when (a.action) {
-          ActionType.ADD_CHARACTER -> AddCharacter(id!!)
-          ActionType.CHANGE_INITIATIVE -> ChangeInitiative(id!!, a.arg ?: 0)
-          ActionType.CHANGE_NAME_DELETE -> ChangeName(id!!, StringOperation.Delete(dot ?: TODO()))
-          ActionType.CHANGE_NAME_INSERT_AFTER ->
-            ChangeName(id!!, StringOperation.InsertAfter(Char(a.arg ?: 0), dot))
-          ActionType.CHANGE_PLAYER_CHARACTER_TO_NON_PLAYER -> ChangePlayerCharacter(id!!, false)
-          ActionType.CHANGE_PLAYER_CHARACTER_TO_PLAYER -> ChangePlayerCharacter(id!!, true)
-          ActionType.DELAY -> Turn(TurnAction.Delay(id!!), dot)
-          ActionType.DELETE_CHARACTER -> DeleteCharacter(id!!)
-          ActionType.DIE -> Turn(TurnAction.Die(id!!), dot)
-          ActionType.FINISH_TURN -> Turn(TurnAction.FinishTurn(id!!), dot)
-          ActionType.RESET_ALL_INITIATIVE -> ResetAllInitiatives
-          ActionType.RESOLVE_CONFLICTS -> Turn(TurnAction.ResolveConflicts, dot)
-          ActionType.START_TURN -> Turn(TurnAction.StartTurn(id!!), dot)
-          is ActionType.UNRECOGNIZED -> TODO()
-        }
-      return Operation(metadata, op)
     }
     return when (pb.messageKind) {
       MessageKind.CURRENT_STATE -> Message.CurrentState(asClock(pb.clock))
@@ -252,10 +147,172 @@ object Encoders {
         )
       }
       MessageKind.SEND_VERSIONS ->
-        Message.SendVersions(asClock(pb.clock), pb.actions.map { decodePbAction(it) })
+        Message.SendVersions(asClock(pb.clock), decodeOperations(pb.clientIdentifiers, pb.actions))
       MessageKind.STOP_CONNECTION -> Message.StopConnection(Unit)
       MessageKind.SEND_VERSIONS_PARTIAL -> Message.StopConnection(Unit)
       is MessageKind.UNRECOGNIZED -> Message.StopConnection(Unit)
+    }
+  }
+
+  private fun encodeOperation(clients: List<ClientIdentifier>, op: Operation<Action>, into: MutableList<Int>) {
+    clients.forEach {
+      into.add(op.metadata.clock.clock[it] ?: 0)
+    }
+
+    val shift = highestOneBit(clients.size)
+
+    fun addCombine(client: ClientIdentifier, value: Int) {
+      into.add(clients.indexOf(client) or (value shl shift))
+    }
+
+    fun encodeOperation(index: Int, characterId: CharacterId? = null) {
+      addCombine(op.metadata.client, index)
+      if (characterId != null) {
+        addCombine(characterId.dot.clientIdentifier, characterId.dot.position)
+      }
+    }
+
+    fun encodeTurnNoCharacter(index: Int, predecessor: Dot?) {
+      addCombine(op.metadata.client, index)
+      if (predecessor != null) {
+        addCombine(predecessor.clientIdentifier, predecessor.position)
+      } else {
+        into.add(0)
+      }
+    }
+
+    fun encodeTurn(index: Int, predecessor: Dot?, characterId: CharacterId) {
+      encodeTurnNoCharacter(index, predecessor)
+      addCombine(characterId.dot.clientIdentifier, characterId.dot.position)
+    }
+
+    when (op.op) {
+      is AddCharacter ->
+        encodeOperation(0)
+      is ChangeInitiative -> {
+        encodeOperation(1, op.op.id)
+        into.add(op.op.initiative)
+      }
+      is ChangeName ->
+        when (op.op.operation) {
+          is StringOperation.Delete -> {
+            encodeOperation(2, op.op.id)
+            addCombine(op.op.operation.dot.clientIdentifier, op.op.operation.dot.position)
+          }
+
+          is StringOperation.InsertAfter -> {
+            encodeOperation(3, op.op.id)
+            if (op.op.operation.after != null) {
+              addCombine(op.op.operation.after.clientIdentifier, op.op.operation.after.position)
+            } else {
+              into.add(0)
+            }
+            into.add(op.op.operation.character.code)
+          }
+        }
+      is ChangePlayerCharacter ->
+        encodeOperation(if (op.op.playerCharacter) 4 else 5, op.op.id)
+      is DeleteCharacter ->
+        encodeOperation(6, op.op.id)
+      ResetAllInitiatives ->
+        encodeOperation(7)
+      is Turn ->
+        when (op.op.turnAction) {
+          is TurnAction.Delay -> encodeTurn(8, op.op.predecessor, op.op.turnAction.characterId)
+          is TurnAction.Die -> encodeTurn(9, op.op.predecessor, op.op.turnAction.characterId)
+          is TurnAction.FinishTurn -> encodeTurn(10, op.op.predecessor, op.op.turnAction.characterId)
+          TurnAction.ResolveConflicts -> encodeTurnNoCharacter(11, op.op.predecessor)
+          is TurnAction.StartTurn -> encodeTurn(12, op.op.predecessor, op.op.turnAction.characterId)
+        }
+    }
+  }
+
+  private fun decodeOperations(clients: List<Int>, actions: List<Int>): List<Operation<Action>> {
+    val shift = highestOneBit(clients.size)
+    val lowerBits = (1 shl shift) - 1
+    var index = 0
+
+    fun decodeClock(): VectorClock {
+      return buildMap {
+        clients.forEach {
+          val key = ClientIdentifier.decodeFromProto(it)
+          val value = actions[index]
+          put(key, value)
+          index += 1
+        }
+      }.let { VectorClock(it) }
+    }
+
+    fun decodeCombined(): Pair<ClientIdentifier, Int> {
+      val value = actions[index]
+      index += 1
+      val clientIdentifier = ClientIdentifier.decodeFromProto(clients[value and lowerBits])
+      return Pair(clientIdentifier, value shr shift)
+    }
+
+    fun decodeDot(): Dot? {
+      val (clientIdentifier, position) = decodeCombined()
+      return if (position == 0) {
+        null
+      } else {
+        Dot(clientIdentifier, position)
+      }
+    }
+
+    fun decodeCharacterId(): CharacterId {
+      return CharacterId(decodeDot()!!)
+    }
+
+    fun decodeTurn(turn: (CharacterId) -> TurnAction): Action {
+      val predecessor = decodeDot()
+      val characterId = decodeCharacterId()
+      return Turn(turn(characterId), predecessor)
+    }
+
+    fun decodeTurnNoCharacter(turn: () -> TurnAction): Action {
+      val predecessor = decodeDot()
+      return Turn(turn(), predecessor)
+    }
+
+    return buildList<Operation<Action>> {
+      while (index < actions.size) {
+        val vectorClock = decodeClock()
+        val (client, command) = decodeCombined()
+        val metadata = OperationMetadata(vectorClock, client)
+
+        fun insert(action: Action) {
+          add(Operation(metadata, action))
+        }
+
+        when (command) {
+          0 -> insert(AddCharacter(CharacterId(metadata.toDot())))
+          1 -> {
+            val characterId = decodeCharacterId()
+            insert(ChangeInitiative(characterId, actions[index]))
+            index += 1
+          }
+          2 -> {
+            val characterId = decodeCharacterId()
+            val dot = decodeDot()!!
+            insert(ChangeName(characterId, StringOperation.Delete(dot)))
+          }
+          3 -> {
+            val characterId = decodeCharacterId()
+            val dot = decodeDot()
+            insert(ChangeName(characterId, StringOperation.InsertAfter(actions[index].toChar(), dot)))
+            index += 1
+          }
+          4 -> insert(ChangePlayerCharacter(decodeCharacterId(), true))
+          5 -> insert(ChangePlayerCharacter(decodeCharacterId(), false))
+          6 -> insert(DeleteCharacter(decodeCharacterId()))
+          7 -> insert(ResetAllInitiatives)
+          8 -> insert(decodeTurn { TurnAction.Delay(it) })
+          9 -> insert(decodeTurn { TurnAction.Die(it) })
+          10 -> insert(decodeTurn { TurnAction.FinishTurn(it) })
+          11 -> insert(decodeTurnNoCharacter { TurnAction.ResolveConflicts })
+          12 -> insert(decodeTurn { TurnAction.StartTurn(it) })
+        }
+      }
     }
   }
 }

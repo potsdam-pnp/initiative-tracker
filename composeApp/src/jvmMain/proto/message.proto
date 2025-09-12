@@ -44,7 +44,7 @@ message Message {
   repeated fixed32 clientIdentifiers = 2;
   repeated int64 clock = 3;
   repeated int64 dots = 4; // clientIdentifier index (even indices) and position (odd indices)
-  repeated OperationAction actions = 5;
+  repeated int32 actions = 5;
 
   // Attributes for partial sends
   optional bytes partialPayload = 6;

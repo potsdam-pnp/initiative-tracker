@@ -20,6 +20,7 @@ class JVMPlatform : Platform {
       discoveredClients =
         ((serverState as? ServerState.Running)?.connectedClients ?: mapOf()).map {
           ConnectedClient(
+            name = "Connected client",
             id = it.key,
             state = it.value,
             connectedViaServer = true,
@@ -28,6 +29,8 @@ class JVMPlatform : Platform {
             errorMsg = null,
           )
         },
+      uploading = false,
+      downloading = false,
     )
   }
 }
