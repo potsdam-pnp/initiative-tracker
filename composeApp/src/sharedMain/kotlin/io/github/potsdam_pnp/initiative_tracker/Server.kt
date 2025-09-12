@@ -218,5 +218,5 @@ class Server(private val repository: Repository<Action, State>) {
 }
 
 actual fun highestOneBit(value: Int): Int {
-  return Integer.numberOfTrailingZeros(Integer.highestOneBit(value))
+  return 32 - Integer.numberOfLeadingZeros(value - 1)
 }

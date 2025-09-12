@@ -245,6 +245,7 @@ object Encoders {
   private fun decodeOperations(clients: List<Int>, actions: List<Int>): List<Operation<Action>> {
     val shift = highestOneBit(clients.size)
     val lowerBits = (1 shl shift) - 1
+    check((clients.size - 1) and lowerBits == clients.size - 1)
     var index = 0
 
     fun decodeClock(): VectorClock {
