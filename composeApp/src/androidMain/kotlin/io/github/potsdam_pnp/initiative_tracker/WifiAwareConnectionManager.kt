@@ -74,9 +74,10 @@ data class MessageDetails(
   val messagesSuccessfulSent: Int = 0,
   val messagesFailedSent: Int = 0,
   val messagesReceived: Int = 0,
+  val messagesConstructedSizes: List<Int> = listOf()
 ) {
   fun pretty(name: String): String {
-    return "$name ${if (isActive) "up" else "down"}\n  Constructed: $messagesConstructed  Sent: $messagesSuccessfulSent  Failed: $messagesFailedSent\n  Received: $messagesReceived"
+    return "$name ${if (isActive) "up" else "down"}\n  Constructed: $messagesConstructed  Sent: $messagesSuccessfulSent  Failed: $messagesFailedSent\n  Received: $messagesReceived\n" + "send sizes: ${messagesConstructedSizes}"
   }
 }
 
@@ -326,7 +327,8 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                         it.copy(
                           publish =
                             it.publish.copy(
-                              messagesConstructed = it.publish.messagesConstructed + 1
+                              messagesConstructed = it.publish.messagesConstructed + 1,
+                              messagesConstructedSizes = it.publish.messagesConstructedSizes + listOf(bytes.size)
                             )
                         )
                       }
