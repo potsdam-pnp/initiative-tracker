@@ -921,16 +921,20 @@ fun ConnectionState(
   }
 }
 
-private fun prettyClock(remote: VectorClock, here: VectorClock): String {
+private fun prettyClock(remote: VectorClock, here: VectorClock, prefetched: VectorClock): String {
   val count = remote.clock.values.sum()
-  val behind =
+  val (behind, alreadyPrefetched) =
     remote.clock
       .mapValues { (k, v) ->
         val vv = here.clock[k] ?: 0
-        if (v >= vv) v - vv else 0
+        val pp = prefetched.clock[k] ?: 0
+        val total = if (v >= vv) v - vv else 0
+        val pref = if (v >= pp) v - pp else 0
+        total to (total - pref).coerceAtLeast(0)
       }
       .values
-      .sum()
+      .unzip()
+      .let { (a, b) -> a.sum() to b.sum() }
   val ahead =
     here.clock
       .mapValues { (k, v) ->
@@ -939,13 +943,14 @@ private fun prettyClock(remote: VectorClock, here: VectorClock): String {
       }
       .values
       .sum()
-  return "$count versions, $ahead ahead, $behind behind"
+  return "$count versions (from ${remote.clock.size} clients), $ahead ahead, $behind behind (prefetched: $alreadyPrefetched)"
 }
 
 @Composable
 fun ServerConnectionSettings(m: Model) {
   val serverStatus = getPlatform().serverStatus()
   val vc by m.repository.version.collectAsState()
+  val prefetched by m.repository.prefetched.collectAsState()
 
   ListItem(headlineContent = { Text(serverStatus.message) })
   HorizontalDivider()
@@ -958,7 +963,8 @@ fun ServerConnectionSettings(m: Model) {
         )
       }
 
-    val stateInfo = connectedClient.state?.let { listOf(prettyClock(it, vc)) } ?: listOf()
+    val stateInfo =
+      connectedClient.state?.let { listOf(prettyClock(it, vc, prefetched)) } ?: listOf()
 
     val additional =
       stateInfo +
@@ -1205,7 +1211,10 @@ fun ListActions(innerPadding: PaddingValues, uiState: UiState, actions: Actions)
         WindowInsets.safeDrawing.union(WindowInsets.ime.only(WindowInsetsSides.Bottom))
       ),
   ) {
-    items(uiState.actions.reversed(), key = { it.first }) { item ->
+    items(
+      uiState.actions.reversed(),
+      key = { Pair(it.first.clientIdentifier.encodeToProto(), it.first.position) },
+    ) { item ->
       Row(modifier = Modifier.clickable(onClick = { showModalDialogOfDot = item.first })) {
         Text(
           modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp),

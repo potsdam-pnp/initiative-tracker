@@ -386,7 +386,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
           Napier.i("start subscribe loop")
           val (peer, value, vc) =
             subscribeSession
-              .combine(repository.version) { (session, peers), vc ->
+              .combine(repository.prefetched) { (session, peers), vc ->
                 peers
                   .mapNotNull { (peer, value) ->
                     val ok =
