@@ -59,28 +59,28 @@ class State(
   override fun apply(operation: Operation<Action>): List<Dot> {
     when (val op = operation.op) {
       is AddCharacter -> {
-        withCharacter(CharacterId(op.id)) { this }
+        withCharacter(op.id) { this }
       }
       is ChangeName -> {
-        withCharacter(CharacterId(op.id)) {
+        withCharacter(op.id) {
           name.insert(Operation(operation.metadata, op.operation))
           this
         }
       }
 
       is ChangeInitiative ->
-        withCharacter(CharacterId(op.id)) {
+        withCharacter(op.id) {
           copy(initiative = initiative.insert(op.initiative, operation.metadata))
         }
       is ResetAllInitiatives -> initiativeResets = initiativeResets.merge(operation.metadata.clock)
 
       is ChangePlayerCharacter ->
-        withCharacter(CharacterId(op.id)) {
+        withCharacter(op.id) {
           copy(playerCharacter = playerCharacter.insert(op.playerCharacter, operation.metadata))
         }
 
       is DeleteCharacter ->
-        withCharacter(CharacterId(op.id)) { copy(dead = dead.insert(true, operation.metadata)) }
+        withCharacter(op.id) { copy(dead = dead.insert(true, operation.metadata)) }
 
       is Turn -> {
         turnActions = turnActions.insert(op, operation.metadata)
@@ -193,7 +193,7 @@ class State(
         if (result?.resolvedDead() == true) null
         else {
           UiCharacter(
-            key = it.id,
+            key = it,
             name = result?.name?.toImmutableStringRegister(),
             initiative = result?.resolvedInitiative(initiativeResets),
             playerCharacter = result?.resolvedPlayerCharacter(),
@@ -227,7 +227,7 @@ class State(
   ): UiState =
     UiState(
       characters = predictNextTurns(withCurrent = true, repository),
-      currentlySelectedCharacter = currentTurn(repository)?.id,
+      currentlySelectedCharacter = currentTurn(repository),
       actions =
         turnActions.show {
           val result = repository.fetchVersion(it)!!

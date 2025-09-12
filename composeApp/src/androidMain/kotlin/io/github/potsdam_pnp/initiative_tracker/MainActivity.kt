@@ -93,8 +93,6 @@ class MainActivity : ComponentActivity() {
       val data = intent.data?.fragment
       Napier.i("Received intent with content: $data")
 
-      model.addCharacters(data)
-
       val predefinedServerHost =
         data?.split("&")?.firstOrNull { it.startsWith("server=") }?.substring(7)
       if (predefinedServerHost != null) {

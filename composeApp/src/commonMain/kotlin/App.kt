@@ -360,7 +360,7 @@ fun ListCharacters(
           .windowInsetsPadding(WindowInsets.ime.only(WindowInsetsSides.Bottom))
       },
   ) {
-    items(uiCharacters, key = { it.key }) { character ->
+    items(uiCharacters, key = { characterSlotKey(it.key) }) { character ->
       Box(modifier = Modifier.animateItem()) {
         ShowCharacter(
           character,
@@ -399,8 +399,12 @@ fun ListConflictTurns(
   }
 }
 
+fun characterSlotKey(key: CharacterId, turn: Int = 0): Any {
+  return Triple(key.dot.clientIdentifier.encodeToProto(), key.dot.position, turn)
+}
+
 @Composable
-fun ListTurns(uiCharacters: List<UiCharacter>, active: String?, actions: Actions) {
+fun ListTurns(uiCharacters: List<UiCharacter>, active: CharacterId?, actions: Actions) {
   SubcomposeLayout(modifier = Modifier.clipToBounds()) { constraints ->
     if (uiCharacters.isEmpty()) {
       return@SubcomposeLayout layout(0, 0) {}
@@ -417,7 +421,7 @@ fun ListTurns(uiCharacters: List<UiCharacter>, active: String?, actions: Actions
     while (currentHeight < constraints.maxHeight) {
       val currentCharacter = uiCharacters[currentIndex]
       val currentTurn = currentCharacter.turn + currentAddTurn
-      val slotKey = currentCharacter.key + "-" + currentTurn
+      val slotKey = characterSlotKey(currentCharacter.key, currentTurn)
 
       val alpha =
         if (currentAddTurn <= 0) 1.0f
@@ -507,7 +511,7 @@ fun InitOrder(
   columnScope: ColumnScope,
   uiCharacters: List<UiCharacter>,
   currentlyEditedCharacter: CurrentlyEditedCharacter?,
-  active: String?,
+  active: CharacterId?,
   actions: Actions,
   listState: LazyListState,
   shownView: ShownView,
@@ -1265,22 +1269,22 @@ fun descriptionOfAction(uiState: UiState, action: Triple<Dot, ConflictState, Tur
     when (val a = action.third) {
       is TurnAction.StartTurn -> {
         val name =
-          uiState.characters.find { a.characterId == CharacterId(it.key) }?.name?.asString()
+          uiState.characters.find { a.characterId == it.key }?.name?.asString()
         "$name started turn"
       }
       is TurnAction.Delay -> {
         val name =
-          uiState.characters.find { a.characterId == CharacterId(it.key) }?.name?.asString()
+          uiState.characters.find { a.characterId == it.key }?.name?.asString()
         "$name delayed turn"
       }
       is TurnAction.FinishTurn -> {
         val name =
-          uiState.characters.find { a.characterId == CharacterId(it.key) }?.name?.asString()
+          uiState.characters.find { a.characterId == it.key }?.name?.asString()
         "$name finished turn"
       }
       is TurnAction.Die -> {
         val name =
-          uiState.characters.find { a.characterId == CharacterId(it.key) }?.name?.asString()
+          uiState.characters.find { a.characterId == it.key }?.name?.asString()
         "$name died"
       }
       is TurnAction.ResolveConflicts -> {

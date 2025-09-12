@@ -31,7 +31,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 
 data class UiCharacter(
-  val key: String,
+  val key: CharacterId,
   val name: ImmutableStringRegister? = null,
   val initiative: Int? = null,
   val playerCharacter: Boolean? = null,
@@ -66,11 +66,11 @@ fun TextFieldValue.asEditedCharacterPositions(): EditedCharacterPositions<Int> {
   )
 }
 
-data class CurrentlyEditedCharacter(val key: String, val positions: EditedCharacterPositions<Dot?>)
+data class CurrentlyEditedCharacter(val key: CharacterId, val positions: EditedCharacterPositions<Dot?>)
 
 data class UiState(
   val characters: List<UiCharacter> = listOf(),
-  val currentlySelectedCharacter: String? = null,
+  val currentlySelectedCharacter: CharacterId? = null,
   val actions: List<Triple<Dot, ConflictState, TurnAction>> = listOf(),
   val turnConflicts: Boolean = false,
   val currentlyEditedCharacter: CurrentlyEditedCharacter? = null,
@@ -79,33 +79,33 @@ data class UiState(
 )
 
 interface Actions {
-  fun deleteCharacter(characterKey: String)
+  fun deleteCharacter(characterKey: CharacterId)
 
-  fun editCharacter(characterKey: String, operation: StringOperation): Dot
+  fun editCharacter(characterKey: CharacterId, operation: StringOperation): Dot
 
-  fun editInitiative(characterKey: String, initiative: String)
+  fun editInitiative(characterKey: CharacterId, initiative: String)
 
   fun addCharacter(playerCharacter: Boolean, name: String? = null)
 
-  fun die(characterKey: String)
+  fun die(characterKey: CharacterId)
 
   fun delay()
 
   fun next()
 
-  fun togglePlayerCharacter(characterKey: String, playerCharacter: Boolean)
+  fun togglePlayerCharacter(characterKey: CharacterId, playerCharacter: Boolean)
 
-  fun startTurn(characterKey: String)
+  fun startTurn(characterKey: CharacterId)
 
-  fun finishTurn(characterKey: String)
+  fun finishTurn(characterKey: CharacterId)
 
   fun pickAction(dot: Dot?)
 
   fun restartEncounter()
 
-  fun toggleEditCharacter(key: String)
+  fun toggleEditCharacter(key: CharacterId)
 
-  fun updateName(characterKey: String, name: ImmutableStringRegister?, text: TextFieldValue)
+  fun updateName(characterKey: CharacterId, name: ImmutableStringRegister?, text: TextFieldValue)
 
   fun showView(shownView: ShownView)
 
@@ -132,19 +132,12 @@ private constructor(val repository: Repository<Action, State>, val persist: Pers
 
   @OptIn(ExperimentalStdlibApi::class)
   private val thisDevice = Random.nextInt().toHexString().takeLast(4)
-  private var lastKey: Int = 0
-
-  private fun nextKey(): String {
-    lastKey += 1
-    return "${thisDevice}$lastKey"
-  }
 
   constructor(
     repository: Repository<Action, State>,
     persist: PersistData?,
     data: String?,
   ) : this(repository, persist) {
-    addCharacters(data)
 
     val scope =
       if (getPlatform().name.startsWith("Android")) {
@@ -207,24 +200,6 @@ private constructor(val repository: Repository<Action, State>, val persist: Pers
     }
   }
 
-  fun addCharacters(data: String?) {
-    val characterData = data?.split("&")?.firstOrNull { !it.contains('=') }
-    val characterNames = characterData?.split(",") ?: emptyList()
-    repository.produce(
-      *characterNames
-        .flatMap {
-          val key = it
-          if (!_state.value.characters.any { it.key == key }) {
-            listOf(AddCharacter(key), ChangePlayerCharacter(key, true)) +
-              it.reversed().map { ChangeName(key, StringOperation.InsertAfter(it, null)) }
-          } else {
-            listOf()
-          }
-        }
-        .toTypedArray()
-    )
-  }
-
   fun addTurn(turnAction: TurnAction) {
     val predecessors = repository.state.turnActions.value.map { it.second }
     if (predecessors.size > 1) return
@@ -232,15 +207,15 @@ private constructor(val repository: Repository<Action, State>, val persist: Pers
     repository.produce(Turn(turnAction, predecessor?.toDot()))
   }
 
-  override fun deleteCharacter(characterKey: String) {
+  override fun deleteCharacter(characterKey: CharacterId) {
     repository.produce(DeleteCharacter(characterKey))
   }
 
-  override fun editCharacter(characterKey: String, operation: StringOperation): Dot {
+  override fun editCharacter(characterKey: CharacterId, operation: StringOperation): Dot {
     return repository.produce(ChangeName(characterKey, operation))[0]
   }
 
-  override fun editInitiative(characterKey: String, initiative: String) {
+  override fun editInitiative(characterKey: CharacterId, initiative: String) {
     val initiativeNumber = initiative.toIntOrNull()
     if (initiativeNumber != null) {
       repository.produce(ChangeInitiative(characterKey, initiativeNumber))
@@ -248,8 +223,8 @@ private constructor(val repository: Repository<Action, State>, val persist: Pers
   }
 
   override fun addCharacter(playerCharacter: Boolean, name: String?) {
-    val key = nextKey()
     val versions = { d: (Int) -> Dot ->
+      val key = CharacterId(d(0))
       val result = mutableListOf(AddCharacter(key), ChangePlayerCharacter(key, playerCharacter))
       if (name != null) {
         var dot: Dot? = null
@@ -260,38 +235,39 @@ private constructor(val repository: Repository<Action, State>, val persist: Pers
       }
       result
     }
-    repository.produce(versions)
+    val dots = repository.produce(versions)
+    val key = CharacterId(dots[0])
     toggleEditCharacter(key)
   }
 
-  override fun die(characterKey: String) {
-    addTurn(TurnAction.Die(CharacterId(characterKey)))
+  override fun die(characterKey: CharacterId) {
+    addTurn(TurnAction.Die(characterKey))
   }
 
   override fun delay() {
     val current = _state.value.currentlySelectedCharacter
     if (current != null) {
-      addTurn(TurnAction.Delay(CharacterId(current)))
+      addTurn(TurnAction.Delay(current))
     }
   }
 
   override fun next() {
     val next = repository.state.predictNextTurns(withCurrent = false, repository).firstOrNull()
     if (next != null) {
-      addTurn(TurnAction.StartTurn(CharacterId(next.key)))
+      addTurn(TurnAction.StartTurn(next.key))
     }
   }
 
-  override fun togglePlayerCharacter(characterKey: String, playerCharacter: Boolean) {
+  override fun togglePlayerCharacter(characterKey: CharacterId, playerCharacter: Boolean) {
     repository.produce(ChangePlayerCharacter(characterKey, playerCharacter))
   }
 
-  override fun startTurn(characterKey: String) {
-    addTurn(TurnAction.StartTurn(CharacterId(characterKey)))
+  override fun startTurn(characterKey: CharacterId) {
+    addTurn(TurnAction.StartTurn(characterKey))
   }
 
-  override fun finishTurn(characterKey: String) {
-    addTurn(TurnAction.FinishTurn(CharacterId(characterKey)))
+  override fun finishTurn(characterKey: CharacterId) {
+    addTurn(TurnAction.FinishTurn(characterKey))
   }
 
   override fun pickAction(dot: Dot?) {
@@ -306,12 +282,12 @@ private constructor(val repository: Repository<Action, State>, val persist: Pers
   private val positionLock: Channel<Pair<Dot?, EditedCharacterPositions<Dot?>>> = Channel(1)
 
   override fun updateName(
-    characterKey: String,
+    characterKey: CharacterId,
     name: ImmutableStringRegister?,
     text: TextFieldValue,
   ) {
     if (doNameActionLock.trySend(Unit).isSuccess) {
-      val c = repository.state.characters[CharacterId(characterKey)]
+      val c = repository.state.characters[characterKey]
       if (c == null || c.name.asString() != (name?.asString() ?: "")) {
         doNameActionLock.tryReceive()
         return
@@ -339,7 +315,7 @@ private constructor(val repository: Repository<Action, State>, val persist: Pers
     }
   }
 
-  override fun toggleEditCharacter(key: String) {
+  override fun toggleEditCharacter(key: CharacterId) {
     _state.update {
       if (it.currentlyEditedCharacter?.key == key) {
         it.copy(currentlyEditedCharacter = null)

@@ -22,7 +22,9 @@ message OperationAction {
   repeated uint64 clock = 1;
   uint32 client = 2;
   ActionType action = 3;
-  optional string characterId = 4;
+  //optional string characterId = 4;
+  optional uint32 characterIdDotClient = 8;
+  optional uint32 characterIdDotPosition = 9;
   optional uint32 dotClient = 5;
   optional uint32 dotPosition = 6;
   optional int32 arg = 7; // initiative (ChangeInitiative) or character (ChangeNameInsertAfter)

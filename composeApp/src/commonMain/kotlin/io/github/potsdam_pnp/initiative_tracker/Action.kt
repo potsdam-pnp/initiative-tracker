@@ -35,24 +35,24 @@ data class Turn(val turnAction: TurnAction, override val predecessor: Dot?) :
     get() = turnAction
 }
 
-data class CharacterId(val id: String)
+data class CharacterId(val dot: Dot)
 
-data class AddCharacter(val id: String) : Action()
+data class AddCharacter(val id: CharacterId) : Action()
 
-data class ChangeName(val id: String, val operation: StringOperation) : Action()
+data class ChangeName(val id: CharacterId, val operation: StringOperation) : Action()
 
-data class ChangeInitiative(val id: String, val initiative: Int) : Action()
+data class ChangeInitiative(val id: CharacterId, val initiative: Int) : Action()
 
-data class ChangePlayerCharacter(val id: String, val playerCharacter: Boolean) : Action()
+data class ChangePlayerCharacter(val id: CharacterId, val playerCharacter: Boolean) : Action()
 
-data class DeleteCharacter(val id: String) : Action()
+data class DeleteCharacter(val id: CharacterId) : Action()
 
 object ResetAllInitiatives : Action()
 
 object Encoders {
   private data class Des(
     val action: ActionType,
-    val characterId: String? = null,
+    val characterId: CharacterId? = null,
     val dot: Dot? = null,
     val arg: Int? = null,
   )
@@ -119,25 +119,25 @@ object Encoders {
                     is TurnAction.StartTurn ->
                       Des(
                         ActionType.START_TURN,
-                        version.op.turnAction.characterId.id,
+                        version.op.turnAction.characterId,
                         version.op.predecessor,
                       )
                     is TurnAction.Delay ->
                       Des(
                         ActionType.DELAY,
-                        version.op.turnAction.characterId.id,
+                        version.op.turnAction.characterId,
                         version.op.predecessor,
                       )
                     is TurnAction.Die ->
                       Des(
                         ActionType.DIE,
-                        version.op.turnAction.characterId.id,
+                        version.op.turnAction.characterId,
                         version.op.predecessor,
                       )
                     is TurnAction.FinishTurn ->
                       Des(
                         ActionType.FINISH_TURN,
-                        version.op.turnAction.characterId.id,
+                        version.op.turnAction.characterId,
                         version.op.predecessor,
                       )
                     TurnAction.ResolveConflicts ->
@@ -148,7 +148,8 @@ object Encoders {
               clock = clientIdentifiers.map { version.metadata.clock.clock[it]?.toLong() ?: 0 },
               client = clientIdentifiers.indexOf(version.metadata.client),
               action = action,
-              characterId = characterId,
+              characterIdDotClient = characterId?.let { clientIdentifiers.indexOf(it.dot.clientIdentifier) },
+              characterIdDotPosition = characterId?.dot?.position,
               dotClient = dot?.let { clientIdentifiers.indexOf(it.clientIdentifier) },
               dotPosition = dot?.position,
               arg = arg,
@@ -184,7 +185,11 @@ object Encoders {
           asClock(a.clock),
           ClientIdentifier.decodeFromProto(pb.clientIdentifiers[a.client]),
         )
-      val id = a.characterId ?: ""
+      val id = a.characterIdDotClient?.let { client ->
+        a.characterIdDotPosition?.let { position ->
+          CharacterId(Dot(ClientIdentifier.decodeFromProto(pb.clientIdentifiers[client]), position))
+        }
+      }
       val dot =
         when (a.dotClient to a.dotPosition) {
           Pair(null, null) -> null
@@ -197,20 +202,20 @@ object Encoders {
         }
       val op =
         when (a.action) {
-          ActionType.ADD_CHARACTER -> AddCharacter(id)
-          ActionType.CHANGE_INITIATIVE -> ChangeInitiative(id, a.arg ?: 0)
-          ActionType.CHANGE_NAME_DELETE -> ChangeName(id, StringOperation.Delete(dot ?: TODO()))
+          ActionType.ADD_CHARACTER -> AddCharacter(id!!)
+          ActionType.CHANGE_INITIATIVE -> ChangeInitiative(id!!, a.arg ?: 0)
+          ActionType.CHANGE_NAME_DELETE -> ChangeName(id!!, StringOperation.Delete(dot ?: TODO()))
           ActionType.CHANGE_NAME_INSERT_AFTER ->
-            ChangeName(id, StringOperation.InsertAfter(Char(a.arg ?: 0), dot))
-          ActionType.CHANGE_PLAYER_CHARACTER_TO_NON_PLAYER -> ChangePlayerCharacter(id, false)
-          ActionType.CHANGE_PLAYER_CHARACTER_TO_PLAYER -> ChangePlayerCharacter(id, true)
-          ActionType.DELAY -> Turn(TurnAction.Delay(CharacterId(id)), dot)
-          ActionType.DELETE_CHARACTER -> DeleteCharacter(id)
-          ActionType.DIE -> Turn(TurnAction.Die(CharacterId(id)), dot)
-          ActionType.FINISH_TURN -> Turn(TurnAction.FinishTurn(CharacterId(id)), dot)
+            ChangeName(id!!, StringOperation.InsertAfter(Char(a.arg ?: 0), dot))
+          ActionType.CHANGE_PLAYER_CHARACTER_TO_NON_PLAYER -> ChangePlayerCharacter(id!!, false)
+          ActionType.CHANGE_PLAYER_CHARACTER_TO_PLAYER -> ChangePlayerCharacter(id!!, true)
+          ActionType.DELAY -> Turn(TurnAction.Delay(id!!), dot)
+          ActionType.DELETE_CHARACTER -> DeleteCharacter(id!!)
+          ActionType.DIE -> Turn(TurnAction.Die(id!!), dot)
+          ActionType.FINISH_TURN -> Turn(TurnAction.FinishTurn(id!!), dot)
           ActionType.RESET_ALL_INITIATIVE -> ResetAllInitiatives
           ActionType.RESOLVE_CONFLICTS -> Turn(TurnAction.ResolveConflicts, dot)
-          ActionType.START_TURN -> Turn(TurnAction.StartTurn(CharacterId(id)), dot)
+          ActionType.START_TURN -> Turn(TurnAction.StartTurn(id!!), dot)
           is ActionType.UNRECOGNIZED -> TODO()
         }
       return Operation(metadata, op)
