@@ -3,7 +3,6 @@ package io.github.potsdam_pnp.initiative_tracker
 import ShownView
 import UiCharacter
 import UiState
-import initiative_tracker.composeapp.generated.resources.Res
 import io.github.potsdam_pnp.initiative_tracker.crdt.AbstractState
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
 import io.github.potsdam_pnp.initiative_tracker.crdt.Operation
@@ -46,11 +45,11 @@ data class Character(
     }
 }
 
-
-class StringOperationLookup private constructor (val inside: MutableMap<Dot, Value>) {
+class StringOperationLookup private constructor(val inside: MutableMap<Dot, Value>) {
   sealed class Value {
-    class Processed(val characterId: CharacterId): Value()
-    class Unprocessed(val dependencies: MutableList<Operation<StringOperation>>): Value()
+    class Processed(val characterId: CharacterId) : Value()
+
+    class Unprocessed(val dependencies: MutableList<Operation<StringOperation>>) : Value()
   }
 
   constructor() : this(mutableMapOf()) {}
@@ -59,31 +58,33 @@ class StringOperationLookup private constructor (val inside: MutableMap<Dot, Val
     inside[dot] = Value.Processed(CharacterId(dot))
   }
 
-  fun insert(value: Operation<StringOperation>, doProcess: (CharacterId, Operation<StringOperation>) -> Unit) {
+  fun insert(
+    value: Operation<StringOperation>,
+    doProcess: (CharacterId, Operation<StringOperation>) -> Unit,
+  ) {
     val dot = value.op.after
-    val v = inside.getOrPut(dot) {
-      Value.Unprocessed(mutableListOf())
-    }
+    val v = inside.getOrPut(dot) { Value.Unprocessed(mutableListOf()) }
     when (v) {
       is Value.Unprocessed -> {
         v.dependencies.add(value)
       }
       is Value.Processed -> {
-        return process(v.characterId, value) {
-          doProcess(v.characterId, it)
-        }
+        return process(v.characterId, value) { doProcess(v.characterId, it) }
       }
     }
   }
 
-  private fun process(characterId: CharacterId, value: Operation<StringOperation>, doProcess: (Operation<StringOperation>) -> Unit) {
+  private fun process(
+    characterId: CharacterId,
+    value: Operation<StringOperation>,
+    doProcess: (Operation<StringOperation>) -> Unit,
+  ) {
     val toProcess = mutableListOf(value)
 
     while (toProcess.isNotEmpty()) {
       val next = toProcess.removeLast()
       when (val v = inside[next.dot]) {
-        is Value.Unprocessed ->
-          toProcess.addAll(v.dependencies)
+        is Value.Unprocessed -> toProcess.addAll(v.dependencies)
         null -> {}
         is Value.Processed -> throw IllegalStateException()
       }
@@ -97,12 +98,15 @@ class State(
   val characters: MutableMap<CharacterId, Character> = mutableMapOf(),
   var turnActions: Register<Turn> = Register.empty(),
   var initiativeResets: VectorClock = VectorClock.empty(),
-  val stringOperationsLookup: StringOperationLookup = StringOperationLookup()
+  val stringOperationsLookup: StringOperationLookup = StringOperationLookup(),
 ) : AbstractState<Action>() {
   private fun withCharacter(id: CharacterId, op: Character.() -> Character) {
     characters[id] =
-        characters
-        .getOrPut(id) { Character(id, StringRegister.empty(id.dot), Register.empty(), Register.empty()) }.op()
+      characters
+        .getOrPut(id) {
+          Character(id, StringRegister.empty(id.dot), Register.empty(), Register.empty())
+        }
+        .op()
   }
 
   override fun apply(operation: Operation<Action>): List<Dot> {
@@ -112,12 +116,8 @@ class State(
         stringOperationsLookup.insertCharacter(operation.dot)
       }
       is ChangeName -> {
-        stringOperationsLookup.insert(
-          Operation(
-            operation.metadata,
-            op.operation
-          )
-        ) { characterId, o ->
+        stringOperationsLookup.insert(Operation(operation.metadata, op.operation)) { characterId, o
+          ->
           withCharacter(characterId) {
             name.insert(o)
             this

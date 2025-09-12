@@ -8,7 +8,8 @@ sealed class StringOperation {
   data class InsertAfter(val character: Char, override val after: Dot) : StringOperation()
 
   data class Delete(val dot: Dot) : StringOperation() {
-    override val after get() = dot
+    override val after
+      get() = dot
   }
 }
 
@@ -41,7 +42,8 @@ class StringRegister(val originalDot: Dot) : Iterable<Operation<Char>> {
   val state: MutableMap<Dot, CharacterStringState> = mutableMapOf()
 
   override fun iterator(): Iterator<Operation<Char>> {
-    val position = state[originalDot]?.successors?.iterator()?.let { listOf(it) }.orEmpty().toMutableList()
+    val position =
+      state[originalDot]?.successors?.iterator()?.let { listOf(it) }.orEmpty().toMutableList()
 
     return object : Iterator<Operation<Char>> {
       var _next: Operation<Char>? = null
@@ -120,7 +122,10 @@ class StringRegister(val originalDot: Dot) : Iterable<Operation<Char>> {
   }
 }
 
-data class ImmutableStringRegister(private val original: Dot, private val copied: List<Operation<Char>>) {
+data class ImmutableStringRegister(
+  private val original: Dot,
+  private val copied: List<Operation<Char>>,
+) {
   fun asString(): String = copied.joinToString("") { it.op.toString() }
 
   fun positionIndex(index: Int): Dot {

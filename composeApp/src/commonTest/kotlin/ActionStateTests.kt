@@ -89,7 +89,6 @@ class ActionStateTests {
     assertEquals(listOf(character), predicted.map { it.key })
   }
 
-
   @Test
   fun checkDecode() {
     val client1 = ClientIdentifier.new()
@@ -98,18 +97,19 @@ class ActionStateTests {
 
     val actions: List<Operation<Action>> =
       listOf(
-        AddCharacter(characterId),
-        ChangePlayerCharacter(characterId, true),
-        Turn(TurnAction.StartTurn(characterId), null),
-        Turn(TurnAction.ResolveConflicts, Dot(client1, 2)),
-      ).mapIndexed { index, action -> Operation(OperationMetadata(VectorClock(mapOf(client1 to (index + 1))), client1), action) }
+          AddCharacter(characterId),
+          ChangePlayerCharacter(characterId, true),
+          Turn(TurnAction.StartTurn(characterId), null),
+          Turn(TurnAction.ResolveConflicts, Dot(client1, 2)),
+        )
+        .mapIndexed { index, action ->
+          Operation(OperationMetadata(VectorClock(mapOf(client1 to (index + 1))), client1), action)
+        }
 
     val sendVersions = Message.SendVersions(clock, actions)
     assertEquals(Encoders.decodePb(Encoders.encodePb(sendVersions)), sendVersions)
   }
-
 }
-
 
 /*
 class DecodeEncodeTests :

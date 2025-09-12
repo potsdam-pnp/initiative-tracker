@@ -1,20 +1,15 @@
 package io.github.potsdam_pnp.initiative_tracker
 
-import androidx.collection.MutableIntList
-import androidx.collection.buildIntList
 import io.github.potsdam_pnp.initiative_tracker.crdt.ClientIdentifier
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
 import io.github.potsdam_pnp.initiative_tracker.crdt.GrowingListItem
 import io.github.potsdam_pnp.initiative_tracker.crdt.Message
 import io.github.potsdam_pnp.initiative_tracker.crdt.Operation
 import io.github.potsdam_pnp.initiative_tracker.crdt.OperationMetadata
-import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.crdt.StringOperation
 import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
-import io.github.potsdam_pnp.initiative_tracker.proto.ActionType
 import io.github.potsdam_pnp.initiative_tracker.proto.Message as ProtoMessage
 import io.github.potsdam_pnp.initiative_tracker.proto.MessageKind
-import io.github.potsdam_pnp.initiative_tracker.proto.OperationAction
 import pbandk.decodeFromByteArray
 import pbandk.encodeToByteArray
 
@@ -72,15 +67,7 @@ object Encoders {
           messageKind = MessageKind.REQUEST_VERSIONS,
           clientIdentifiers = clientIdentifiers.map { it.encodeToProto() },
           clock = clientIdentifiers.map { msg.vectorClock.clock[it]?.toLong() ?: 0 },
-          dots =
-            msg.dots
-              .flatMap {
-                listOf(
-                  clientIdentifiers.indexOf(it.clientIdentifier).toLong(),
-                  it.position.toLong(),
-                )
-              }
-              .toList(),
+          requestClock = clientIdentifiers.map { msg.fromVectorClock.clock[it] ?: 0 },
           messageIdentifier = msg.msgIdentifier,
           maxMessageLength = msg.maxMessageSize,
         )
@@ -107,6 +94,54 @@ object Encoders {
     return convertMessage(msg).encodeToByteArray()
   }
 
+  private fun calculateSize(i: Int): Int {
+    var result = 1
+    var ii = i
+    while (ii >= 64) {
+      ii /= 64
+      result += 1
+    }
+    return result
+  }
+
+  fun encodeSendVersionsMaxSize(
+    maxSize: Int,
+    from: VectorClock,
+    to: VectorClock,
+    fetchVersion: (Dot) -> Operation<Action>,
+  ): ByteArray {
+    var size = encodePb(Message.SendVersions(to, listOf())).size + 3
+    val clients = to.clock.keys.toList()
+    val values = mutableListOf<Int>()
+    var index: Int = 0
+    var dot: Dot? = null
+
+    val sendVector = from.clock.toMutableMap()
+    val iterator = to.dotsNotIn(from)
+
+    while (size < maxSize && iterator.hasNext()) {
+      dot?.also { sendVector[it.clientIdentifier] = it.position }
+      index = values.size
+      dot = iterator.next()
+      val op = fetchVersion(dot)
+      encodeOperation(clients, op, values)
+      (index until values.size).forEach { size += calculateSize(values[it]) }
+    }
+    if (size >= maxSize) {
+      values.dropLast(values.size - index)
+    } else {
+      dot?.also { sendVector[it.clientIdentifier] = it.position }
+    }
+
+    return ProtoMessage(
+        messageKind = MessageKind.SEND_VERSIONS,
+        clientIdentifiers = clients.map { it.encodeToProto() },
+        clock = clients.map { sendVector[it]?.toLong() ?: 0 },
+        actions = values,
+      )
+      .encodeToByteArray()
+  }
+
   fun decodePb(msg: ByteArray): Message<Action> {
     val pb = ProtoMessage.decodeFromByteArray(msg)
     fun asClock(clock: List<Long>): VectorClock {
@@ -121,32 +156,10 @@ object Encoders {
       MessageKind.REQUEST_VERSIONS ->
         Message.RequestVersions(
           asClock(pb.clock),
-          pb.dots.chunked(2) {
-            Dot(
-              ClientIdentifier.decodeFromProto(pb.clientIdentifiers[it[0].toInt()]),
-              it[1].toInt(),
-            )
-          },
+          asClock(pb.requestClock.map { it.toLong() }),
           msgIdentifier = pb.messageIdentifier,
           maxMessageSize = pb.maxMessageLength,
         )
-      MessageKind.REQUEST_VERSIONS_OPTIMIZED -> {
-        val clock = asClock(pb.clock)
-        val dots =
-          pb.dots.chunked(2) {
-            val clientIdentifier =
-              ClientIdentifier.decodeFromProto(pb.clientIdentifiers[it[0].toInt()])
-            val position = it[1].toInt()
-            val clockPosition = clock.clock[clientIdentifier] ?: 0
-            (position until (clockPosition + 1)).map { Dot(clientIdentifier, it) }
-          }
-        Message.RequestVersions(
-          clock,
-          dots.flatten(),
-          msgIdentifier = pb.messageIdentifier,
-          maxMessageSize = pb.maxMessageLength,
-        )
-      }
       MessageKind.SEND_VERSIONS ->
         Message.SendVersions(asClock(pb.clock), decodeOperations(pb.clientIdentifiers, pb.actions))
       MessageKind.STOP_CONNECTION -> Message.StopConnection(Unit)
@@ -155,10 +168,12 @@ object Encoders {
     }
   }
 
-  private fun encodeOperation(clients: List<ClientIdentifier>, op: Operation<Action>, into: MutableList<Int>) {
-    clients.forEach {
-      into.add(op.metadata.clock.clock[it] ?: 0)
-    }
+  private fun encodeOperation(
+    clients: List<ClientIdentifier>,
+    op: Operation<Action>,
+    into: MutableList<Int>,
+  ) {
+    clients.forEach { into.add(op.metadata.clock.clock[it] ?: 0) }
 
     val shift = highestOneBit(clients.size)
 
@@ -188,8 +203,7 @@ object Encoders {
     }
 
     when (op.op) {
-      is AddCharacter ->
-        encodeOperation(0)
+      is AddCharacter -> encodeOperation(0)
       is ChangeInitiative -> {
         encodeOperation(1, op.op.id)
         into.add(op.op.initiative)
@@ -207,17 +221,15 @@ object Encoders {
             into.add(op.op.operation.character.code)
           }
         }
-      is ChangePlayerCharacter ->
-        encodeOperation(if (op.op.playerCharacter) 4 else 5, op.op.id)
-      is DeleteCharacter ->
-        encodeOperation(6, op.op.id)
-      ResetAllInitiatives ->
-        encodeOperation(7)
+      is ChangePlayerCharacter -> encodeOperation(if (op.op.playerCharacter) 4 else 5, op.op.id)
+      is DeleteCharacter -> encodeOperation(6, op.op.id)
+      ResetAllInitiatives -> encodeOperation(7)
       is Turn ->
         when (op.op.turnAction) {
           is TurnAction.Delay -> encodeTurn(8, op.op.predecessor, op.op.turnAction.characterId)
           is TurnAction.Die -> encodeTurn(9, op.op.predecessor, op.op.turnAction.characterId)
-          is TurnAction.FinishTurn -> encodeTurn(10, op.op.predecessor, op.op.turnAction.characterId)
+          is TurnAction.FinishTurn ->
+            encodeTurn(10, op.op.predecessor, op.op.turnAction.characterId)
           TurnAction.ResolveConflicts -> encodeTurnNoCharacter(11, op.op.predecessor)
           is TurnAction.StartTurn -> encodeTurn(12, op.op.predecessor, op.op.turnAction.characterId)
         }
@@ -231,13 +243,14 @@ object Encoders {
 
     fun decodeClock(): VectorClock {
       return buildMap {
-        clients.forEach {
-          val key = ClientIdentifier.decodeFromProto(it)
-          val value = actions[index]
-          put(key, value)
-          index += 1
+          clients.forEach {
+            val key = ClientIdentifier.decodeFromProto(it)
+            val value = actions[index]
+            put(key, value)
+            index += 1
+          }
         }
-      }.let { VectorClock(it) }
+        .let { VectorClock(it) }
     }
 
     fun decodeCombined(): Pair<ClientIdentifier, Int> {

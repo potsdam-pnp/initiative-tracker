@@ -11,7 +11,7 @@ sealed class Message<Op> {
 
   data class RequestVersions<Op>(
     val vectorClock: VectorClock,
-    val dots: List<Dot>,
+    val fromVectorClock: VectorClock,
     val msgIdentifier: Long? = null,
     val maxMessageSize: Int? = null,
   ) : Message<Op>()
@@ -46,15 +46,11 @@ class MessageHandler<Op, State : AbstractState<Op>>(private val repository: Repo
   private fun handleMessage(message: Message<Op>): Message<Op>? {
     when (message) {
       is Message.CurrentState -> {
-        when (repository.insert(message.vectorClock, listOf())) {
-          is InsertResult.MissingVersions -> {
-            return Message.RequestVersions(
-              message.vectorClock,
-              (repository.insert(message.vectorClock, listOf()) as InsertResult.MissingVersions)
-                .missingDots,
-            )
-          }
-          is InsertResult.Success -> return null
+        val vc = repository.version.value
+        if (!vc.contains(message.vectorClock)) {
+          return Message.RequestVersions(message.vectorClock, vc)
+        } else {
+          return null
         }
       }
 
@@ -65,7 +61,10 @@ class MessageHandler<Op, State : AbstractState<Op>>(private val repository: Repo
       }
 
       is Message.RequestVersions -> {
-        val versions = message.dots.mapNotNull { repository.fetchVersion(it) }
+        val versions =
+          message.vectorClock.versionsNotIn(message.fromVectorClock).mapNotNull {
+            repository.fetchVersion(it)
+          }
         return Message.SendVersions(message.vectorClock, versions)
       }
 

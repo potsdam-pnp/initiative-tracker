@@ -1268,23 +1268,19 @@ fun descriptionOfAction(uiState: UiState, action: Triple<Dot, ConflictState, Tur
   val result =
     when (val a = action.third) {
       is TurnAction.StartTurn -> {
-        val name =
-          uiState.characters.find { a.characterId == it.key }?.name?.asString()
+        val name = uiState.characters.find { a.characterId == it.key }?.name?.asString()
         "$name started turn"
       }
       is TurnAction.Delay -> {
-        val name =
-          uiState.characters.find { a.characterId == it.key }?.name?.asString()
+        val name = uiState.characters.find { a.characterId == it.key }?.name?.asString()
         "$name delayed turn"
       }
       is TurnAction.FinishTurn -> {
-        val name =
-          uiState.characters.find { a.characterId == it.key }?.name?.asString()
+        val name = uiState.characters.find { a.characterId == it.key }?.name?.asString()
         "$name finished turn"
       }
       is TurnAction.Die -> {
-        val name =
-          uiState.characters.find { a.characterId == it.key }?.name?.asString()
+        val name = uiState.characters.find { a.characterId == it.key }?.name?.asString()
         "$name died"
       }
       is TurnAction.ResolveConflicts -> {

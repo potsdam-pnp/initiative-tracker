@@ -36,7 +36,6 @@ enum MessageKind {
   RequestVersions = 2;
   SendVersions = 3;
   SendVersionsPartial = 4;
-  RequestVersionsOptimized = 5;
 }
 
 message Message {
@@ -45,6 +44,8 @@ message Message {
   repeated int64 clock = 3;
   repeated int64 dots = 4; // clientIdentifier index (even indices) and position (odd indices)
   repeated int32 actions = 5;
+
+  repeated int32 requestClock = 10;
 
   // Attributes for partial sends
   optional bytes partialPayload = 6;

@@ -23,12 +23,10 @@ import io.github.aakira.napier.Napier
 import io.github.potsdam_pnp.initiative_tracker.crdt.ClientIdentifier
 import io.github.potsdam_pnp.initiative_tracker.crdt.CompareResult
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
-import io.github.potsdam_pnp.initiative_tracker.crdt.InsertResult
 import io.github.potsdam_pnp.initiative_tracker.crdt.Message
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 import io.github.potsdam_pnp.initiative_tracker.proto.MessageKind
-import java.nio.ByteBuffer
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import kotlin.random.Random
@@ -54,8 +52,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.suspendCancellableCoroutine
-import pbandk.ByteArr
-import pbandk.decodeFromByteArray
 import pbandk.encodeToByteArray
 
 enum class WifiAwareAvailableState {
@@ -315,50 +311,27 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                   }
                   when (val msg = Encoders.decodePb(message)) {
                     is Message.RequestVersions -> {
-                      val versions = msg.dots.mapNotNull { repository.fetchVersion(it) }
-                      val bytes = Encoders.encodePb(Message.SendVersions(msg.vectorClock, versions))
+                      val versions =
+                        msg.vectorClock.dotsNotIn(msg.fromVectorClock).asSequence().mapNotNull {
+                          repository.fetchVersion(it)
+                        }
                       val maxSize = (maxMessageSize ?: 128).coerceAtMost(msg.maxMessageSize ?: 128)
-                      if (bytes.size < maxSize) {
-                        publishSession.value.first?.sendMessage(peerHandle, 0, bytes)
-                        _details.update {
-                          it.copy(
-                            publish =
-                              it.publish.copy(
-                                messagesConstructed = it.publish.messagesConstructed + 1
-                              )
-                          )
+                      val bytes =
+                        Encoders.encodeSendVersionsMaxSize(
+                          maxSize,
+                          msg.fromVectorClock,
+                          msg.vectorClock,
+                        ) {
+                          repository.fetchVersion(it)!!
                         }
-                      } else {
-                        val splitSize = maxSize - 32
-                        val messageCount =
-                          bytes.size / splitSize + if (bytes.size % splitSize > 0) 1 else 0
-
-                        (0 until messageCount)
-                          .map { index ->
-                            io.github.potsdam_pnp.initiative_tracker.proto
-                              .Message(
-                                messageKind = MessageKind.SEND_VERSIONS_PARTIAL,
-                                messageIdentifier = (msg.msgIdentifier ?: 0) + index,
-                                messageCount = messageCount.toLong(),
-                                partialPayload =
-                                  ByteArr(
-                                    bytes.copyOfRange(
-                                      index * splitSize,
-                                      ((index + 1) * splitSize).coerceAtMost(bytes.size),
-                                    )
-                                  ),
-                              )
-                              .encodeToByteArray()
-                          }
-                          .forEach { publishSession.value.first?.sendMessage(peerHandle, 0, it) }
-                        _details.update {
-                          it.copy(
-                            publish =
-                              it.publish.copy(
-                                messagesConstructed = it.publish.messagesConstructed + 1
-                              )
-                          )
-                        }
+                      publishSession.value.first?.sendMessage(peerHandle, 0, bytes)
+                      _details.update {
+                        it.copy(
+                          publish =
+                            it.publish.copy(
+                              messagesConstructed = it.publish.messagesConstructed + 1
+                            )
+                        )
                       }
                     }
                     else -> {}
@@ -409,9 +382,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
       )
     val subscribeConfig = SubscribeConfig.Builder().setServiceName(serviceName).build()
     val messageState =
-      MutableStateFlow<Triple<Int, VectorClock?, Pair<MessageState?, PartialCollector?>>>(
-        Triple(0, null, null to null)
-      )
+      MutableStateFlow<Triple<Int, VectorClock?, MessageState?>>(Triple(0, null, null))
 
     coroutineScope {
       launch {
@@ -426,82 +397,49 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
               if (!ok) null else (peer to value)
             }
           if (v != null) {
-            when (val r = repository.insert(v.second, listOf())) {
-              is InsertResult.MissingVersions -> {
-                Napier.i("about to request ${r.missingDots.size} versions")
-                val msgIdentifier = Random.nextLong()
-                val dotsMap = mutableMapOf<ClientIdentifier, Int>()
-                r.missingDots.forEach { dot ->
-                  dotsMap.merge(dot.clientIdentifier, dot.position, { x, y -> x.coerceAtMost(y) })
-                }
-                val clientIdentifiers = v.second.clock.keys.toList()
-                val requestMsg =
-                  io.github.potsdam_pnp.initiative_tracker.proto.Message(
-                    messageKind = MessageKind.REQUEST_VERSIONS_OPTIMIZED,
-                    messageIdentifier = msgIdentifier,
-                    maxMessageLength = maxMessageSize,
-                    clientIdentifiers = clientIdentifiers.map { it.encodeToProto() },
-                    clock = clientIdentifiers.map { v.second.clock[it]?.toLong() ?: 0 },
-                    dots =
-                      dotsMap
-                        .flatMap {
-                          listOf(clientIdentifiers.indexOf(it.key).toLong(), it.value.toLong())
-                        }
-                        .toList(),
-                  )
-                val (messageNr, _, _) =
-                  messageState.updateAndGet { previous ->
-                    Triple(previous.first + 1, v.second, null to PartialCollector(msgIdentifier))
-                  }
-                session?.sendMessage(v.first, messageNr, requestMsg.encodeToByteArray())
-                _details.update {
-                  it.copy(
-                    subscribe =
-                      it.subscribe.copy(messagesConstructed = it.subscribe.messagesConstructed + 1)
-                  )
-                }
-                Napier.i("sent message")
-                when (messageState.first { it.third.first != null }.third.first) {
-                  MessageState.MessageSentFailed -> {}
-                  MessageState.MessageReceived -> {}
-                  MessageState.MessageSentSucceeded -> {
-                    Napier.i("message sent succeeded")
+            if (!vc.contains(v.second)) {
+              val msgIdentifier = Random.nextLong()
+              val clientIdentifiers = v.second.clock.keys.toList()
+              val requestMsg =
+                io.github.potsdam_pnp.initiative_tracker.proto.Message(
+                  messageKind = MessageKind.REQUEST_VERSIONS,
+                  messageIdentifier = msgIdentifier,
+                  maxMessageLength = maxMessageSize,
+                  clientIdentifiers = clientIdentifiers.map { it.encodeToProto() },
+                  clock = clientIdentifiers.map { v.second.clock[it]?.toLong() ?: 0 },
+                  requestClock = clientIdentifiers.map { vc.clock[it] ?: 0 },
+                )
 
-                    suspend fun waitSucceed(receivedMessagesSoFar: Int) {
-                      val nextValue = async {
-                        messageState.first {
-                          it.third.first == MessageState.MessageReceived ||
-                            (it.third.second?.data?.filterNotNull()?.size ?: 0) >
-                              receivedMessagesSoFar
-                        }
-                      }
-
-                      val selected =
-                        select<Pair<Boolean, Int>?> {
-                          nextValue.onAwait {
-                            val nr = it.third.second?.data?.filterNotNull()?.size ?: 0
-                            val received = it.third.first == MessageState.MessageReceived
-                            received to nr
-                          }
-                          onTimeout(1500) { null }
-                        }
-
-                      if (selected == null) {
-                        nextValue.cancelAndJoin()
-                      } else {
-                        if (!selected.first) {
-                          waitSucceed(selected.second)
-                        }
-                      }
-                    }
-
-                    waitSucceed(0)
-                  }
-                  null -> {}
-                }
+              val (messageNr, _, _) =
+                messageState.updateAndGet { previous -> Triple(previous.first + 1, v.second, null) }
+              session?.sendMessage(v.first, messageNr, requestMsg.encodeToByteArray())
+              _details.update {
+                it.copy(
+                  subscribe =
+                    it.subscribe.copy(messagesConstructed = it.subscribe.messagesConstructed + 1)
+                )
               }
+              Napier.i("sent message")
+              when (messageState.first { it.third != null }.third) {
+                MessageState.MessageSentFailed -> {}
+                MessageState.MessageReceived -> {}
+                MessageState.MessageSentSucceeded -> {
+                  Napier.i("message sent succeeded")
 
-              is InsertResult.Success -> {}
+                  val nextValue = async {
+                    messageState.first { it.third == MessageState.MessageReceived }
+                  }
+
+                  select<Boolean> {
+                    nextValue.onAwait { true }
+                    onTimeout(1500) { false }
+                  }
+
+                  nextValue.cancelAndJoin()
+                }
+
+                null -> {}
+              }
             }
           }
           Napier.i("end of subscribe loop")
@@ -571,44 +509,20 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                         if (vc == null) {
                           it
                         } else if (msg.vectorClock.contains(vc)) {
-                          it.copy(third = MessageState.MessageReceived to null)
+                          it.copy(third = MessageState.MessageReceived)
                         } else {
                           it
                         }
                       }
                     }
-                    else -> {
-                      if (messageState.value.third.second?.receive(message) == true) {
-                        val fin = messageState.value.third.second?.finished()
-                        if (fin != null) {
-                          when (val m = Encoders.decodePb(fin)) {
-                            is Message.SendVersions -> {
-                              repository.insert(m.vectorClock, m.versions)
-                              messageState.update {
-                                val vc = it.second
-                                if (vc == null) {
-                                  it
-                                } else if (m.vectorClock.contains(vc)) {
-                                  it.copy(third = MessageState.MessageReceived to null)
-                                } else {
-                                  it
-                                }
-                              }
-                            }
-                            else -> {
-                              throw RuntimeException("Invalid payload ${m}")
-                            }
-                          }
-                        }
-                      }
-                    }
+                    else -> {}
                   }
                 }
 
                 override fun onMessageSendFailed(messageId: Int) {
                   messageState.update {
-                    if (it.first == messageId && it.third.first == null) {
-                      it.copy(third = MessageState.MessageSentFailed to null)
+                    if (it.first == messageId && it.third == null) {
+                      it.copy(third = MessageState.MessageSentFailed)
                     } else {
                       it
                     }
@@ -623,8 +537,8 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
 
                 override fun onMessageSendSucceeded(messageId: Int) {
                   messageState.update {
-                    if (it.first == messageId && it.third.first == null) {
-                      it.copy(third = MessageState.MessageSentSucceeded to it.third.second)
+                    if (it.first == messageId && it.third == null) {
+                      it.copy(third = MessageState.MessageSentSucceeded)
                     } else {
                       it
                     }
@@ -705,38 +619,4 @@ enum class MessageState {
   MessageSentFailed,
   MessageSentSucceeded,
   MessageReceived,
-}
-
-class PartialCollector(val identifier: Long, var data: Array<ByteArray?>? = null) {
-  fun receive(msg: ByteArray): Boolean {
-    val pb = io.github.potsdam_pnp.initiative_tracker.proto.Message.decodeFromByteArray(msg)
-    if (
-      pb.messageKind != MessageKind.SEND_VERSIONS_PARTIAL ||
-        pb.messageCount == null ||
-        pb.messageIdentifier == null ||
-        pb.partialPayload == null
-    ) {
-      return false
-    }
-    val index = pb.messageIdentifier - identifier
-    if (index < 0 || index >= pb.messageCount) {
-      return false
-    }
-    if (data == null) {
-      data = Array(pb.messageCount.toInt(), { null })
-    }
-    data!![index.toInt()] = pb.partialPayload.array
-    return true
-  }
-
-  fun finished(): ByteArray? {
-    val d = data ?: return null
-    val totalSize = d.map { (it ?: return null).size }.sum()
-
-    val buffer = ByteBuffer.allocate(totalSize)
-    for (b in d) {
-      buffer.put(b!!)
-    }
-    return buffer.array()
-  }
 }

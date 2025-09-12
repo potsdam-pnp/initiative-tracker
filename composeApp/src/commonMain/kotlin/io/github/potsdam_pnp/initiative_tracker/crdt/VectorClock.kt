@@ -82,6 +82,42 @@ data class VectorClock(val clock: Map<ClientIdentifier, Int>) {
     return (clock[other.clientIdentifier] ?: 0) >= other.position
   }
 
+  fun dotsNotIn(previous: VectorClock): Iterator<Dot> {
+    val dots = previous.clock.keys.toList()
+    var index = -1
+    var value: Int
+    do {
+      index += 1
+      if (index >= dots.size) {
+        return object : Iterator<Dot> {
+          override fun hasNext(): Boolean = false
+
+          override fun next(): Dot {
+            throw NoSuchElementException()
+          }
+        }
+      }
+      value = previous.clock[dots[index]]!!
+    } while (value >= (clock[dots[index]] ?: 0))
+
+    return object : Iterator<Dot> {
+      override fun hasNext(): Boolean {
+        return index >= dots.size
+      }
+
+      override fun next(): Dot {
+        value += 1
+        val result = Dot(dots[index], value)
+        while (value >= (clock[dots[index]] ?: 0) && index + 1 < dots.size) {
+          index += 1
+          value = previous.clock[dots[index]] ?: 0
+        }
+
+        return result
+      }
+    }
+  }
+
   companion object {
     fun empty() = VectorClock(mapOf())
   }

@@ -66,7 +66,10 @@ fun TextFieldValue.asEditedCharacterPositions(): EditedCharacterPositions<Int> {
   )
 }
 
-data class CurrentlyEditedCharacter(val key: CharacterId, val positions: EditedCharacterPositions<Dot>)
+data class CurrentlyEditedCharacter(
+  val key: CharacterId,
+  val positions: EditedCharacterPositions<Dot>,
+)
 
 data class UiState(
   val characters: List<UiCharacter> = listOf(),
