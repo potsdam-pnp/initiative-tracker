@@ -97,7 +97,7 @@ class ActionStateTests {
 
     val actions: List<Operation<Action>> =
       listOf(
-          AddCharacter(characterId),
+          AddCharacter,
           ChangePlayerCharacter(characterId, true),
           Turn(TurnAction.StartTurn(characterId), null),
           Turn(TurnAction.ResolveConflicts, Dot(client1, 2)),
