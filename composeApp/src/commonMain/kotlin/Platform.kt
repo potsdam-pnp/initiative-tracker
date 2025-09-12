@@ -10,6 +10,7 @@ data class JoinLink(val host: String) {
 }
 
 data class ConnectedClient(
+  val name: String,
   val id: ClientIdentifier?,
   val state: VectorClock?,
   val connectedViaClient: Boolean,

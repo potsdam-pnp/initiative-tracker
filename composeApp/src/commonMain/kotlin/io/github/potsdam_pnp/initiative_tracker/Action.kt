@@ -60,27 +60,25 @@ object Encoders {
   private fun convertMessage(msg: Message<Action>): ProtoMessage {
     return when (msg) {
       is Message.CurrentState -> {
-        val clientIdentifiers = msg.vectorClock.clock.keys.toList().map { it.name }
+        val clientIdentifiers = msg.vectorClock.clock.keys.toList()
         ProtoMessage(
           messageKind = MessageKind.CURRENT_STATE,
-          clientIdentifiers = clientIdentifiers,
-          clock =
-            clientIdentifiers.map { msg.vectorClock.clock[ClientIdentifier(it)]?.toLong() ?: 0 },
+          clientIdentifiers = clientIdentifiers.map { it.encodeToProto() },
+          clock = clientIdentifiers.map { msg.vectorClock.clock[it]?.toLong() ?: 0 },
         )
       }
 
       is Message.RequestVersions -> {
-        val clientIdentifiers = msg.vectorClock.clock.keys.toList().map { it.name }
+        val clientIdentifiers = msg.vectorClock.clock.keys.toList()
         ProtoMessage(
           messageKind = MessageKind.REQUEST_VERSIONS,
-          clientIdentifiers = clientIdentifiers,
-          clock =
-            clientIdentifiers.map { msg.vectorClock.clock[ClientIdentifier(it)]?.toLong() ?: 0 },
+          clientIdentifiers = clientIdentifiers.map { it.encodeToProto() },
+          clock = clientIdentifiers.map { msg.vectorClock.clock[it]?.toLong() ?: 0 },
           dots =
             msg.dots
               .flatMap {
                 listOf(
-                  clientIdentifiers.indexOf(it.clientIdentifier.name).toLong(),
+                  clientIdentifiers.indexOf(it.clientIdentifier).toLong(),
                   it.position.toLong(),
                 )
               }
@@ -90,7 +88,7 @@ object Encoders {
         )
       }
       is Message.SendVersions -> {
-        val clientIdentifiers = msg.vectorClock.clock.keys.toList().map { it.name }
+        val clientIdentifiers = msg.vectorClock.clock.keys.toList()
         val actions =
           msg.versions.map { version ->
             val (action, characterId, dot, arg) =
@@ -147,23 +145,19 @@ object Encoders {
                   }
               }
             OperationAction(
-              clock =
-                clientIdentifiers.map {
-                  version.metadata.clock.clock[ClientIdentifier(it)]?.toLong() ?: 0
-                },
-              client = clientIdentifiers.indexOf(version.metadata.client.name),
+              clock = clientIdentifiers.map { version.metadata.clock.clock[it]?.toLong() ?: 0 },
+              client = clientIdentifiers.indexOf(version.metadata.client),
               action = action,
               characterId = characterId,
-              dotClient = dot?.let { clientIdentifiers.indexOf(it.clientIdentifier.name) },
+              dotClient = dot?.let { clientIdentifiers.indexOf(it.clientIdentifier) },
               dotPosition = dot?.position,
               arg = arg,
             )
           }
         ProtoMessage(
           messageKind = MessageKind.SEND_VERSIONS,
-          clientIdentifiers = clientIdentifiers,
-          clock =
-            clientIdentifiers.map { msg.vectorClock.clock[ClientIdentifier(it)]?.toLong() ?: 0 },
+          clientIdentifiers = clientIdentifiers.map { it.encodeToProto() },
+          clock = clientIdentifiers.map { msg.vectorClock.clock[it]?.toLong() ?: 0 },
           actions = actions,
         )
       }
@@ -180,19 +174,25 @@ object Encoders {
     fun asClock(clock: List<Long>): VectorClock {
       val result =
         pb.clientIdentifiers.mapIndexed { index, value ->
-          ClientIdentifier(value) to clock[index].toInt()
+          ClientIdentifier.decodeFromProto(value) to clock[index].toInt()
         }
       return VectorClock(result.toMap())
     }
     fun decodePbAction(a: OperationAction): Operation<Action> {
       val metadata =
-        OperationMetadata(asClock(a.clock), ClientIdentifier(pb.clientIdentifiers[a.client]))
+        OperationMetadata(
+          asClock(a.clock),
+          ClientIdentifier.decodeFromProto(pb.clientIdentifiers[a.client]),
+        )
       val id = a.characterId ?: ""
       val dot =
         when (a.dotClient to a.dotPosition) {
           Pair(null, null) -> null
           else -> {
-            Dot(ClientIdentifier(pb.clientIdentifiers[a.dotClient ?: 0]), a.dotPosition ?: 0)
+            Dot(
+              ClientIdentifier.decodeFromProto(pb.clientIdentifiers[a.dotClient ?: 0]),
+              a.dotPosition ?: 0,
+            )
           }
         }
       val op =
@@ -221,7 +221,10 @@ object Encoders {
         Message.RequestVersions(
           asClock(pb.clock),
           pb.dots.chunked(2) {
-            Dot(ClientIdentifier(pb.clientIdentifiers[it[0].toInt()]), it[1].toInt())
+            Dot(
+              ClientIdentifier.decodeFromProto(pb.clientIdentifiers[it[0].toInt()]),
+              it[1].toInt(),
+            )
           },
           msgIdentifier = pb.messageIdentifier,
           maxMessageSize = pb.maxMessageLength,
@@ -230,7 +233,8 @@ object Encoders {
         val clock = asClock(pb.clock)
         val dots =
           pb.dots.chunked(2) {
-            val clientIdentifier = ClientIdentifier(pb.clientIdentifiers[it[0].toInt()])
+            val clientIdentifier =
+              ClientIdentifier.decodeFromProto(pb.clientIdentifiers[it[0].toInt()])
             val position = it[1].toInt()
             val clockPosition = clock.clock[clientIdentifier] ?: 0
             (position until (clockPosition + 1)).map { Dot(clientIdentifier, it) }

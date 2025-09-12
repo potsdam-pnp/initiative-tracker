@@ -67,7 +67,7 @@ data class VectorClock(val clock: Map<ClientIdentifier, Int>) {
 
   fun clientTotalOrder(other: VectorClock): Int {
     val allKeys = clock.keys + other.clock.keys
-    val orderedKeys = allKeys.sortedBy { it.name }
+    val orderedKeys = allKeys.sortedWith(ClientIdentifier.totalOrder)
     for (key in orderedKeys) {
       val result = (clock[key] ?: 0).compareTo(other.clock[key] ?: 0)
       if (result != 0) {

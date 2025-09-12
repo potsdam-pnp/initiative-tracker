@@ -434,19 +434,18 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                 r.missingDots.forEach { dot ->
                   dotsMap.merge(dot.clientIdentifier, dot.position, { x, y -> x.coerceAtMost(y) })
                 }
-                val clientIdentifiers = v.second.clock.keys.toList().map { it.name }
+                val clientIdentifiers = v.second.clock.keys.toList()
                 val requestMsg =
                   io.github.potsdam_pnp.initiative_tracker.proto.Message(
                     messageKind = MessageKind.REQUEST_VERSIONS_OPTIMIZED,
                     messageIdentifier = msgIdentifier,
                     maxMessageLength = maxMessageSize,
-                    clientIdentifiers = clientIdentifiers,
-                    clock =
-                      clientIdentifiers.map { v.second.clock[ClientIdentifier(it)]?.toLong() ?: 0 },
+                    clientIdentifiers = clientIdentifiers.map { it.encodeToProto() },
+                    clock = clientIdentifiers.map { v.second.clock[it]?.toLong() ?: 0 },
                     dots =
                       dotsMap
                         .flatMap {
-                          listOf(clientIdentifiers.indexOf(it.key.name).toLong(), it.value.toLong())
+                          listOf(clientIdentifiers.indexOf(it.key).toLong(), it.value.toLong())
                         }
                         .toList(),
                   )

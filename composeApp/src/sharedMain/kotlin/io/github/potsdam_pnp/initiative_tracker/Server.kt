@@ -140,9 +140,10 @@ class Server(private val repository: Repository<Action, State>) {
           val newPath = "https://potsdam-pnp.github.io/initiative-tracker" + call.request.origin.uri
           call.respondRedirect(newPath)
         }
-        get("/client") { call.respondText(repository.clientIdentifier.name) }
+        get("/client") { call.respondText(repository.clientIdentifier.enocdeInUrl()) }
         webSocket("/ws/{client}") {
-          val clientId = ClientIdentifier(call.parameters["client"].orEmpty())
+          val clientId =
+            ClientIdentifier.decodeFromUrl(call.parameters["client"].orEmpty()) ?: return@webSocket
 
           _state.update {
             (it as ServerState.Running).let {

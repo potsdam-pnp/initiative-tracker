@@ -963,9 +963,9 @@ fun ServerConnectionSettings(m: Model) {
           (if (connectedClient.connectedViaWifiAware) listOf("nearby device") else listOf())) +
         connectedClient.errorMsg.orEmpty()
 
-    key(connectedClient.id?.name) {
+    key(connectedClient.id) {
       ListItem(
-        headlineContent = { Text(connectedClient.id?.name ?: "") },
+        headlineContent = { Text(connectedClient.id?.pretty() ?: "") },
         trailingContent = { connectionState() },
         supportingContent = {
           val text = additional.joinToString("\n")
@@ -1201,10 +1201,7 @@ fun ListActions(innerPadding: PaddingValues, uiState: UiState, actions: Actions)
         WindowInsets.safeDrawing.union(WindowInsets.ime.only(WindowInsetsSides.Bottom))
       ),
   ) {
-    items(
-      uiState.actions.reversed(),
-      key = { it.first.clientIdentifier.name + "-" + it.first.position },
-    ) { item ->
+    items(uiState.actions.reversed(), key = { it.first }) { item ->
       Row(modifier = Modifier.clickable(onClick = { showModalDialogOfDot = item.first })) {
         Text(
           modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp),

@@ -1,6 +1,5 @@
 package io.github.potsdam_pnp.initiative_tracker.crdt
 
-import kotlin.random.Random
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -16,7 +15,7 @@ class Repository<Op, State : AbstractState<Op>>
 constructor(
   val state: State,
   current: VectorClock = VectorClock.empty(),
-  val clientIdentifier: ClientIdentifier = ClientIdentifier(Random.nextInt().toHexString().take(6)),
+  val clientIdentifier: ClientIdentifier = ClientIdentifier.new(),
 ) {
   private val currentVersion: MutableStateFlow<VectorClock> = MutableStateFlow(current)
 

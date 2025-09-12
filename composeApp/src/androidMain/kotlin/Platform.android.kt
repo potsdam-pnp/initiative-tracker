@@ -23,7 +23,6 @@ import io.github.potsdam_pnp.initiative_tracker.MainActivity
 import io.github.potsdam_pnp.initiative_tracker.R
 import io.github.potsdam_pnp.initiative_tracker.ServerState
 import io.github.potsdam_pnp.initiative_tracker.WifiAwareAvailableState
-import io.github.potsdam_pnp.initiative_tracker.crdt.ClientIdentifier
 import io.github.potsdam_pnp.initiative_tracker.crdt.CompareResult
 import kotlinx.coroutines.launch
 
@@ -72,6 +71,7 @@ class AndroidPlatform : Platform {
             connectedViaClient = false,
             connectedViaWifiAware = false,
             id = it.key,
+            name = it.key.pretty(),
             state = it.value,
             errorMsg = null,
           )
@@ -81,7 +81,8 @@ class AndroidPlatform : Platform {
               connectedViaServer = false,
               connectedViaClient = false,
               connectedViaWifiAware = true,
-              id = ClientIdentifier("Connected client"),
+              id = null,
+              name = "Connected client",
               state = it.value,
               errorMsg = null,
             )

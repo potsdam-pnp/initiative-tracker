@@ -57,7 +57,7 @@ object ClientConsumer {
               method = HttpMethod.Get,
               host = clientStatus.value.host,
               port = 8080,
-              path = "/ws/${model.repository.clientIdentifier.name}?supportProtobuf=true",
+              path = "/ws/${model.repository.clientIdentifier.enocdeInUrl()}?supportProtobuf=true",
             ) {
               var supportProtobuf = false
               _clientStatus.update { it.copy(status = ClientStatusState.Running(0, 0)) }

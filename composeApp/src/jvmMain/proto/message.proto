@@ -39,7 +39,7 @@ enum MessageKind {
 
 message Message {
   MessageKind messageKind = 1;
-  repeated string clientIdentifiers = 2;
+  repeated fixed32 clientIdentifiers = 2;
   repeated int64 clock = 3;
   repeated int64 dots = 4; // clientIdentifier index (even indices) and position (odd indices)
   repeated OperationAction actions = 5;
