@@ -311,10 +311,6 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                   }
                   when (val msg = Encoders.decodePb(message)) {
                     is Message.RequestVersions -> {
-                      val versions =
-                        msg.vectorClock.dotsNotIn(msg.fromVectorClock).asSequence().mapNotNull {
-                          repository.fetchVersion(it)
-                        }
                       val maxSize = (maxMessageSize ?: 128).coerceAtMost(msg.maxMessageSize ?: 128)
                       val bytes =
                         Encoders.encodeSendVersionsMaxSize(
@@ -386,61 +382,72 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
 
     coroutineScope {
       launch {
-        subscribeSession.collect { (session, peers) ->
+        while (true) {
           Napier.i("start subscribe loop")
-          val vc = repository.version.value
-          val v =
-            peers.firstNotNullOfOrNull { (peer, value) ->
-              val ok =
-                !vc.contains(value) &&
-                  peers.all { (_, v) -> value.compare(v) != CompareResult.Smaller }
-              if (!ok) null else (peer to value)
-            }
-          if (v != null) {
-            if (!vc.contains(v.second)) {
-              val msgIdentifier = Random.nextLong()
-              val clientIdentifiers = v.second.clock.keys.toList()
-              val requestMsg =
-                io.github.potsdam_pnp.initiative_tracker.proto.Message(
-                  messageKind = MessageKind.REQUEST_VERSIONS,
-                  messageIdentifier = msgIdentifier,
-                  maxMessageLength = maxMessageSize,
-                  clientIdentifiers = clientIdentifiers.map { it.encodeToProto() },
-                  clock = clientIdentifiers.map { v.second.clock[it]?.toLong() ?: 0 },
-                  requestClock = clientIdentifiers.map { vc.clock[it] ?: 0 },
-                )
-
-              val (messageNr, _, _) =
-                messageState.updateAndGet { previous -> Triple(previous.first + 1, v.second, null) }
-              session?.sendMessage(v.first, messageNr, requestMsg.encodeToByteArray())
-              _details.update {
-                it.copy(
-                  subscribe =
-                    it.subscribe.copy(messagesConstructed = it.subscribe.messagesConstructed + 1)
-                )
+          val (peer, value, vc) =
+            subscribeSession
+              .combine(repository.version) { (session, peers), vc ->
+                peers
+                  .mapNotNull { (peer, value) ->
+                    val ok =
+                      !vc.contains(value) &&
+                        peers.all { (_, v) -> value.compare(v) != CompareResult.Smaller }
+                    if (!ok) null else Triple(session to peer, value, vc)
+                  }
+                  .ifEmpty { null }
               }
-              Napier.i("sent message")
-              when (messageState.first { it.third != null }.third) {
-                MessageState.MessageSentFailed -> {}
-                MessageState.MessageReceived -> {}
-                MessageState.MessageSentSucceeded -> {
-                  Napier.i("message sent succeeded")
+              .filterNotNull()
+              .first()
+              .random()
+          Napier.i("found value to request")
 
-                  val nextValue = async {
-                    messageState.first { it.third == MessageState.MessageReceived }
-                  }
+          val msgIdentifier = Random.nextLong()
+          val clientIdentifiers = value.clock.keys.toList()
+          val requestMsg =
+            io.github.potsdam_pnp.initiative_tracker.proto.Message(
+              messageKind = MessageKind.REQUEST_VERSIONS,
+              messageIdentifier = msgIdentifier,
+              maxMessageLength = maxMessageSize,
+              clientIdentifiers = clientIdentifiers.map { it.encodeToProto() },
+              clock = clientIdentifiers.map { value.clock[it]?.toLong() ?: 0 },
+              requestClock = clientIdentifiers.map { vc.clock[it] ?: 0 },
+            )
 
-                  select<Boolean> {
-                    nextValue.onAwait { true }
-                    onTimeout(1500) { false }
-                  }
+          val (messageNr, _, _) =
+            messageState.updateAndGet { previous -> Triple(previous.first + 1, value, null) }
+          peer.first?.sendMessage(peer.second, messageNr, requestMsg.encodeToByteArray())
+          _details.update {
+            it.copy(
+              subscribe =
+                it.subscribe.copy(messagesConstructed = it.subscribe.messagesConstructed + 1)
+            )
+          }
+          Napier.i("sent message")
+          when (messageState.first { it.third != null }.third) {
+            MessageState.MessageSentFailed -> {}
+            MessageState.MessageReceived -> {}
+            MessageState.MessageSentSucceeded -> {
+              Napier.i("message sent succeeded")
 
-                  nextValue.cancelAndJoin()
+              val nextValue = async {
+                messageState.first { it.third == MessageState.MessageReceived }
+              }
+
+              select<Boolean> {
+                nextValue.onAwait {
+                  Napier.i("request processed")
+                  true
                 }
-
-                null -> {}
+                onTimeout(500) {
+                  Napier.i("request timed out")
+                  false
+                }
               }
+
+              nextValue.cancelAndJoin()
             }
+
+            null -> {}
           }
           Napier.i("end of subscribe loop")
         }

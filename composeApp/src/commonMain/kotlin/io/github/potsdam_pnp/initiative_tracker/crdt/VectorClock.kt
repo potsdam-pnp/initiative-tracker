@@ -102,15 +102,17 @@ data class VectorClock(val clock: Map<ClientIdentifier, Int>) {
 
     return object : Iterator<Dot> {
       override fun hasNext(): Boolean {
-        return index >= dots.size
+        return index < dots.size
       }
 
       override fun next(): Dot {
         value += 1
         val result = Dot(dots[index], value)
-        while (value >= (clock[dots[index]] ?: 0) && index + 1 < dots.size) {
+        while (index < dots.size && value >= (clock[dots[index]] ?: 0)) {
           index += 1
-          value = previous.clock[dots[index]] ?: 0
+          if (index < dots.size) {
+            value = previous.clock[dots[index]] ?: 0
+          }
         }
 
         return result

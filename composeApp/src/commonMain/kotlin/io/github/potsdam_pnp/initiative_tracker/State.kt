@@ -82,7 +82,7 @@ class StringOperationLookup private constructor(val inside: MutableMap<Dot, Valu
     val toProcess = mutableListOf(value)
 
     while (toProcess.isNotEmpty()) {
-      val next = toProcess.removeLast()
+      val next = toProcess.removeAt(toProcess.lastIndex)
       when (val v = inside[next.dot]) {
         is Value.Unprocessed -> toProcess.addAll(v.dependencies)
         null -> {}
