@@ -8,6 +8,7 @@ import io.github.potsdam_pnp.initiative_tracker.crdt.GrowingListItem
 import io.github.potsdam_pnp.initiative_tracker.crdt.Message
 import io.github.potsdam_pnp.initiative_tracker.crdt.Operation
 import io.github.potsdam_pnp.initiative_tracker.crdt.OperationMetadata
+import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.crdt.StringOperation
 import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 import io.github.potsdam_pnp.initiative_tracker.proto.ActionType
@@ -41,9 +42,9 @@ data class Turn(val turnAction: TurnAction, override val predecessor: Dot?) :
 
 data class CharacterId(val dot: Dot)
 
-data class AddCharacter(val id: CharacterId) : Action()
+data object AddCharacter : Action()
 
-data class ChangeName(val id: CharacterId, val operation: StringOperation) : Action()
+data class ChangeName(val operation: StringOperation) : Action()
 
 data class ChangeInitiative(val id: CharacterId, val initiative: Int) : Action()
 
@@ -196,17 +197,13 @@ object Encoders {
       is ChangeName ->
         when (op.op.operation) {
           is StringOperation.Delete -> {
-            encodeOperation(2, op.op.id)
+            encodeOperation(2)
             addCombine(op.op.operation.dot.clientIdentifier, op.op.operation.dot.position)
           }
 
           is StringOperation.InsertAfter -> {
-            encodeOperation(3, op.op.id)
-            if (op.op.operation.after != null) {
-              addCombine(op.op.operation.after.clientIdentifier, op.op.operation.after.position)
-            } else {
-              into.add(0)
-            }
+            encodeOperation(3)
+            addCombine(op.op.operation.after.clientIdentifier, op.op.operation.after.position)
             into.add(op.op.operation.character.code)
           }
         }
@@ -285,21 +282,19 @@ object Encoders {
         }
 
         when (command) {
-          0 -> insert(AddCharacter(CharacterId(metadata.toDot())))
+          0 -> insert(AddCharacter)
           1 -> {
             val characterId = decodeCharacterId()
             insert(ChangeInitiative(characterId, actions[index]))
             index += 1
           }
           2 -> {
-            val characterId = decodeCharacterId()
             val dot = decodeDot()!!
-            insert(ChangeName(characterId, StringOperation.Delete(dot)))
+            insert(ChangeName(StringOperation.Delete(dot)))
           }
           3 -> {
-            val characterId = decodeCharacterId()
-            val dot = decodeDot()
-            insert(ChangeName(characterId, StringOperation.InsertAfter(actions[index].toChar(), dot)))
+            val dot = decodeDot()!!
+            insert(ChangeName(StringOperation.InsertAfter(actions[index].toChar(), dot)))
             index += 1
           }
           4 -> insert(ChangePlayerCharacter(decodeCharacterId(), true))

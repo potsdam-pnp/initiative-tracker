@@ -66,7 +66,7 @@ fun TextFieldValue.asEditedCharacterPositions(): EditedCharacterPositions<Int> {
   )
 }
 
-data class CurrentlyEditedCharacter(val key: CharacterId, val positions: EditedCharacterPositions<Dot?>)
+data class CurrentlyEditedCharacter(val key: CharacterId, val positions: EditedCharacterPositions<Dot>)
 
 data class UiState(
   val characters: List<UiCharacter> = listOf(),
@@ -212,7 +212,7 @@ private constructor(val repository: Repository<Action, State>, val persist: Pers
   }
 
   override fun editCharacter(characterKey: CharacterId, operation: StringOperation): Dot {
-    return repository.produce(ChangeName(characterKey, operation))[0]
+    return repository.produce(ChangeName(operation))[0]
   }
 
   override fun editInitiative(characterKey: CharacterId, initiative: String) {
@@ -225,11 +225,11 @@ private constructor(val repository: Repository<Action, State>, val persist: Pers
   override fun addCharacter(playerCharacter: Boolean, name: String?) {
     val versions = { d: (Int) -> Dot ->
       val key = CharacterId(d(0))
-      val result = mutableListOf(AddCharacter(key), ChangePlayerCharacter(key, playerCharacter))
+      val result = mutableListOf(AddCharacter, ChangePlayerCharacter(key, playerCharacter))
       if (name != null) {
-        var dot: Dot? = null
+        var dot: Dot = d(0)
         for (c in name) {
-          result.add(ChangeName(key, StringOperation.InsertAfter(c, dot)))
+          result.add(ChangeName(StringOperation.InsertAfter(c, dot)))
           dot = d(result.size - 1)
         }
       }
@@ -279,7 +279,7 @@ private constructor(val repository: Repository<Action, State>, val persist: Pers
   }
 
   private val doNameActionLock: Channel<Unit> = Channel(1)
-  private val positionLock: Channel<Pair<Dot?, EditedCharacterPositions<Dot?>>> = Channel(1)
+  private val positionLock: Channel<Pair<Dot, EditedCharacterPositions<Dot>>> = Channel(1)
 
   override fun updateName(
     characterKey: CharacterId,
@@ -294,12 +294,12 @@ private constructor(val repository: Repository<Action, State>, val persist: Pers
       }
 
       val upd =
-        (name ?: ImmutableStringRegister(listOf())).operationsToUpdateTo(
+        (name ?: ImmutableStringRegister(characterKey.dot, listOf())).operationsToUpdateTo(
           text.text,
           text.asEditedCharacterPositions(),
         )
 
-      val dots = repository.produce { upd.first(it).map { ChangeName(characterKey, it) } }
+      val dots = repository.produce { upd.first(it).map { ChangeName(it) } }
 
       val dotPositions =
         upd.second.map {
@@ -309,7 +309,7 @@ private constructor(val repository: Repository<Action, State>, val persist: Pers
           }
         }
 
-      positionLock.trySend(dots.lastOrNull() to dotPositions)
+      positionLock.trySend((dots.lastOrNull() ?: characterKey.dot) to dotPositions)
     } else {
       Napier.i("Don't update because of lock")
     }
@@ -322,7 +322,7 @@ private constructor(val repository: Repository<Action, State>, val persist: Pers
       } else {
         it.copy(
           currentlyEditedCharacter =
-            CurrentlyEditedCharacter(key, EditedCharacterPositions(Pair(null, null), null))
+            CurrentlyEditedCharacter(key, EditedCharacterPositions(Pair(key.dot, key.dot), null))
         )
       }
     }

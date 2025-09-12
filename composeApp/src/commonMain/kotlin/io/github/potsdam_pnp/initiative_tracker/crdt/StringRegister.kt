@@ -3,9 +3,13 @@ package io.github.potsdam_pnp.initiative_tracker.crdt
 import EditedCharacterPositions
 
 sealed class StringOperation {
-  data class InsertAfter(val character: Char, val after: Dot?) : StringOperation()
+  abstract val after: Dot
 
-  data class Delete(val dot: Dot) : StringOperation()
+  data class InsertAfter(val character: Char, override val after: Dot) : StringOperation()
+
+  data class Delete(val dot: Dot) : StringOperation() {
+    override val after get() = dot
+  }
 }
 
 data class Successors(val successors: MutableList<Operation<Char>> = mutableListOf()) :
@@ -33,11 +37,11 @@ data class CharacterStringState(
   }
 }
 
-class StringRegister() : Iterable<Operation<Char>> {
-  val state: MutableMap<Dot?, CharacterStringState> = mutableMapOf()
+class StringRegister(val originalDot: Dot) : Iterable<Operation<Char>> {
+  val state: MutableMap<Dot, CharacterStringState> = mutableMapOf()
 
   override fun iterator(): Iterator<Operation<Char>> {
-    val position = state[null]?.successors?.iterator()?.let { listOf(it) }.orEmpty().toMutableList()
+    val position = state[originalDot]?.successors?.iterator()?.let { listOf(it) }.orEmpty().toMutableList()
 
     return object : Iterator<Operation<Char>> {
       var _next: Operation<Char>? = null
@@ -109,30 +113,30 @@ class StringRegister() : Iterable<Operation<Char>> {
   }
 
   fun toImmutableStringRegister() =
-    if (state.isNotEmpty()) ImmutableStringRegister(toList()) else null
+    if (state.isNotEmpty()) ImmutableStringRegister(originalDot, toList()) else null
 
   companion object {
-    fun empty(): StringRegister = StringRegister()
+    fun empty(originalDot: Dot): StringRegister = StringRegister(originalDot)
   }
 }
 
-data class ImmutableStringRegister(private val copied: List<Operation<Char>>) {
+data class ImmutableStringRegister(private val original: Dot, private val copied: List<Operation<Char>>) {
   fun asString(): String = copied.joinToString("") { it.op.toString() }
 
-  fun positionIndex(index: Int): Dot? {
-    if (index == 0) return null
-    return copied.withIndex().firstOrNull { it.index + 1 == index }?.value?.dot
+  fun positionIndex(index: Int): Dot {
+    if (index == 0) return original
+    return copied.withIndex().firstOrNull { it.index + 1 == index }?.value?.dot ?: original
   }
 
-  fun indexPosition(dot: Dot?): Int? {
-    if (dot == null) return 0
+  fun indexPosition(dot: Dot): Int? {
+    if (dot == original) return 0
     return copied.withIndex().firstOrNull { it.value.dot == dot }?.let { it.index + 1 }
   }
 
   sealed class DotGenerator {
     data class FromResult(val index: Int) : DotGenerator()
 
-    data class FromDot(val dot: Dot?) : DotGenerator()
+    data class FromDot(val dot: Dot) : DotGenerator()
   }
 
   private sealed class Change {
