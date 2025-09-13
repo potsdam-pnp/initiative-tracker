@@ -74,16 +74,18 @@ data class MessageDetails(
   val messagesSuccessfulSent: Int = 0,
   val messagesFailedSent: Int = 0,
   val messagesReceived: Int = 0,
-  val messagesConstructedSizes: List<Int> = listOf()
+  val messagesConstructedSizes: List<Int> = listOf(),
 ) {
   fun pretty(name: String): String {
-    return "$name ${if (isActive) "up" else "down"}\n  Constructed: $messagesConstructed  Sent: $messagesSuccessfulSent  Failed: $messagesFailedSent\n  Received: $messagesReceived\n" + "send sizes: ${messagesConstructedSizes}"
+    return "$name ${if (isActive) "up" else "down"}\n  Constructed: $messagesConstructed  Sent: $messagesSuccessfulSent  Failed: $messagesFailedSent\n  Received: $messagesReceived\n" +
+      "send sizes: ${messagesConstructedSizes}"
   }
 }
 
 data class Details(
   val subscribe: MessageDetails = MessageDetails(),
   val publish: MessageDetails = MessageDetails(),
+  val sessionConfig: MessageDetails = MessageDetails(),
   val peers: Map<PeerHandle, VectorClock> = mapOf(),
 )
 
@@ -262,12 +264,23 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
           }
           .filterNotNull()
           .collect { (publishData, publishSession) ->
+            val payload = subscribePayload(publishData)
             publishSession?.updatePublish(
               PublishConfig.Builder()
                 .setServiceName(serviceName)
-                .setServiceSpecificInfo(subscribePayload(publishData))
+                .setServiceSpecificInfo(payload)
                 .build()
             )
+            _details.update {
+              it.copy(
+                sessionConfig =
+                  it.sessionConfig.copy(
+                    messagesConstructed = it.sessionConfig.messagesConstructed + 1,
+                    messagesConstructedSizes =
+                      it.sessionConfig.messagesConstructedSizes + listOf(payload.size),
+                  )
+              )
+            }
           }
       }
 
@@ -300,9 +313,27 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                   publishSession.update { session to publishData }
                 }
 
-                override fun onSessionConfigUpdated() {}
+                override fun onSessionConfigUpdated() {
+                  _details.update {
+                    it.copy(
+                      sessionConfig =
+                        it.sessionConfig.copy(
+                          messagesSuccessfulSent = it.sessionConfig.messagesSuccessfulSent + 1
+                        )
+                    )
+                  }
+                }
 
-                override fun onSessionConfigFailed() {}
+                override fun onSessionConfigFailed() {
+                  _details.update {
+                    it.copy(
+                      sessionConfig =
+                        it.sessionConfig.copy(
+                          messagesFailedSent = it.sessionConfig.messagesFailedSent + 1
+                        )
+                    )
+                  }
+                }
 
                 override fun onMessageReceived(peerHandle: PeerHandle, message: ByteArray) {
                   _details.update {
@@ -328,7 +359,8 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                           publish =
                             it.publish.copy(
                               messagesConstructed = it.publish.messagesConstructed + 1,
-                              messagesConstructedSizes = it.publish.messagesConstructedSizes + listOf(bytes.size)
+                              messagesConstructedSizes =
+                                it.publish.messagesConstructedSizes + listOf(bytes.size),
                             )
                         )
                       }

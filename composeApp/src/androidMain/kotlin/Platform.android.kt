@@ -159,7 +159,7 @@ class AndroidPlatform : Platform {
       },
       supportingContent = {
         Text(
-          "Current state: $state\n${details.publish.pretty("publish")}\n${details.subscribe.pretty("subscribe")}"
+          "Current state: $state\n${details.publish.pretty("publish")}\n${details.subscribe.pretty("subscribe")}\n${details.sessionConfig.pretty("session config")}"
         )
       },
     )
