@@ -111,7 +111,7 @@ object Encoders {
     messageIdentifier: Int?,
     fetchVersion: (Dot) -> Operation<Action>,
   ): ByteArray {
-    var size = encodePb(Message.SendVersions(to, listOf())).size + 8
+    var size = encodePb(Message.SendVersions(to.merge(from), listOf(), messageIdentifier)).size + 1
     val clients = to.clock.keys.toList()
     val values = mutableListOf<Int>()
     var index: Int = 0
@@ -134,7 +134,7 @@ object Encoders {
       dot?.also { sendVector[it.clientIdentifier] = it.position }
     }
 
-    return ProtoMessage(
+    val result = ProtoMessage(
         messageKind = MessageKind.SEND_VERSIONS,
         clientIdentifiers = clients.map { it.encodeToProto() },
         clock = clients.map { sendVector[it]?.toLong() ?: 0 },
@@ -142,6 +142,10 @@ object Encoders {
         messageIdentifier = messageIdentifier,
       )
       .encodeToByteArray()
+    check(result.size <= maxSize) {
+      "Message size limit ${maxSize}, but total size ${result.size} (calculated ${size} for ${values.size} values)"
+    }
+    return result
   }
 
   fun decodePb(msg: ByteArray): Message<Action> {
