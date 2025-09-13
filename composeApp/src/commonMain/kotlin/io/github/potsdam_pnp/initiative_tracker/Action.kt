@@ -1,5 +1,6 @@
 package io.github.potsdam_pnp.initiative_tracker
 
+import io.github.aakira.napier.Napier
 import io.github.potsdam_pnp.initiative_tracker.crdt.ClientIdentifier
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
 import io.github.potsdam_pnp.initiative_tracker.crdt.GrowingListItem
@@ -84,6 +85,7 @@ object Encoders {
           clientIdentifiers = clientIdentifiers.map { it.encodeToProto() },
           clock = clientIdentifiers.map { msg.vectorClock.clock[it]?.toLong() ?: 0 },
           actions = actions,
+          messageIdentifier = msg.msgIdentifier,
         )
       }
       is Message.StopConnection -> ProtoMessage(messageKind = MessageKind.STOP_CONNECTION)
@@ -104,6 +106,7 @@ object Encoders {
     return result
   }
 
+  @OptIn(ExperimentalStdlibApi::class)
   fun encodeSendVersionsMaxSize(
     maxSize: Int,
     from: VectorClock,
