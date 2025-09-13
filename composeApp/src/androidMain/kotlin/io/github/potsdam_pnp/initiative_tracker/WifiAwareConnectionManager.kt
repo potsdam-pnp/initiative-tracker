@@ -236,7 +236,22 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
     return Encoders.encodePb(Message.SendVersions(publishData.clock, versions))
   }
 
-  private data class PublishData(val clock: VectorClock, val fromPosition: Int) {
+  private data class PublishData(val clock: VectorClock, val fromPosition: Int, val updatingTo: Pair<VectorClock, Int>?) {
+    fun updateToNext(): PublishData {
+      check(updatingTo != null)
+      return PublishData(clock = updatingTo.first, fromPosition = updatingTo.second, updatingTo = null)
+    }
+
+    fun cancelUpdate(): PublishData {
+      check(updatingTo == null)
+      return copy(updatingTo = null)
+    }
+
+    fun triggerUpdate(updateTo: PublishData): PublishData {
+      check(updatingTo == null)
+      return copy(updatingTo = updateTo.clock to updateTo.fromPosition)
+    }
+
     companion object {
       fun from(clientIdentifier: ClientIdentifier, vc: VectorClock, d: Details): PublishData {
         val us = vc.clock[clientIdentifier] ?: 0
@@ -247,7 +262,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
             smallest = them
           }
         }
-        return PublishData(vc, smallest)
+        return PublishData(vc, smallest, null)
       }
     }
   }
@@ -258,30 +273,46 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
 
     coroutineScope {
       launch {
-        combine(repository.version, publishSession, _details) { vc, publish, d ->
-            val publishData = PublishData.from(repository.clientIdentifier, vc, d)
-            if (publishData == publish.second) null else publishData to publish.first
-          }
-          .filterNotNull()
-          .collect { (publishData, publishSession) ->
-            val payload = subscribePayload(publishData)
-            publishSession?.updatePublish(
-              PublishConfig.Builder()
-                .setServiceName(serviceName)
-                .setServiceSpecificInfo(payload)
-                .build()
-            )
-            _details.update {
-              it.copy(
-                sessionConfig =
-                  it.sessionConfig.copy(
-                    messagesConstructed = it.sessionConfig.messagesConstructed + 1,
-                    messagesConstructedSizes =
-                      it.sessionConfig.messagesConstructedSizes + listOf(payload.size),
-                  )
-              )
+        while (true) {
+          val (publishData, ps) = combine(
+            repository.version,
+            publishSession,
+            _details
+          ) { vc, publish, d ->
+            val pf = publish.first
+            if (pf == null || publish.second?.updatingTo != null) {
+              null
+            } else {
+              val publishData = PublishData.from(repository.clientIdentifier, vc, d)
+              if (publishData == publish.second) {
+                null
+              } else {
+                publishData to pf
+              }
             }
+          }.filterNotNull().first()
+
+          val payload = subscribePayload(publishData)
+          ps.updatePublish(
+            PublishConfig.Builder()
+              .setServiceName(serviceName)
+              .setServiceSpecificInfo(payload)
+              .build()
+          )
+          publishSession.update {
+            it.copy(second = it.second?.triggerUpdate (publishData))
           }
+          _details.update {
+            it.copy(
+              sessionConfig =
+                it.sessionConfig.copy(
+                  messagesConstructed = it.sessionConfig.messagesConstructed + 1,
+                  messagesConstructedSizes =
+                    it.sessionConfig.messagesConstructedSizes + listOf(payload.size),
+                )
+            )
+          }
+        }
       }
 
       suspendCancellableCoroutine<Unit> { continuation ->
@@ -314,6 +345,9 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                 }
 
                 override fun onSessionConfigUpdated() {
+                  publishSession.update {
+                    it.copy(second = it.second?.updateToNext())
+                  }
                   _details.update {
                     it.copy(
                       sessionConfig =
@@ -325,6 +359,9 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                 }
 
                 override fun onSessionConfigFailed() {
+                  publishSession.update {
+                    it.copy(second = it.second?.cancelUpdate())
+                  }
                   _details.update {
                     it.copy(
                       sessionConfig =
