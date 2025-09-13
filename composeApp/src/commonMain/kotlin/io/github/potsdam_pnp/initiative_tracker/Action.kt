@@ -114,7 +114,8 @@ object Encoders {
     messageIdentifier: Int?,
     fetchVersion: (Dot) -> Operation<Action>,
   ): ByteArray {
-    var size = encodePb(Message.SendVersions(to.merge(from), listOf(), messageIdentifier)).size + 1
+    val initial = encodePb(Message.SendVersions(to.merge(from), listOf(), messageIdentifier))
+    var size = initial.size + 3
     val clients = to.clock.keys.toList()
     val values = mutableListOf<Int>()
     var index: Int = 0
@@ -122,8 +123,10 @@ object Encoders {
 
     val sendVector = from.clock.toMutableMap()
     val iterator = to.dotsNotIn(from)
+    var prevSize = size
 
     while (size < maxSize && iterator.hasNext()) {
+      prevSize = size
       dot?.also { sendVector[it.clientIdentifier] = it.position }
       index = values.size
       dot = iterator.next()
@@ -145,8 +148,15 @@ object Encoders {
         messageIdentifier = messageIdentifier,
       )
       .encodeToByteArray()
+    if (result.size > prevSize) {
+      Napier.i(      "Message size limit ${maxSize}, but total size ${result.size} (calculated ${prevSize} for ${values.size} values)" +
+              "\nbytes: ${result.toHexString()},\nvalues: ${values.joinToString { it.toHexString() }}\n" +
+        "initial: ${initial.toHexString()}, initial size: ${initial.size}"
+      )
+    }
     check(result.size <= maxSize) {
-      "Message size limit ${maxSize}, but total size ${result.size} (calculated ${size} for ${values.size} values)"
+      "Message size limit ${maxSize}, but total size ${result.size} (calculated ${prevSize} for ${values.size} values)" +
+              "\nbytes: ${result.toHexString()},\nvalues: ${values.joinToString { ", " }} "
     }
     return result
   }
