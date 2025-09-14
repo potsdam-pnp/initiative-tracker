@@ -82,11 +82,17 @@ data class MessageDetails(
   }
 }
 
+data class PeerInfo(
+  val state: VectorClock,
+  val failedReads: Int,
+  val clientIdentifier: ClientIdentifier
+)
+
 data class Details(
   val subscribe: MessageDetails = MessageDetails(),
   val publish: MessageDetails = MessageDetails(),
   val sessionConfig: MessageDetails = MessageDetails(),
-  val peers: Map<PeerHandle, VectorClock> = mapOf(),
+  val peers: Map<PeerHandle, PeerInfo> = mapOf(),
 )
 
 class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
@@ -233,7 +239,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
       (publishData.fromPosition until (publishData.clock.clock[repository.clientIdentifier] ?: 0))
         .map { Dot(repository.clientIdentifier, it + 1) }
     val versions = dots.map { repository.fetchVersion(it)!! }
-    return Encoders.encodePb(Message.SendVersions(publishData.clock, versions))
+    return Encoders.encodePb(Message.SendVersions(publishData.clock, versions, null, repository.clientIdentifier))
   }
 
   private data class PublishData(val clock: VectorClock, val fromPosition: Int, val updatingTo: Pair<VectorClock, Int>?) {
@@ -255,14 +261,15 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
     companion object {
       fun from(clientIdentifier: ClientIdentifier, vc: VectorClock, d: Details): PublishData {
         val us = vc.clock[clientIdentifier] ?: 0
-        var smallest = us
+        val smallestMap = mutableMapOf<ClientIdentifier, Int>()
         d.peers.forEach { entry ->
-          val them = entry.value.clock[clientIdentifier] ?: 0
-          if (us - them < 10 && smallest > them) {
-            smallest = them
+          val them = entry.value.state.clock[clientIdentifier] ?: 0
+          if (us - them < 10 && us > them) {
+            smallestMap[entry.value.clientIdentifier] =
+              them.coerceAtMost(smallestMap[entry.value.clientIdentifier] ?: them)
           }
         }
-        return PublishData(vc, smallest, null)
+        return PublishData(vc, smallestMap.values.minOrNull() ?: us, null)
       }
     }
   }
@@ -383,6 +390,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                       val maxSize = (maxMessageSize ?: 128).coerceAtMost(msg.maxMessageSize ?: 128)
                       val bytes =
                         Encoders.encodeSendVersionsMaxSize(
+                          repository.clientIdentifier,
                           maxSize,
                           msg.fromVectorClock,
                           msg.vectorClock,
@@ -445,12 +453,12 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
   @OptIn(ExperimentalCoroutinesApi::class)
   private suspend fun runSubscribe(wifiAwareSession: WifiAwareSession) {
     val subscribeSession =
-      MutableStateFlow<Pair<SubscribeDiscoverySession?, Map<PeerHandle, VectorClock>>>(
+      MutableStateFlow<Pair<SubscribeDiscoverySession?, Map<PeerHandle, PeerInfo>>>(
         null to mapOf()
       )
     val subscribeConfig = SubscribeConfig.Builder().setServiceName(serviceName).build()
     val messageState =
-      MutableStateFlow<Triple<Int, Pair<VectorClock, Int>?, MessageState?>>(Triple(0, null, null))
+      MutableStateFlow<Triple<Int, Pair<PeerInfo, Int>?, MessageState?>>(Triple(0, null, null))
 
     coroutineScope {
       launch {
@@ -462,8 +470,8 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                 peers
                   .mapNotNull { (peer, value) ->
                     val ok =
-                      !vc.contains(value) &&
-                        peers.all { (_, v) -> value.compare(v) != CompareResult.Smaller }
+                      !vc.contains(value.state) &&
+                        peers.all { (_, v) -> value.state.compare(v.state) != CompareResult.Smaller || v.failedReads < value.failedReads }
                     if (!ok) null else Triple(session to peer, value, vc)
                   }
                   .ifEmpty { null }
@@ -474,14 +482,14 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
           Napier.i("found value to request")
 
           val msgIdentifier = Random.nextInt()
-          val clientIdentifiers = value.clock.keys.toList()
+          val clientIdentifiers = value.state.clock.keys.toList()
           val requestMsg =
             io.github.potsdam_pnp.initiative_tracker.proto.Message(
               messageKind = MessageKind.REQUEST_VERSIONS,
               messageIdentifier = msgIdentifier,
               maxMessageLength = maxMessageSize,
               clientIdentifiers = clientIdentifiers.map { it.encodeToProto() },
-              clock = clientIdentifiers.map { value.clock[it]?.toLong() ?: 0 },
+              clock = clientIdentifiers.map { value.state.clock[it]?.toLong() ?: 0 },
               requestClock = clientIdentifiers.map { vc.clock[it] ?: 0 },
             )
 
@@ -507,15 +515,19 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                 messageState.first { it.third == MessageState.MessageReceived }
               }
 
-              select<Boolean> {
+              val succeeded = select<Boolean> {
                 nextValue.onAwait {
                   Napier.i("request processed")
                   true
                 }
-                onTimeout(1000) {
+                onTimeout(2000) {
                   Napier.i("request timed out")
                   false
                 }
+              }
+
+              if (!succeeded) {
+
               }
 
               nextValue.cancelAndJoin()
@@ -555,14 +567,28 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                   when (val msg = Encoders.decodePb(serviceSpecificInfo)) {
                     is Message.CurrentState -> {
                       subscribeSession.update {
-                        it.copy(second = it.second + (peerHandle to msg.vectorClock))
+                        if (it.second[peerHandle]?.state == msg.vectorClock) {
+                          it // nothing new, so don't reset failed counter
+                        } else {
+                          it.copy(second = it.second + (peerHandle to PeerInfo(msg.vectorClock, 0, msg.clientIdentifier!!)))
+                        }
                       }
                       _details.update { it.copy(peers = subscribeSession.value.second) }
                     }
                     is Message.SendVersions -> {
                       repository.insert(msg.vectorClock, msg.versions)
                       subscribeSession.update {
-                        it.copy(second = it.second + (peerHandle to msg.vectorClock))
+                        if (it.second[peerHandle]?.state == msg.vectorClock) {
+                          it
+                        } else {
+                          it.copy(
+                            second = it.second + (peerHandle to PeerInfo(
+                              msg.vectorClock,
+                              0,
+                              msg.clientIdentifier!!
+                            ))
+                          )
+                        }
                       }
                       _details.update { it.copy(peers = subscribeSession.value.second) }
                     }
@@ -590,7 +616,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                         if (vc == null) {
                           it
                         } else if (
-                          msg.vectorClock.contains(vc.first) || msg.msgIdentifier == vc.second
+                          msg.vectorClock.contains(vc.first.state) || msg.msgIdentifier == vc.second
                         ) {
                           it.copy(third = MessageState.MessageReceived)
                         } else {

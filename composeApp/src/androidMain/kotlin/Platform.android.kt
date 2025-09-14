@@ -43,7 +43,7 @@ class AndroidPlatform : Platform {
     var downloading = false
     var uploading = false
     wifiAware.peers.values.forEach { vc ->
-      when (version.compare(vc)) {
+      when (version.compare(vc.state)) {
         CompareResult.Equal -> {}
         CompareResult.Greater -> uploading = true
         CompareResult.Incomparable -> {
@@ -82,9 +82,9 @@ class AndroidPlatform : Platform {
               connectedViaClient = false,
               connectedViaWifiAware = true,
               id = null,
-              name = "Connected client",
-              state = it.value,
-              errorMsg = null,
+              name = it.value.clientIdentifier.pretty(),
+              state = it.value.state,
+              errorMsg = if (it.value.failedReads == 0) null else "${it.value.failedReads} failed attempts to communicate",
             )
           },
       uploading = uploading,

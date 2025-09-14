@@ -108,13 +108,14 @@ object Encoders {
 
   @OptIn(ExperimentalStdlibApi::class)
   fun encodeSendVersionsMaxSize(
+    clientIdentifier: ClientIdentifier,
     maxSize: Int,
     from: VectorClock,
     to: VectorClock,
     messageIdentifier: Int?,
     fetchVersion: (Dot) -> Operation<Action>,
   ): ByteArray {
-    val initial = encodePb(Message.SendVersions(to.merge(from), listOf(), messageIdentifier))
+    val initial = encodePb(Message.SendVersions(to.merge(from), listOf(), messageIdentifier, clientIdentifier))
     var size = initial.size + 3
     val clients = to.clock.keys.toList()
     val values = mutableListOf<Int>()
@@ -171,7 +172,7 @@ object Encoders {
       return VectorClock(result.toMap())
     }
     return when (pb.messageKind) {
-      MessageKind.CURRENT_STATE -> Message.CurrentState(asClock(pb.clock))
+      MessageKind.CURRENT_STATE -> Message.CurrentState(asClock(pb.clock), ClientIdentifier.decodeFromProto(pb.clientIdentifier!!))
       MessageKind.REQUEST_VERSIONS ->
         Message.RequestVersions(
           asClock(pb.clock),
@@ -184,6 +185,7 @@ object Encoders {
           asClock(pb.clock),
           decodeOperations(pb.clientIdentifiers, pb.actions),
           pb.messageIdentifier,
+          ClientIdentifier.decodeFromProto(pb.clientIdentifier!!),
         )
       MessageKind.STOP_CONNECTION -> Message.StopConnection(Unit)
       MessageKind.SEND_VERSIONS_PARTIAL -> Message.StopConnection(Unit)
