@@ -153,6 +153,7 @@ object Encoders {
           clock = clients.map { sendVector[it]?.toLong() ?: 0 },
           actions = values,
           messageIdentifier = messageIdentifier,
+          clientIdentifier = clientIdentifier.encodeToProto(),
         )
         .encodeToByteArray()
     if (result.size > prevSize) {
