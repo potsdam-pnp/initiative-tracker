@@ -36,6 +36,7 @@ enum MessageKind {
   RequestVersions = 2;
   SendVersions = 3;
   SendVersionsPartial = 4;
+  Heartbeat = 5;
 }
 
 message Message {

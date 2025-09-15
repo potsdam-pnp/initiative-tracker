@@ -7,7 +7,10 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 
 sealed class Message<Op> {
-  data class CurrentState<Op>(val vectorClock: VectorClock, val clientIdentifier: ClientIdentifier) : Message<Op>()
+  data class CurrentState<Op>(
+    val vectorClock: VectorClock,
+    val clientIdentifier: ClientIdentifier,
+  ) : Message<Op>()
 
   data class RequestVersions<Op>(
     val vectorClock: VectorClock,
@@ -20,10 +23,12 @@ sealed class Message<Op> {
     val vectorClock: VectorClock,
     val versions: List<Operation<Op>>,
     val msgIdentifier: Int? = null,
-    val clientIdentifier: ClientIdentifier
+    val clientIdentifier: ClientIdentifier,
   ) : Message<Op>()
 
   data class StopConnection<Op>(val unit: Unit) : Message<Op>()
+
+  data class Heartbeat<Op>(val id: Int) : Message<Op>()
 }
 
 class MessageHandler<Op, State : AbstractState<Op>>(private val repository: Repository<Op, State>) {
@@ -33,7 +38,11 @@ class MessageHandler<Op, State : AbstractState<Op>>(private val repository: Repo
     outgoing: Channel<Message<Op>>,
   ) {
     val job =
-      scope.launch { repository.version.collect { outgoing.send(Message.CurrentState(it, repository.clientIdentifier)) } }
+      scope.launch {
+        repository.version.collect {
+          outgoing.send(Message.CurrentState(it, repository.clientIdentifier))
+        }
+      }
 
     while (true) {
       val answer = handleMessage(incoming.receive())
@@ -69,11 +78,20 @@ class MessageHandler<Op, State : AbstractState<Op>>(private val repository: Repo
           message.vectorClock.versionsNotIn(message.fromVectorClock).mapNotNull {
             repository.fetchVersion(it)
           }
-        return Message.SendVersions(message.vectorClock, versions, null, repository.clientIdentifier)
+        return Message.SendVersions(
+          message.vectorClock,
+          versions,
+          null,
+          repository.clientIdentifier,
+        )
       }
 
       is Message.StopConnection -> {
         return Message.StopConnection(Unit)
+      }
+
+      is Message.Heartbeat -> {
+        return null
       }
     }
   }

@@ -89,6 +89,8 @@ object Encoders {
         )
       }
       is Message.StopConnection -> ProtoMessage(messageKind = MessageKind.STOP_CONNECTION)
+      is Message.Heartbeat ->
+        ProtoMessage(messageKind = MessageKind.HEARTBEAT, messageIdentifier = msg.id)
     }
   }
 
@@ -115,7 +117,8 @@ object Encoders {
     messageIdentifier: Int?,
     fetchVersion: (Dot) -> Operation<Action>,
   ): ByteArray {
-    val initial = encodePb(Message.SendVersions(to.merge(from), listOf(), messageIdentifier, clientIdentifier))
+    val initial =
+      encodePb(Message.SendVersions(to.merge(from), listOf(), messageIdentifier, clientIdentifier))
     var size = initial.size + 3
     val clients = to.clock.keys.toList()
     val values = mutableListOf<Int>()
@@ -141,23 +144,25 @@ object Encoders {
       dot?.also { sendVector[it.clientIdentifier] = it.position }
     }
 
-    val result = ProtoMessage(
-        messageKind = MessageKind.SEND_VERSIONS,
-        clientIdentifiers = clients.map { it.encodeToProto() },
-        clock = clients.map { sendVector[it]?.toLong() ?: 0 },
-        actions = values,
-        messageIdentifier = messageIdentifier,
-      )
-      .encodeToByteArray()
+    val result =
+      ProtoMessage(
+          messageKind = MessageKind.SEND_VERSIONS,
+          clientIdentifiers = clients.map { it.encodeToProto() },
+          clock = clients.map { sendVector[it]?.toLong() ?: 0 },
+          actions = values,
+          messageIdentifier = messageIdentifier,
+        )
+        .encodeToByteArray()
     if (result.size > prevSize) {
-      Napier.i(      "Message size limit ${maxSize}, but total size ${result.size} (calculated ${prevSize} for ${values.size} values)" +
-              "\nbytes: ${result.toHexString()},\nvalues: ${values.joinToString { it.toHexString() }}\n" +
-        "initial: ${initial.toHexString()}, initial size: ${initial.size}"
+      Napier.i(
+        "Message size limit ${maxSize}, but total size ${result.size} (calculated ${prevSize} for ${values.size} values)" +
+          "\nbytes: ${result.toHexString()},\nvalues: ${values.joinToString { it.toHexString() }}\n" +
+          "initial: ${initial.toHexString()}, initial size: ${initial.size}"
       )
     }
     check(result.size <= maxSize) {
       "Message size limit ${maxSize}, but total size ${result.size} (calculated ${prevSize} for ${values.size} values)" +
-              "\nbytes: ${result.toHexString()},\nvalues: ${values.joinToString { ", " }} "
+        "\nbytes: ${result.toHexString()},\nvalues: ${values.joinToString { ", " }} "
     }
     return result
   }
@@ -172,7 +177,11 @@ object Encoders {
       return VectorClock(result.toMap())
     }
     return when (pb.messageKind) {
-      MessageKind.CURRENT_STATE -> Message.CurrentState(asClock(pb.clock), ClientIdentifier.decodeFromProto(pb.clientIdentifier!!))
+      MessageKind.CURRENT_STATE ->
+        Message.CurrentState(
+          asClock(pb.clock),
+          ClientIdentifier.decodeFromProto(pb.clientIdentifier!!),
+        )
       MessageKind.REQUEST_VERSIONS ->
         Message.RequestVersions(
           asClock(pb.clock),
@@ -190,6 +199,7 @@ object Encoders {
       MessageKind.STOP_CONNECTION -> Message.StopConnection(Unit)
       MessageKind.SEND_VERSIONS_PARTIAL -> Message.StopConnection(Unit)
       is MessageKind.UNRECOGNIZED -> Message.StopConnection(Unit)
+      MessageKind.HEARTBEAT -> Message.Heartbeat(pb.messageIdentifier!!)
     }
   }
 

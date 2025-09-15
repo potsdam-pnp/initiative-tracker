@@ -30,6 +30,7 @@ import io.github.potsdam_pnp.initiative_tracker.proto.MessageKind
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import kotlin.random.Random
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -37,14 +38,17 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.updateAndGet
@@ -82,11 +86,123 @@ data class MessageDetails(
   }
 }
 
+enum class OngoingHeartbeat {
+  TriggerSend,
+  SendSucceeded,
+}
+
+data class HeartbeatState(
+  val ongoingHeartbeat: Pair<Int, OngoingHeartbeat>?,
+  val failedHeartbeats: Int,
+  val timeoutHeartbeats: Int,
+  val succesfulHeartbeats: Int,
+) {
+  fun pretty(): String? {
+    return when {
+      failedHeartbeats == 0 && timeoutHeartbeats == 0 -> null
+      failedHeartbeats > 0 && timeoutHeartbeats > 0 ->
+        "no response to heartbeat ($failedHeartbeats times no response, $timeoutHeartbeats timeouts"
+      failedHeartbeats > 0 -> "no response to heartbeat ($failedHeartbeats times no response)"
+      else -> "no response to heartbeat ($timeoutHeartbeats timeouts)"
+    }
+  }
+
+  fun isWaitingForReply(): Int? {
+    return if (ongoingHeartbeat?.second == OngoingHeartbeat.SendSucceeded) {
+      ongoingHeartbeat.first
+    } else {
+      null
+    }
+  }
+
+  fun allowSend(): Boolean {
+    return failedHeartbeats == 0 && timeoutHeartbeats == 0
+  }
+
+  fun shouldSendHeartbeat(): Int? {
+    if (ongoingHeartbeat != null) {
+      return null
+    } else {
+      val combined = failedHeartbeats + timeoutHeartbeats + succesfulHeartbeats
+      return when {
+        combined == 0 -> 0
+        combined < 5 -> 2500
+        combined < 10 -> 5000
+        else -> 10000
+      }
+    }
+  }
+
+  fun receivedHeartbeat(id: Int): HeartbeatState {
+    return if (ongoingHeartbeat?.first == id) {
+      HeartbeatState(null, 0, 0, succesfulHeartbeats = succesfulHeartbeats + 1)
+    } else {
+      Napier.i("no match in heartbeat id")
+      this
+    }
+  }
+
+  fun heartbeatFailed(id: Int): HeartbeatState {
+    return if (ongoingHeartbeat?.first == id) {
+      HeartbeatState(
+        null,
+        failedHeartbeats = failedHeartbeats + 1,
+        timeoutHeartbeats = timeoutHeartbeats,
+        succesfulHeartbeats = 0,
+      )
+    } else {
+      Napier.i("no match in heartbeat id")
+      this
+    }
+  }
+
+  fun heartbeatSucceeded(id: Int): HeartbeatState {
+    return if (ongoingHeartbeat?.first == id) {
+      copy(ongoingHeartbeat = id to OngoingHeartbeat.SendSucceeded)
+    } else {
+      Napier.i("no match in heartbeat id")
+      this
+    }
+  }
+
+  fun heartbeatTimeout(id: Int): HeartbeatState {
+    return if (ongoingHeartbeat?.first == id) {
+      HeartbeatState(
+        null,
+        failedHeartbeats = failedHeartbeats,
+        timeoutHeartbeats = timeoutHeartbeats + 1,
+        succesfulHeartbeats = 0,
+      )
+    } else {
+      Napier.i("no match in heartbeat id")
+      this
+    }
+  }
+
+  fun triggerSend(): Pair<Int, HeartbeatState>? {
+    if (ongoingHeartbeat != null) {
+      return null
+    }
+    val id = Random.nextInt()
+    return id to copy(ongoingHeartbeat = id to OngoingHeartbeat.TriggerSend)
+  }
+
+  companion object {
+    fun new(): HeartbeatState {
+      return HeartbeatState(null, 0, 0, 0)
+    }
+  }
+}
+
 data class PeerInfo(
   val state: VectorClock,
-  val failedReads: Int,
-  val clientIdentifier: ClientIdentifier
-)
+  val heartbeatState: HeartbeatState,
+  val clientIdentifier: ClientIdentifier,
+) {
+  fun triggerSendHeartbeat(): Pair<Int, PeerInfo>? {
+    return heartbeatState.triggerSend()?.let { it.first to copy(heartbeatState = it.second) }
+  }
+}
 
 data class Details(
   val subscribe: MessageDetails = MessageDetails(),
@@ -239,13 +355,23 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
       (publishData.fromPosition until (publishData.clock.clock[repository.clientIdentifier] ?: 0))
         .map { Dot(repository.clientIdentifier, it + 1) }
     val versions = dots.map { repository.fetchVersion(it)!! }
-    return Encoders.encodePb(Message.SendVersions(publishData.clock, versions, null, repository.clientIdentifier))
+    return Encoders.encodePb(
+      Message.SendVersions(publishData.clock, versions, null, repository.clientIdentifier)
+    )
   }
 
-  private data class PublishData(val clock: VectorClock, val fromPosition: Int, val updatingTo: Pair<VectorClock, Int>?) {
+  private data class PublishData(
+    val clock: VectorClock,
+    val fromPosition: Int,
+    val updatingTo: Pair<VectorClock, Int>?,
+  ) {
     fun updateToNext(): PublishData {
       check(updatingTo != null)
-      return PublishData(clock = updatingTo.first, fromPosition = updatingTo.second, updatingTo = null)
+      return PublishData(
+        clock = updatingTo.first,
+        fromPosition = updatingTo.second,
+        updatingTo = null,
+      )
     }
 
     fun cancelUpdate(): PublishData {
@@ -281,23 +407,22 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
     coroutineScope {
       launch {
         while (true) {
-          val (publishData, ps) = combine(
-            repository.version,
-            publishSession,
-            _details
-          ) { vc, publish, d ->
-            val pf = publish.first
-            if (pf == null || publish.second?.updatingTo != null) {
-              null
-            } else {
-              val publishData = PublishData.from(repository.clientIdentifier, vc, d)
-              if (publishData == publish.second) {
-                null
-              } else {
-                publishData to pf
+          val (publishData, ps) =
+            combine(repository.version, publishSession, _details) { vc, publish, d ->
+                val pf = publish.first
+                if (pf == null || publish.second?.updatingTo != null) {
+                  null
+                } else {
+                  val publishData = PublishData.from(repository.clientIdentifier, vc, d)
+                  if (publishData == publish.second) {
+                    null
+                  } else {
+                    publishData to pf
+                  }
+                }
               }
-            }
-          }.filterNotNull().first()
+              .filterNotNull()
+              .first()
 
           val payload = subscribePayload(publishData)
           ps.updatePublish(
@@ -306,9 +431,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
               .setServiceSpecificInfo(payload)
               .build()
           )
-          publishSession.update {
-            it.copy(second = it.second?.triggerUpdate (publishData))
-          }
+          publishSession.update { it.copy(second = it.second?.triggerUpdate(publishData)) }
           _details.update {
             it.copy(
               sessionConfig =
@@ -352,9 +475,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                 }
 
                 override fun onSessionConfigUpdated() {
-                  publishSession.update {
-                    it.copy(second = it.second?.updateToNext())
-                  }
+                  publishSession.update { it.copy(second = it.second?.updateToNext()) }
                   _details.update {
                     it.copy(
                       sessionConfig =
@@ -366,9 +487,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                 }
 
                 override fun onSessionConfigFailed() {
-                  publishSession.update {
-                    it.copy(second = it.second?.cancelUpdate())
-                  }
+                  publishSession.update { it.copy(second = it.second?.cancelUpdate()) }
                   _details.update {
                     it.copy(
                       sessionConfig =
@@ -453,9 +572,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
   @OptIn(ExperimentalCoroutinesApi::class)
   private suspend fun runSubscribe(wifiAwareSession: WifiAwareSession) {
     val subscribeSession =
-      MutableStateFlow<Pair<SubscribeDiscoverySession?, Map<PeerHandle, PeerInfo>>>(
-        null to mapOf()
-      )
+      MutableStateFlow<Pair<SubscribeDiscoverySession?, Map<PeerHandle, PeerInfo>>>(null to mapOf())
     val subscribeConfig = SubscribeConfig.Builder().setServiceName(serviceName).build()
     val messageState =
       MutableStateFlow<Triple<Int, Pair<PeerInfo, Int>?, MessageState?>>(Triple(0, null, null))
@@ -471,7 +588,10 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                   .mapNotNull { (peer, value) ->
                     val ok =
                       !vc.contains(value.state) &&
-                        peers.all { (_, v) -> value.state.compare(v.state) != CompareResult.Smaller || v.failedReads < value.failedReads }
+                        peers.all { (_, v) ->
+                          value.state.compare(v.state) != CompareResult.Smaller ||
+                            !v.heartbeatState.allowSend()
+                        }
                     if (!ok) null else Triple(session to peer, value, vc)
                   }
                   .ifEmpty { null }
@@ -515,7 +635,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                 messageState.first { it.third == MessageState.MessageReceived }
               }
 
-              val succeeded = select<Boolean> {
+              select<Boolean> {
                 nextValue.onAwait {
                   Napier.i("request processed")
                   true
@@ -526,16 +646,100 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                 }
               }
 
-              if (!succeeded) {
-
-              }
-
               nextValue.cancelAndJoin()
             }
 
             null -> {}
           }
           Napier.i("end of subscribe loop")
+        }
+      }
+
+      launch(CoroutineName("subscribe heartbeats")) {
+        while (true) {
+          val (session, peerInfo) =
+            subscribeSession
+              .mapNotNull { (session, peerInfo) ->
+                if (session == null) {
+                  null
+                } else {
+                  val peers =
+                    peerInfo.mapNotNull { entry ->
+                      entry.value.heartbeatState.shouldSendHeartbeat()?.let { entry.key to it }
+                    }
+                  if (peers.isEmpty()) {
+                    null
+                  } else {
+                    session to peers
+                  }
+                }
+              }
+              .filterNotNull()
+              .first()
+
+          peerInfo.forEach { (peerHandle, d) ->
+            var value: Int? = null
+            subscribeSession.update {
+              value = null
+              val triggered = it.second[peerHandle]?.triggerSendHeartbeat()
+              if (triggered != null) {
+                value = triggered.first
+                it.copy(second = it.second + (peerHandle to triggered.second))
+              } else {
+                it
+              }
+            }
+
+            val v = value
+
+            if (v != null) {
+              launch {
+                delay(d.toLong())
+                session.sendMessage(
+                  peerHandle,
+                  v,
+                  io.github.potsdam_pnp.initiative_tracker.proto
+                    .Message(messageKind = MessageKind.HEARTBEAT, messageIdentifier = value)
+                    .encodeToByteArray(),
+                )
+              }
+            }
+          }
+        }
+      }
+
+      launch(CoroutineName("heartbeat timeouts")) {
+        var timeoutJobs: Map<Int, Job> = mapOf()
+
+        while (true) {
+          val values =
+            subscribeSession
+              .map { it.second.mapNotNull { it.value.heartbeatState.isWaitingForReply() }.toSet() }
+              .filter { timeoutJobs.keys != it }
+              .first()
+
+          val diff = (timeoutJobs - values)
+          diff.values.forEach { job -> job.cancelAndJoin() }
+
+          timeoutJobs =
+            values
+              .associateWith { id ->
+                timeoutJobs[id]
+                  ?: (launch {
+                    delay(3000)
+                    subscribeSession.update {
+                      it.copy(
+                        second =
+                          it.second.mapValues {
+                            it.value.copy(
+                              heartbeatState = it.value.heartbeatState.heartbeatTimeout(id)
+                            )
+                          }
+                      )
+                    }
+                  })
+              }
+              .toMap()
         }
       }
 
@@ -570,7 +774,16 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                         if (it.second[peerHandle]?.state == msg.vectorClock) {
                           it // nothing new, so don't reset failed counter
                         } else {
-                          it.copy(second = it.second + (peerHandle to PeerInfo(msg.vectorClock, 0, msg.clientIdentifier!!)))
+                          it.copy(
+                            second =
+                              it.second +
+                                (peerHandle to
+                                  PeerInfo(
+                                    msg.vectorClock,
+                                    HeartbeatState.new(),
+                                    msg.clientIdentifier,
+                                  ))
+                          )
                         }
                       }
                       _details.update { it.copy(peers = subscribeSession.value.second) }
@@ -582,11 +795,14 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                           it
                         } else {
                           it.copy(
-                            second = it.second + (peerHandle to PeerInfo(
-                              msg.vectorClock,
-                              0,
-                              msg.clientIdentifier!!
-                            ))
+                            second =
+                              it.second +
+                                (peerHandle to
+                                  PeerInfo(
+                                    msg.vectorClock,
+                                    HeartbeatState.new(),
+                                    msg.clientIdentifier,
+                                  ))
                           )
                         }
                       }
@@ -624,11 +840,46 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                         }
                       }
                     }
+                    is Message.Heartbeat ->
+                      subscribeSession.update {
+                        val v = it.second[peerHandle]
+                        if (v == null) {
+                          Napier.i("handle from heartbeat not yet found")
+                          return@update it
+                        }
+                        val vv = v.copy(heartbeatState = v.heartbeatState.receivedHeartbeat(msg.id))
+                        it.copy(second = it.second + (peerHandle to vv))
+                      }
                     else -> {}
                   }
                 }
 
                 override fun onMessageSendFailed(messageId: Int) {
+                  do {
+                    val ss = subscribeSession.value
+                    val f =
+                      ss.second
+                        .filter { it.value.heartbeatState.ongoingHeartbeat?.first == messageId }
+                        .entries
+                        .firstOrNull()
+                    val res =
+                      if (f == null) {
+                        true
+                      } else {
+                        val sn =
+                          ss.copy(
+                            second =
+                              ss.second +
+                                (f.key to
+                                  f.value.copy(
+                                    heartbeatState =
+                                      f.value.heartbeatState.heartbeatFailed(messageId)
+                                  ))
+                          )
+                        subscribeSession.compareAndSet(ss, sn)
+                      }
+                  } while (!res)
+
                   messageState.update {
                     if (it.first == messageId && it.third == null) {
                       it.copy(third = MessageState.MessageSentFailed)
@@ -645,6 +896,31 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                 }
 
                 override fun onMessageSendSucceeded(messageId: Int) {
+                  do {
+                    val ss = subscribeSession.value
+                    val f =
+                      ss.second
+                        .filter { it.value.heartbeatState.ongoingHeartbeat?.first == messageId }
+                        .entries
+                        .firstOrNull()
+                    val res =
+                      if (f == null) {
+                        true
+                      } else {
+                        val sn =
+                          ss.copy(
+                            second =
+                              ss.second +
+                                (f.key to
+                                  f.value.copy(
+                                    heartbeatState =
+                                      f.value.heartbeatState.heartbeatSucceeded(messageId)
+                                  ))
+                          )
+                        subscribeSession.compareAndSet(ss, sn)
+                      }
+                  } while (!res)
+
                   messageState.update {
                     if (it.first == messageId && it.third == null) {
                       it.copy(third = MessageState.MessageSentSucceeded)

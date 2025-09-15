@@ -84,7 +84,7 @@ class AndroidPlatform : Platform {
               id = null,
               name = it.value.clientIdentifier.pretty(),
               state = it.value.state,
-              errorMsg = if (it.value.failedReads == 0) null else "${it.value.failedReads} failed attempts to communicate",
+              errorMsg = it.value.heartbeatState.pretty(),
             )
           },
       uploading = uploading,
