@@ -99,6 +99,7 @@ data class HeartbeatState(
 ) {
   fun pretty(): String? {
     return when {
+      succesfulHeartbeats > 0 -> "connected ($succesfulHeartbeats)"
       failedHeartbeats == 0 && timeoutHeartbeats == 0 -> null
       failedHeartbeats > 0 && timeoutHeartbeats > 0 ->
         "no response to heartbeat ($failedHeartbeats times no response, $timeoutHeartbeats timeouts"
@@ -391,7 +392,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
     }
 
     fun cancelUpdate(): PublishData {
-      check(updatingTo == null)
+      check(updatingTo != null)
       return copy(updatingTo = null)
     }
 

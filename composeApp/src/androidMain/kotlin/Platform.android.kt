@@ -42,7 +42,7 @@ class AndroidPlatform : Platform {
 
     var downloading = false
     var uploading = false
-    wifiAware.peers.values.forEach { vc ->
+    wifiAware.peers.values.filter { it.heartbeatState.allowSend() }.forEach { vc ->
       when (version.compare(vc.state)) {
         CompareResult.Equal -> {}
         CompareResult.Greater -> uploading = true
@@ -81,7 +81,7 @@ class AndroidPlatform : Platform {
               connectedViaServer = false,
               connectedViaClient = false,
               connectedViaWifiAware = true,
-              id = null,
+              id = it.value.clientIdentifier,
               name = it.value.clientIdentifier.pretty(),
               state = it.value.state,
               errorMsg = it.value.heartbeatState.pretty(),
