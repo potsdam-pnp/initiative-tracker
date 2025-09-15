@@ -559,7 +559,7 @@ enum class Screens(val title: StringResource) {
 )
 @Composable
 @Preview
-fun App(data: String? = null) {
+fun App(data: String? = null, hasAnimations: Boolean = true) {
   val globalCoroutineScope = rememberCoroutineScope()
   val model = viewModel { Model(Repository(State()), null, data) }
   LaunchedEffect(Unit) {
@@ -614,7 +614,7 @@ fun App(data: String? = null) {
             modifier =
               Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Start)),
             label = { Text(stringResource(Res.string.ConnectionSettings)) },
-            badge = { ConnectionState() },
+            badge = { ConnectionState(hasAnimations = hasAnimations) },
             selected = backStackEntry?.destination?.route == Screens.ConnectionSettings.name,
             onClick = {
               navController.navigate(Screens.ConnectionSettings.name) {
@@ -724,7 +724,7 @@ fun App(data: String? = null) {
                 overflow = TextOverflow.Ellipsis,
               )
             },
-            actions = { ConnectionState() },
+            actions = { ConnectionState(hasAnimations = hasAnimations) },
             navigationIcon = {
               IconButton(onClick = { scope.launch { drawerState.open() } }) {
                 Icon(Icons.Default.Menu, contentDescription = "Menu")
@@ -857,6 +857,7 @@ fun App(data: String? = null) {
 @Composable
 fun ConnectionState(
   modifier: Modifier = Modifier,
+  hasAnimations: Boolean,
   transform: @Composable (@Composable () -> Unit) -> Unit = { it() },
 ) {
   val clientStatus by ClientConsumer.clientStatus.collectAsState()
@@ -866,16 +867,23 @@ fun ConnectionState(
 
   val (uploadAlpha, downloadAlpha) =
     if (serverStatus.uploading || serverStatus.downloading) {
-      val position by
+      if (hasAnimations) {
+        val position by
         infiniteTransition.animateFloat(
           initialValue = 0.0f,
           targetValue = 1.0f,
           animationSpec = infiniteRepeatable(tween(1000), RepeatMode.Reverse),
         )
-      Pair(
-        if (serverStatus.uploading) position else 0.0f,
-        if (serverStatus.downloading) position else 0.0f,
-      )
+        Pair(
+          if (serverStatus.uploading) position else 0.0f,
+          if (serverStatus.downloading) position else 0.0f,
+        )
+      } else {
+        Pair(
+          if (serverStatus.uploading) 1.0f else 0.0f,
+          if (serverStatus.downloading) 1.0f else 0.0f,
+          )
+      }
     } else {
       Pair(0.0f, 0.0f)
     }
