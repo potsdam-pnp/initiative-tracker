@@ -56,7 +56,7 @@ class MainActivity : ComponentActivity() {
     ViewModelProvider.create(viewModelStore, factory)[Model::class]
 
 
-    val hasAnimations = Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE) > 0.0f
+    val hasAnimations = Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1.0f) > 0.0f
 
     setContent { App(null, hasAnimations) }
   }
