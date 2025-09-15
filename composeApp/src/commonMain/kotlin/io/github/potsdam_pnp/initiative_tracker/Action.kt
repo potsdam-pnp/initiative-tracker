@@ -59,6 +59,7 @@ object Encoders {
           messageKind = MessageKind.CURRENT_STATE,
           clientIdentifiers = clientIdentifiers.map { it.encodeToProto() },
           clock = clientIdentifiers.map { msg.vectorClock.clock[it]?.toLong() ?: 0 },
+          clientIdentifier = msg.clientIdentifier.encodeToProto(),
         )
       }
 
@@ -86,6 +87,7 @@ object Encoders {
           clock = clientIdentifiers.map { msg.vectorClock.clock[it]?.toLong() ?: 0 },
           actions = actions,
           messageIdentifier = msg.msgIdentifier,
+          clientIdentifier = msg.clientIdentifier.encodeToProto(),
         )
       }
       is Message.StopConnection -> ProtoMessage(messageKind = MessageKind.STOP_CONNECTION)

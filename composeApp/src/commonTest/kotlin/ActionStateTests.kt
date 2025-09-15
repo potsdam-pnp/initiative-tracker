@@ -106,7 +106,7 @@ class ActionStateTests {
           Operation(OperationMetadata(VectorClock(mapOf(client1 to (index + 1))), client1), action)
         }
 
-    val sendVersions = Message.SendVersions(clock, actions)
+    val sendVersions = Message.SendVersions(clock, actions, null, ClientIdentifier.new())
     assertEquals(Encoders.decodePb(Encoders.encodePb(sendVersions)), sendVersions)
   }
 }

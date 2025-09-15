@@ -139,7 +139,6 @@ class AndroidPlatform : Platform {
     val application = LocalContext.current.applicationContext as InitiativeTrackerApplication
     val activity = LocalActivity.current as MainActivity
     val serverSettings by application.serverLifecycleManager.serverSettings.collectAsState()
-    val scope = rememberCoroutineScope()
     val state by application.wifiAwareConnectionManager._available.collectAsState()
     val details by application.wifiAwareConnectionManager.details.collectAsState()
     ListItem(

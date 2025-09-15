@@ -204,6 +204,13 @@ data class PeerInfo(
   }
 }
 
+data class DetailsNoPeers(
+  val subscribe: MessageDetails = MessageDetails(),
+  val publish: MessageDetails = MessageDetails(),
+  val sessionConfig: MessageDetails = MessageDetails(),
+  val peers: Map<PeerHandle, PeerInfo> = mapOf(),
+)
+
 data class Details(
   val subscribe: MessageDetails = MessageDetails(),
   val publish: MessageDetails = MessageDetails(),
@@ -215,9 +222,11 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
   val _available =
     MutableStateFlow(WifiAwareAvailableState.Unknown to WifiAwareSession(false, null, false))
 
-  private val _details = MutableStateFlow(Details())
+  private val _details = MutableStateFlow(DetailsNoPeers())
+  private val _detailsInternal = MutableStateFlow(Details())
+
   val details: StateFlow<Details>
-    get() = _details
+    get() = _detailsInternal
 
   fun available(scope: CoroutineScope): StateFlow<WifiAwareAvailableState> {
     return _available
@@ -321,6 +330,13 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
           }
         }
       }
+      launch {
+        _details.collect { d ->
+          _detailsInternal.update { di ->
+            di.copy(subscribe = d.subscribe, publish = d.publish, sessionConfig = d.sessionConfig)
+          }
+        }
+      }
       _available.collect { (state, value) ->
         val shouldBeRunning =
           state == WifiAwareAvailableState.Available && value.enabled && !value.isFailed
@@ -385,10 +401,14 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
     }
 
     companion object {
-      fun from(clientIdentifier: ClientIdentifier, vc: VectorClock, d: Details): PublishData {
+      fun from(
+        clientIdentifier: ClientIdentifier,
+        vc: VectorClock,
+        peers: Map<PeerHandle, PeerInfo>,
+      ): PublishData {
         val us = vc.clock[clientIdentifier] ?: 0
         val smallestMap = mutableMapOf<ClientIdentifier, Int>()
-        d.peers.forEach { entry ->
+        peers.forEach { entry ->
           val them = entry.value.state.clock[clientIdentifier] ?: 0
           if (us - them < 10 && us > them) {
             smallestMap[entry.value.clientIdentifier] =
@@ -408,12 +428,12 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
       launch {
         while (true) {
           val (publishData, ps) =
-            combine(repository.version, publishSession, _details) { vc, publish, d ->
+            combine(repository.version, publishSession, details.map { it.peers }) { vc, publish, p ->
                 val pf = publish.first
                 if (pf == null || publish.second?.updatingTo != null) {
                   null
                 } else {
-                  val publishData = PublishData.from(repository.clientIdentifier, vc, d)
+                  val publishData = PublishData.from(repository.clientIdentifier, vc, p)
                   if (publishData == publish.second) {
                     null
                   } else {
@@ -454,7 +474,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
               PublishData.from(
                 repository.clientIdentifier,
                 repository.version.value,
-                _details.value,
+                _details.value.peers,
               )
             val publishConfig =
               PublishConfig.Builder()
@@ -578,6 +598,11 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
       MutableStateFlow<Triple<Int, Pair<PeerInfo, Int>?, MessageState?>>(Triple(0, null, null))
 
     coroutineScope {
+      launch {
+        subscribeSession
+          .map { it.second }
+          .collect { ss -> _detailsInternal.update { it.copy(peers = ss) } }
+      }
       launch {
         while (true) {
           Napier.i("start subscribe loop")
