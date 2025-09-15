@@ -549,6 +549,8 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                         )
                       }
                     }
+                    is Message.Heartbeat ->
+                      publishSession.value.first?.sendMessage(peerHandle, 17, message)
                     else -> {}
                   }
                 }
