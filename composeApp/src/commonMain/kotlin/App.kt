@@ -866,7 +866,7 @@ fun ConnectionState(
   val infiniteTransition = rememberInfiniteTransition()
 
   val (uploadAlpha, downloadAlpha) =
-    if (serverStatus.uploading || serverStatus.downloading) {
+    if (serverStatus.uploading > 0 || serverStatus.downloading > 0) {
       if (hasAnimations) {
         val position by
         infiniteTransition.animateFloat(
@@ -875,13 +875,13 @@ fun ConnectionState(
           animationSpec = infiniteRepeatable(tween(1000), RepeatMode.Reverse),
         )
         Pair(
-          if (serverStatus.uploading) position else 0.0f,
-          if (serverStatus.downloading) position else 0.0f,
+          if (serverStatus.uploading > 0) position else 0.0f,
+          if (serverStatus.downloading > 0) position else 0.0f,
         )
       } else {
         Pair(
-          if (serverStatus.uploading) 1.0f else 0.0f,
-          if (serverStatus.downloading) 1.0f else 0.0f,
+          if (serverStatus.uploading > 0) 1.0f else 0.0f,
+          if (serverStatus.downloading > 0) 1.0f else 0.0f,
           )
       }
     } else {

@@ -40,17 +40,17 @@ class AndroidPlatform : Platform {
     val wifiAwareState = "Nearby devices: ${wifiAwareS.name}"
     val version by app.repository.version.collectAsState()
 
-    var downloading = false
-    var uploading = false
+    var downloading = 0
+    var uploading = 0
     wifiAware.peers.values.filter { it.heartbeatState.allowSend() }.forEach { vc ->
       when (version.compare(vc.state)) {
         CompareResult.Equal -> {}
-        CompareResult.Greater -> uploading = true
+        CompareResult.Greater -> uploading += 1
         CompareResult.Incomparable -> {
-          downloading = true
-          uploading = true
+          downloading += 1
+          uploading += 1
         }
-        CompareResult.Smaller -> downloading = true
+        CompareResult.Smaller -> downloading += 1
       }
     }
 
