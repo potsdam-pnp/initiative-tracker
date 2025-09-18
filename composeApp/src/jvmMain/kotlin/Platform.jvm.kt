@@ -29,8 +29,8 @@ class JVMPlatform : Platform {
             errorMsg = null,
           )
         },
-      uploading = false,
-      downloading = false,
+      uploading = 0,
+      downloading = 0,
     )
   }
 }
