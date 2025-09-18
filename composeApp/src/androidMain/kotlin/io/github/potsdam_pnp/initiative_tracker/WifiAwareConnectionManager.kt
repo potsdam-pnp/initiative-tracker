@@ -72,17 +72,37 @@ data class WifiAwareSession(
   val isFailed: Boolean,
 )
 
+data class MessageSizes(
+  val min: Int = -1,
+  val max: Int = -1,
+  val count: Int = 0,
+  val latest: List<Int> = listOf()
+) {
+  fun add(size: Int): MessageSizes {
+    return copy(
+      min = size.coerceAtLeast(min),
+      max = size.coerceAtMost(max),
+      count = count + 1,
+      latest = latest.subList((latest.size - 5).coerceAtLeast(0), latest.size) + size
+    )
+  }
+
+  fun pretty(): String {
+    return "($count values between $min and $max, latest ${latest.joinToString(separator = ",") }"
+  }
+}
+
 data class MessageDetails(
   val isActive: Boolean = false,
   val messagesConstructed: Int = 0,
   val messagesSuccessfulSent: Int = 0,
   val messagesFailedSent: Int = 0,
   val messagesReceived: Int = 0,
-  val messagesConstructedSizes: List<Int> = listOf(),
+  val messagesConstructedSizes: MessageSizes = MessageSizes(),
 ) {
   fun pretty(name: String): String {
     return "$name ${if (isActive) "up" else "down"}\n  Constructed: $messagesConstructed  Sent: $messagesSuccessfulSent  Failed: $messagesFailedSent\n  Received: $messagesReceived\n" +
-      "send sizes: ${messagesConstructedSizes}"
+      "send sizes: ${messagesConstructedSizes.pretty()}"
   }
 }
 
@@ -459,7 +479,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                 it.sessionConfig.copy(
                   messagesConstructed = it.sessionConfig.messagesConstructed + 1,
                   messagesConstructedSizes =
-                    it.sessionConfig.messagesConstructedSizes + listOf(payload.size),
+                    it.sessionConfig.messagesConstructedSizes.add(payload.size),
                 )
             )
           }
@@ -545,7 +565,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                             it.publish.copy(
                               messagesConstructed = it.publish.messagesConstructed + 1,
                               messagesConstructedSizes =
-                                it.publish.messagesConstructedSizes + listOf(bytes.size),
+                                it.publish.messagesConstructedSizes.add(bytes.size),
                             )
                         )
                       }
