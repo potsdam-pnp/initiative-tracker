@@ -76,14 +76,14 @@ data class MessageSizes(
   val min: Int = -1,
   val max: Int = -1,
   val count: Int = 0,
-  val latest: List<Int> = listOf()
+  val latest: List<Int> = listOf(),
 ) {
   fun add(size: Int): MessageSizes {
     return copy(
       min = size.coerceAtLeast(min),
       max = size.coerceAtMost(max),
       count = count + 1,
-      latest = latest.subList((latest.size - 5).coerceAtLeast(0), latest.size) + size
+      latest = latest.subList((latest.size - 5).coerceAtLeast(0), latest.size) + size,
     )
   }
 
@@ -449,7 +449,8 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
       launch {
         while (true) {
           val (publishData, ps) =
-            combine(repository.version, publishSession, details.map { it.peers }) { vc, publish, p ->
+            combine(repository.version, publishSession, details.map { it.peers }) { vc, publish, p
+                ->
                 val pf = publish.first
                 if (pf == null || publish.second?.updatingTo != null) {
                   null

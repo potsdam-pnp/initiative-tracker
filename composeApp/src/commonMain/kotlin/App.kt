@@ -869,11 +869,11 @@ fun ConnectionState(
     if (serverStatus.uploading > 0 || serverStatus.downloading > 0) {
       if (hasAnimations) {
         val position by
-        infiniteTransition.animateFloat(
-          initialValue = 0.0f,
-          targetValue = 1.0f,
-          animationSpec = infiniteRepeatable(tween(1000), RepeatMode.Reverse),
-        )
+          infiniteTransition.animateFloat(
+            initialValue = 0.0f,
+            targetValue = 1.0f,
+            animationSpec = infiniteRepeatable(tween(1000), RepeatMode.Reverse),
+          )
         Pair(
           if (serverStatus.uploading > 0) position else 0.0f,
           if (serverStatus.downloading > 0) position else 0.0f,
@@ -882,7 +882,7 @@ fun ConnectionState(
         Pair(
           if (serverStatus.uploading > 0) 1.0f else 0.0f,
           if (serverStatus.downloading > 0) 1.0f else 0.0f,
-          )
+        )
       }
     } else {
       Pair(0.0f, 0.0f)
