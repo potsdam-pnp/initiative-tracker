@@ -1,0 +1,5 @@
+Complete overhaul of the way messages are exchanged.
+Instead of mDNS, Wifi Aware is now used to discover other devices and exchange information with them.
+This allows devices, that are not connected to the same Wifi network, to also exchange data.
+This update is incompatible with the earlier versions, so only devices on this new version can
+exchange information with each other.

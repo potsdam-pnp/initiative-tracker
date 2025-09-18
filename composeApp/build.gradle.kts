@@ -110,8 +110,8 @@ android {
     applicationId = "io.github.potsdam_pnp.initiative_tracker"
     minSdk = libs.versions.android.minSdk.get().toInt()
     targetSdk = libs.versions.android.targetSdk.get().toInt()
-    versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 130
-    versionName = System.getenv("VERSION_NAME") ?: "0.3.0"
+    versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 200
+    versionName = System.getenv("VERSION_NAME") ?: "0.4.0"
   }
   packaging {
     resources { excludes += "/META-INF/{AL2.0,LGPL2.1,INDEX.LIST,io.netty.versions.properties}" }

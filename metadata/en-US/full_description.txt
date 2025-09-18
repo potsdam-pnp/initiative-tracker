@@ -1,8 +1,9 @@
 Initiative tracker is an android app to track combat encounters in role playing games like Pathfinder 2.
 It supports showing and editing on multiple devices at the same time.
+Other devices, that are in WiFi range, are linked to each other and the initiative state is exchanged.
+Technically, this works via Wifi Aware. Once new devices join and lost devices rejoin, the state is exchanged.
+
 In addition to the Android app, it can also be opened in a browser connected to the same network.
-All devices that are connected to the same WiFi network are linked to each other (when allowed by the WiFi network).
-Once new devices join and lost devices rejoin, the state is exchanged.
 
 It supports the following Pathfinder 2 encounter rules:
 - Reordering when a character dies
