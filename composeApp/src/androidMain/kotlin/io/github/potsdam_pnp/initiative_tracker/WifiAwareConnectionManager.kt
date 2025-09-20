@@ -610,6 +610,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
         publish()
         continuation.invokeOnCancellation {
           try {
+            _details.update { it.copy(terminated = it.terminated + 1000)}
             publishSession.value.first?.close()
           } catch (_: SecurityException) {}
           _details.update { it.copy(publish = it.publish.copy(isActive = false)) }
