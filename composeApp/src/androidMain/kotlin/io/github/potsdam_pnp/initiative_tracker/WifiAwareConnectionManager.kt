@@ -536,19 +536,21 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                     it.copy(
                       sessionConfig =
                         it.sessionConfig.copy(
-                          messagesSuccessfulSent = it.sessionConfig.messagesSuccessfulSent + 1
+                          messagesSuccessfulSent = it.sessionConfig.messagesSuccessfulSent + 1,
+                          messagesReceived = 0,
                         )
                     )
                   }
                 }
 
                 override fun onSessionConfigFailed() {
-                  publishSession.update { it.copy(second = it.second?.cancelUpdate()) }
+                  val f = publishSession.updateAndGet { it.copy(second = it.second?.cancelUpdate()) }
                   _details.update {
                     it.copy(
                       sessionConfig =
                         it.sessionConfig.copy(
-                          messagesFailedSent = it.sessionConfig.messagesFailedSent + 1
+                          messagesFailedSent = it.sessionConfig.messagesFailedSent + 1,
+                          messagesReceived = f.second?.failedUpdates ?: -1
                         )
                     )
                   }
