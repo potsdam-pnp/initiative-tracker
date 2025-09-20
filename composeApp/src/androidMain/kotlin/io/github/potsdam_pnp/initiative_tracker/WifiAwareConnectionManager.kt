@@ -460,7 +460,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
     coroutineScope {
       launch {
         while (true) {
-          val (publishData, ps) =
+          val (publishData, p) =
             combine(repository.version, publishSession, details.map { it.peers }) { vc, publish, p
                 ->
                 val pf = publish.first
@@ -471,17 +471,17 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                   if (publishData == publish.second) {
                     null
                   } else {
-                    publishData to pf
+                    publishData to Pair(pf, publish.second)
                   }
                 }
               }
               .filterNotNull()
               .first()
 
-          publishData.waitBeforeNextUpdatePublish()
+          p.second?.waitBeforeNextUpdatePublish()
 
           val payload = subscribePayload(publishData)
-          ps.updatePublish(
+          p.first.updatePublish(
             PublishConfig.Builder()
               .setServiceName(serviceName)
               .setServiceSpecificInfo(payload)
