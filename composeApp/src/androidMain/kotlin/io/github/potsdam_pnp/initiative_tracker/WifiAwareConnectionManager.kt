@@ -401,6 +401,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
     val clock: VectorClock,
     val fromPosition: Int,
     val updatingTo: Pair<VectorClock, Int>?,
+    val failedUpdates: Int,
   ) {
     fun updateToNext(): PublishData {
       check(updatingTo != null)
@@ -408,17 +409,28 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
         clock = updatingTo.first,
         fromPosition = updatingTo.second,
         updatingTo = null,
+        failedUpdates = 0,
       )
     }
 
     fun cancelUpdate(): PublishData {
       check(updatingTo != null)
-      return copy(updatingTo = null)
+      return copy(updatingTo = null, failedUpdates = failedUpdates + 1)
     }
 
     fun triggerUpdate(updateTo: PublishData): PublishData {
       check(updatingTo == null)
       return copy(updatingTo = updateTo.clock to updateTo.fromPosition)
+    }
+
+    suspend fun waitBeforeNextUpdatePublish() {
+      when {
+        failedUpdates == 0 -> return
+        failedUpdates < 2 -> delay(512 + Random.nextInt(512).toLong())
+        failedUpdates < 10 -> delay(1024 + Random.nextInt(1024).toLong())
+        failedUpdates < 30 -> delay(10000 + Random.nextInt(1024).toLong())
+        else -> delay(60000 + Random.nextInt(1024).toLong())
+      }
     }
 
     companion object {
@@ -436,7 +448,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
               them.coerceAtMost(smallestMap[entry.value.clientIdentifier] ?: them)
           }
         }
-        return PublishData(vc, smallestMap.values.minOrNull() ?: us, null)
+        return PublishData(vc, smallestMap.values.minOrNull() ?: us, null, failedUpdates = 0)
       }
     }
   }
@@ -465,6 +477,8 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
               }
               .filterNotNull()
               .first()
+
+          publishData.waitBeforeNextUpdatePublish()
 
           val payload = subscribePayload(publishData)
           ps.updatePublish(
