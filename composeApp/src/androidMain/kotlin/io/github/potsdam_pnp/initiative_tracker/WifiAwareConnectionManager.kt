@@ -225,29 +225,22 @@ data class PeerInfo(
   }
 }
 
-data class DetailsNoPeers(
-  val subscribe: MessageDetails = MessageDetails(),
-  val publish: MessageDetails = MessageDetails(),
-  val sessionConfig: MessageDetails = MessageDetails(),
-  val peers: Map<PeerHandle, PeerInfo> = mapOf(),
-)
-
 data class Details(
   val subscribe: MessageDetails = MessageDetails(),
   val publish: MessageDetails = MessageDetails(),
   val sessionConfig: MessageDetails = MessageDetails(),
   val peers: Map<PeerHandle, PeerInfo> = mapOf(),
+  val terminated: Int = 0,
 )
 
 class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
   val _available =
     MutableStateFlow(WifiAwareAvailableState.Unknown to WifiAwareSession(false, null, false))
 
-  private val _details = MutableStateFlow(DetailsNoPeers())
-  private val _detailsInternal = MutableStateFlow(Details())
+  private val _details = MutableStateFlow(Details())
 
   val details: StateFlow<Details>
-    get() = _detailsInternal
+    get() = _details
 
   fun available(scope: CoroutineScope): StateFlow<WifiAwareAvailableState> {
     return _available
@@ -348,13 +341,6 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
           it.invokeOnCancellation {
             _available.value.second.current?.close()
             _available.update { it.copy(second = it.second.copy(current = null, isFailed = false)) }
-          }
-        }
-      }
-      launch {
-        _details.collect { d ->
-          _detailsInternal.update { di ->
-            di.copy(subscribe = d.subscribe, publish = d.publish, sessionConfig = d.sessionConfig)
           }
         }
       }
@@ -522,6 +508,9 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
               object : DiscoverySessionCallback() {
                 override fun onSessionTerminated() {
                   publishSession.update { null to null }
+                  _details.update {
+                    it.copy(terminated = it.terminated + 1)
+                  }
                   publish()
                 }
 
@@ -641,7 +630,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
       launch {
         subscribeSession
           .map { it.second }
-          .collect { ss -> _detailsInternal.update { it.copy(peers = ss) } }
+          .collect { ss -> _details.update { it.copy(peers = ss) } }
       }
       launch {
         while (true) {
