@@ -472,8 +472,8 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
 
           p.second?.waitBeforeNextUpdatePublish()
 
-          if (p.second?.shouldRestart() == true && restartSession != null) {
-            restartSession()
+          if (p.second?.shouldRestart() == true) {
+            restartSession?.invoke()
             continue
           } else {
             val payload = subscribePayload(publishData)
