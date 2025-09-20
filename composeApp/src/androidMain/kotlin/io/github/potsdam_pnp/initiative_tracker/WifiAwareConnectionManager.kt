@@ -419,6 +419,10 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
       }
     }
 
+    fun shouldRestart(): Boolean {
+      return failedUpdates > 3
+    }
+
     companion object {
       fun from(
         clientIdentifier: ClientIdentifier,
@@ -444,45 +448,52 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
       MutableStateFlow<Pair<PublishDiscoverySession?, PublishData?>>(null to null)
 
     coroutineScope {
+      var restartSession: (() -> Unit)? = null
+
       launch {
         while (true) {
           val (publishData, p) =
             combine(repository.version, publishSession, details.map { it.peers }) { vc, publish, p
-                ->
-                val pf = publish.first
-                if (pf == null || publish.second?.updatingTo != null) {
+              ->
+              val pf = publish.first
+              if (pf == null || publish.second?.updatingTo != null) {
+                null
+              } else {
+                val publishData = PublishData.from(repository.clientIdentifier, vc, p)
+                if (publishData == publish.second) {
                   null
                 } else {
-                  val publishData = PublishData.from(repository.clientIdentifier, vc, p)
-                  if (publishData == publish.second) {
-                    null
-                  } else {
-                    publishData to Pair(pf, publish.second)
-                  }
+                  publishData to Pair(pf, publish.second)
                 }
               }
+            }
               .filterNotNull()
               .first()
 
           p.second?.waitBeforeNextUpdatePublish()
 
-          val payload = subscribePayload(publishData)
-          p.first.updatePublish(
-            PublishConfig.Builder()
-              .setServiceName(serviceName)
-              .setServiceSpecificInfo(payload)
-              .build()
-          )
-          publishSession.update { it.copy(second = it.second?.triggerUpdate(publishData)) }
-          _details.update {
-            it.copy(
-              sessionConfig =
-                it.sessionConfig.copy(
-                  messagesConstructed = it.sessionConfig.messagesConstructed + 1,
-                  messagesConstructedSizes =
-                    it.sessionConfig.messagesConstructedSizes.add(payload.size),
-                )
+          if (p.second?.shouldRestart() == true && restartSession != null) {
+            restartSession()
+            continue
+          } else {
+            val payload = subscribePayload(publishData)
+            p.first.updatePublish(
+              PublishConfig.Builder()
+                .setServiceName(serviceName)
+                .setServiceSpecificInfo(payload)
+                .build()
             )
+            publishSession.update { it.copy(second = it.second?.triggerUpdate(publishData)) }
+            _details.update {
+              it.copy(
+                sessionConfig =
+                  it.sessionConfig.copy(
+                    messagesConstructed = it.sessionConfig.messagesConstructed + 1,
+                    messagesConstructedSizes =
+                      it.sessionConfig.messagesConstructedSizes.add(payload.size),
+                  )
+              )
+            }
           }
         }
       }
@@ -607,6 +618,13 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
           }
         }
 
+        restartSession = {
+          publishSession.update { null to null }
+          _details.update {
+            it.copy(terminated = it.terminated + 1)
+          }
+          publish()
+        }
         publish()
         continuation.invokeOnCancellation {
           try {
