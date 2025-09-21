@@ -103,8 +103,8 @@ object Encoders {
   private fun calculateSize(i: Int): Int {
     var result = 1
     var ii = i
-    while (ii >= 64) {
-      ii /= 64
+    while (ii >= 128) {
+      ii /= 128
       result += 1
     }
     return result
@@ -167,7 +167,7 @@ object Encoders {
     }
     check(result.size <= maxSize) {
       "Message size limit ${maxSize}, but total size ${result.size} (calculated ${prevSize} for ${values.size} values)" +
-        "\nbytes: ${result.toHexString()},\nvalues: ${values.joinToString { ", " }} "
+        "\nbytes: ${result.toHexString()},\nvalues: ${values.joinToString { it.toHexString() }} "
     }
     return result
   }
