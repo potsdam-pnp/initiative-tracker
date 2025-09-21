@@ -142,7 +142,7 @@ object Encoders {
     }
     if (size >= maxSize) {
       while (values.size > index) {
-        values.removeLast()
+        values.removeAt(values.size - 1)
       }
     } else {
       dot?.also { sendVector[it.clientIdentifier] = it.position }
