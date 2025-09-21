@@ -2,11 +2,10 @@ package io.github.potsdam_pnp.initiative_tracker
 
 import android.content.Intent
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 
-class ServerLifecycleManager(val application: InitiativeTrackerApplication): ServerLifecycleManagerStub(application) {
+class ServerLifecycleManager(val application: InitiativeTrackerApplication) :
+  ServerLifecycleManagerStub(application) {
   val serverEventChannel = Channel<ServerEvent>()
 
   override fun makeSureServerIsRunning(activity: MainActivity) {

@@ -13,7 +13,10 @@ import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.core.content.ContextCompat.startActivity
@@ -28,7 +31,8 @@ import io.github.potsdam_pnp.initiative_tracker.crdt.CompareResult
 import kotlinx.coroutines.launch
 
 class AndroidPlatform : Platform {
-  override val name: String = "Android ${Build.VERSION.SDK_INT} (${BuildConfig.VERSION_NAME}-${BuildConfig.DistributionChannel}) (${BuildConfig.VERSION_CODE} ${BuildConfig.BUILD_TYPE})"
+  override val name: String =
+    "Android ${Build.VERSION.SDK_INT} (${BuildConfig.VERSION_NAME}-${BuildConfig.DistributionChannel}) (${BuildConfig.VERSION_CODE} ${BuildConfig.BUILD_TYPE})"
 
   @Composable
   override fun serverStatus(): ServerStatus {
@@ -143,7 +147,6 @@ class AndroidPlatform : Platform {
     val activity = LocalActivity.current as MainActivity
     val serverSettings by application.serverLifecycleManager.serverSettings.collectAsState()
     val state by application.wifiAwareConnectionManager._available.collectAsState()
-    val details by application.wifiAwareConnectionManager.details.collectAsState()
     ListItem(
       headlineContent = {
         Text("Connect to nearby devices (${application.wifiAwareConnectionManager.maxMessageSize})")
@@ -159,11 +162,7 @@ class AndroidPlatform : Platform {
           },
         )
       },
-      supportingContent = {
-        Text(
-          "Current state: $state\n${details.publish.pretty("publish")}\n${details.subscribe.pretty("subscribe")}\n${details.sessionConfig.pretty("session config")}\nterminated:${details.terminated}"
-        )
-      },
+      supportingContent = { Text("Current state: ${state.first} (${state.second.pretty()})") },
     )
   }
 
@@ -206,6 +205,19 @@ class AndroidPlatform : Platform {
           },
         )
       }
+    )
+    var showDebugInfo by remember { mutableStateOf(false) }
+    ListItem(
+      headlineContent = { Text("Show low-level debug information") },
+      trailingContent = { Switch(showDebugInfo, onCheckedChange = { showDebugInfo = it }) },
+      supportingContent = {
+        if (showDebugInfo) {
+          val details by application.wifiAwareConnectionManager.details.collectAsState()
+          Text(
+            "${details.publish.pretty("publish")}\n${details.subscribe.pretty("subscribe")}\n${details.sessionConfig.pretty("session config")}\nterminated:${details.terminated}"
+          )
+        }
+      },
     )
   }
 

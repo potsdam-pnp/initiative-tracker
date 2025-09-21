@@ -70,7 +70,11 @@ data class WifiAwareSession(
   val enabled: Boolean,
   val current: WifiAwareSession?,
   val isFailed: Boolean,
-)
+) {
+  fun pretty(): String {
+    return "enabled: $enabled, failed: $isFailed, running: ${current != null}"
+  }
+}
 
 data class MessageSizes(
   val min: Int = -1,

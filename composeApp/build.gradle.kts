@@ -117,9 +117,7 @@ android {
   packaging {
     resources { excludes += "/META-INF/{AL2.0,LGPL2.1,INDEX.LIST,io.netty.versions.properties}" }
   }
-  buildTypes {
-    getByName("release") { isMinifyEnabled = false }
-  }
+  buildTypes { getByName("release") { isMinifyEnabled = false } }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
@@ -139,12 +137,8 @@ android {
 
   flavorDimensions += "distributionChannel"
   productFlavors {
-    create("playStore") {
-      buildConfigField("String", "DistributionChannel", "\"play\"")
-    }
-    create("fdroid") {
-      buildConfigField("String", "DistributionChannel", "\"f-droid/direct\"")
-    }
+    create("playStore") { buildConfigField("String", "DistributionChannel", "\"play\"") }
+    create("fdroid") { buildConfigField("String", "DistributionChannel", "\"f-droid/direct\"") }
   }
 }
 
