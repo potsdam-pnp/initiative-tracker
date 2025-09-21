@@ -1066,6 +1066,10 @@ fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope
     }
     HorizontalDivider()
     getPlatform().ServerSettingsBelow()
+    ListItem(
+      headlineContent = { Text("Version") },
+      supportingContent = { Text(getPlatform().name) },
+    )
   }
 }
 

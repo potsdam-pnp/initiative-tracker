@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.core.content.ContextCompat.startActivity
 import androidx.lifecycle.lifecycleScope
+import io.github.potsdam_pnp.initiative_tracker.BuildConfig
 import io.github.potsdam_pnp.initiative_tracker.InitiativeTrackerApplication
 import io.github.potsdam_pnp.initiative_tracker.MainActivity
 import io.github.potsdam_pnp.initiative_tracker.R
@@ -27,7 +28,7 @@ import io.github.potsdam_pnp.initiative_tracker.crdt.CompareResult
 import kotlinx.coroutines.launch
 
 class AndroidPlatform : Platform {
-  override val name: String = "Android ${Build.VERSION.SDK_INT}"
+  override val name: String = "Android ${Build.VERSION.SDK_INT} (${BuildConfig.VERSION_NAME}-${BuildConfig.DistributionChannel}) (${BuildConfig.VERSION_CODE} ${BuildConfig.BUILD_TYPE})"
 
   @Composable
   override fun serverStatus(): ServerStatus {

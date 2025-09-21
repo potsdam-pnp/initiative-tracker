@@ -112,16 +112,22 @@ android {
     targetSdk = libs.versions.android.targetSdk.get().toInt()
     versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 200
     versionName = System.getenv("VERSION_NAME") ?: "0.4.0"
+    buildConfigField("String", "DistributionChannel", "unknown")
   }
   packaging {
     resources { excludes += "/META-INF/{AL2.0,LGPL2.1,INDEX.LIST,io.netty.versions.properties}" }
   }
-  buildTypes { getByName("release") { isMinifyEnabled = false } }
+  buildTypes {
+    getByName("release") { isMinifyEnabled = false }
+  }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
   }
-  buildFeatures { compose = true }
+  buildFeatures {
+    compose = true
+    buildConfig = true
+  }
   dependencies {
     debugImplementation(compose.uiTooling)
     implementation(libs.androidx.lifecycle.service)
@@ -130,6 +136,16 @@ android {
   lint { disable += "NullSafeMutableLiveData" }
 
   packaging { resources.excludes.add("kotlin-tooling-metadata.json") }
+
+  flavorDimensions += "distributionChannel"
+  productFlavors {
+    create("playStore") {
+      buildConfigField("String", "DistributionChannel", "\"play\"")
+    }
+    create("fdroid") {
+      buildConfigField("String", "DistributionChannel", "\"f-droid/direct\"")
+    }
+  }
 }
 
 compose.desktop {
