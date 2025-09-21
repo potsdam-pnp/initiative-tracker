@@ -378,9 +378,23 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
       (publishData.fromPosition until (publishData.clock.clock[repository.clientIdentifier] ?: 0))
         .map { Dot(repository.clientIdentifier, it + 1) }
     val versions = dots.map { repository.fetchVersion(it)!! }
-    return Encoders.encodePb(
-      Message.SendVersions(publishData.clock, versions, null, repository.clientIdentifier)
-    )
+    var result =
+      Encoders.encodePb(
+        Message.SendVersions(publishData.clock, versions, null, repository.clientIdentifier)
+      )
+    if (result.size > 255) {
+      // publish payload should be at most 255 even if this device supports longer messages
+      result =
+        Encoders.encodePb(
+          Message.SendVersions(publishData.clock, emptyList(), null, repository.clientIdentifier)
+        )
+      if (result.size > 255) {
+        Napier.e(
+          "Message size without versions already too large (${result.size}, ${publishData.clock})"
+        )
+      }
+    }
+    return result
   }
 
   private data class PublishData(
@@ -454,19 +468,19 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
         while (true) {
           val (publishData, p) =
             combine(repository.version, publishSession, details.map { it.peers }) { vc, publish, p
-              ->
-              val pf = publish.first
-              if (pf == null || publish.second?.updatingTo != null) {
-                null
-              } else {
-                val publishData = PublishData.from(repository.clientIdentifier, vc, p)
-                if (publishData == publish.second) {
+                ->
+                val pf = publish.first
+                if (pf == null || publish.second?.updatingTo != null) {
                   null
                 } else {
-                  publishData to Pair(pf, publish.second)
+                  val publishData = PublishData.from(repository.clientIdentifier, vc, p)
+                  if (publishData == publish.second) {
+                    null
+                  } else {
+                    publishData to Pair(pf, publish.second)
+                  }
                 }
               }
-            }
               .filterNotNull()
               .first()
 
@@ -519,9 +533,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
               object : DiscoverySessionCallback() {
                 override fun onSessionTerminated() {
                   publishSession.update { null to null }
-                  _details.update {
-                    it.copy(terminated = it.terminated + 1)
-                  }
+                  _details.update { it.copy(terminated = it.terminated + 1) }
                   publish()
                 }
 
@@ -544,13 +556,14 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
                 }
 
                 override fun onSessionConfigFailed() {
-                  val f = publishSession.updateAndGet { it.copy(second = it.second?.cancelUpdate()) }
+                  val f =
+                    publishSession.updateAndGet { it.copy(second = it.second?.cancelUpdate()) }
                   _details.update {
                     it.copy(
                       sessionConfig =
                         it.sessionConfig.copy(
                           messagesFailedSent = it.sessionConfig.messagesFailedSent + 1,
-                          messagesReceived = f.second?.failedUpdates ?: -1
+                          messagesReceived = f.second?.failedUpdates ?: -1,
                         )
                     )
                   }
@@ -620,15 +633,13 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
 
         restartSession = {
           publishSession.update { null to null }
-          _details.update {
-            it.copy(terminated = it.terminated + 1)
-          }
+          _details.update { it.copy(terminated = it.terminated + 1) }
           publish()
         }
         publish()
         continuation.invokeOnCancellation {
           try {
-            _details.update { it.copy(terminated = it.terminated + 1000)}
+            _details.update { it.copy(terminated = it.terminated + 1000) }
             publishSession.value.first?.close()
           } catch (_: SecurityException) {}
           _details.update { it.copy(publish = it.publish.copy(isActive = false)) }
@@ -647,9 +658,7 @@ class WifiAwareConnectionManager(val repository: Repository<Action, State>) {
 
     coroutineScope {
       launch {
-        subscribeSession
-          .map { it.second }
-          .collect { ss -> _details.update { it.copy(peers = ss) } }
+        subscribeSession.map { it.second }.collect { ss -> _details.update { it.copy(peers = ss) } }
       }
       launch {
         while (true) {
