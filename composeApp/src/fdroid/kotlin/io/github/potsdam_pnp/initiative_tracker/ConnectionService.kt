@@ -10,8 +10,6 @@ import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import io.github.aakira.napier.Napier
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -19,6 +17,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 
 class ConnectionService : LifecycleService() {
   private fun channelId(): String {
@@ -27,7 +27,7 @@ class ConnectionService : LifecycleService() {
           "BACKGROUND_SERVICE_1",
           "background service",
           NotificationManager.IMPORTANCE_LOW,
-        )
+      )
         .apply { description = "Background service for initiative tracker" }
 
     (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).apply {
@@ -40,7 +40,7 @@ class ConnectionService : LifecycleService() {
   override fun onCreate() {
     super.onCreate()
 
-    Napier.i("Service created (1)")
+      Napier.i("Service created (1)")
 
     val notification =
       NotificationCompat.Builder(this, channelId())
@@ -55,14 +55,14 @@ class ConnectionService : LifecycleService() {
               putExtra("stop", true)
             }
           addAction(
-            R.drawable.ic_notification,
+              R.drawable.ic_notification,
             "Stop",
-            PendingIntent.getService(
-              this@ConnectionService,
-              1,
-              actionIntent,
-              PendingIntent.FLAG_IMMUTABLE,
-            ),
+              PendingIntent.getService(
+                  this@ConnectionService,
+                  1,
+                  actionIntent,
+                  PendingIntent.FLAG_IMMUTABLE,
+              ),
           )
         }
         .build()
@@ -73,7 +73,7 @@ class ConnectionService : LifecycleService() {
       startForeground(100, notification)
     }
 
-    Napier.i("Service created")
+      Napier.i("Service created")
 
     val app = application as InitiativeTrackerApplication
 
@@ -96,10 +96,10 @@ class ConnectionService : LifecycleService() {
             app.serverLifecycleManager.serverEventChannel.receive()
           } else {
             val delay = currentDelay
-            select {
-              async { delay(delay) }.onAwait { StopServer }
-              app.serverLifecycleManager.serverEventChannel.onReceive { it }
-            }
+              select {
+                  async { delay(delay) }.onAwait { StopServer }
+                  app.serverLifecycleManager.serverEventChannel.onReceive { it }
+              }
           }
         when (nextEvent) {
           is KeepRunning -> currentDelay = null
@@ -125,13 +125,13 @@ class ConnectionService : LifecycleService() {
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
     if (intent?.getBooleanExtra("stop", false) == true) {
-      Napier.i("stop command")
+        Napier.i("stop command")
       (application as InitiativeTrackerApplication)
         .serverLifecycleManager
         .serverEventChannel
         .trySend(StopServer)
     } else {
-      Napier.i("start command")
+        Napier.i("start command")
       server?.toggle(true)
     }
     return super.onStartCommand(intent, flags, startId)

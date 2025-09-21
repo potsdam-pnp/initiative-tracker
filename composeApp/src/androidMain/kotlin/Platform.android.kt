@@ -195,6 +195,7 @@ class AndroidPlatform : Platform {
         TextField(
           serverSettings.minutesAfterAppClose.toString(),
           label = { Text("Number of minutes server will keep running after app has been closed") },
+          enabled = !serverSettings.disableActivateServer,
           singleLine = true,
           keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
           onValueChange = { newValue ->

@@ -44,8 +44,6 @@
                 <data android:pathPrefix="/initiative-tracker" />
             </intent-filter>
         </activity>
-
-        <service android:name=".ConnectionService" android:foregroundServiceType="remoteMessaging" />
     </application>
 
 </manifest>
