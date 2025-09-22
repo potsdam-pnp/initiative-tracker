@@ -5,6 +5,7 @@ import android.graphics.drawable.Icon
 import android.os.Build
 import android.service.chooser.ChooserAction
 import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.Switch
@@ -17,10 +18,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat.startActivity
 import androidx.lifecycle.lifecycleScope
+import com.canopas.lib.showcase.IntroShowcaseScope
 import io.github.potsdam_pnp.initiative_tracker.BuildConfig
 import io.github.potsdam_pnp.initiative_tracker.InitiativeTrackerApplication
 import io.github.potsdam_pnp.initiative_tracker.MainActivity
@@ -236,6 +242,27 @@ class AndroidPlatform : Platform {
     val activity = LocalActivity.current as MainActivity
     val scope = rememberCoroutineScope()
     return { scope.launch { app.serverLifecycleManager.changeWifiAwareEnabled(true, activity) } }
+  }
+
+  @Composable
+  override fun Modifier.connectionStateModifier(): Modifier {
+    return (LocalActivity.current as MainActivity).showIntroShowcaseScope?.run {
+      then(Modifier.introShowCaseTarget(0) {
+        Column {
+          Text(
+            text = "Connection status",
+            color = Color.White,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold
+          )
+          Text(
+            text = "Click here to connect with devices in WiFi range.\nThis way, the initiative tracker application exchanges data with nearby devices.",
+            color = Color.White,
+            fontSize = 16.sp
+          )
+        }
+      })
+    } ?: this
   }
 }
 

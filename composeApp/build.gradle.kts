@@ -58,6 +58,7 @@ kotlin {
       implementation(libs.ktor.client.cio)
       implementation(libs.acra.mail)
       implementation(libs.acra.dialog)
+      implementation("com.canopas.intro-showcase-view:introshowcaseview:2.0.2")
     }
     sharedMain.dependencies {
       implementation(libs.ktor.server.core)

@@ -900,14 +900,16 @@ fun ConnectionState(
   )
   BadgedBox(
     modifier =
-      modifier
-        .padding(2.dp)
-        .then(
-          Modifier.clickable(
-            enabled = getPlatform().connectionStateClickableEnabled(),
-            onClick = getPlatform().connectionStateOnClick(),
+      getPlatform().run {
+        modifier
+          .padding(2.dp)
+          .then(
+            Modifier.clickable(
+              enabled = connectionStateClickableEnabled(),
+              onClick = connectionStateOnClick(),
+            ).connectionStateModifier()
           )
-        ),
+      },
     badge = {
       if (serverStatus.isRunning) {
         Badge { Text(serverStatus.connections.toString()) }

@@ -1,4 +1,5 @@
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import io.github.potsdam_pnp.initiative_tracker.crdt.ClientIdentifier
 import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
 
@@ -60,6 +61,7 @@ interface Platform {
   @Composable fun connectionStateClickableEnabled(): Boolean = false
 
   @Composable fun connectionStateOnClick(): () -> Unit = {}
+  @Composable fun Modifier.connectionStateModifier(): Modifier = Modifier
 }
 
 expect fun getPlatform(): Platform

@@ -14,11 +14,17 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.edit
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.canopas.lib.showcase.IntroShowcase
+import com.canopas.lib.showcase.IntroShowcaseScope
 import getPlatform
 import io.github.aakira.napier.DebugAntilog
 import io.github.aakira.napier.Napier
@@ -37,6 +43,8 @@ class SharedPreferencesPersistData(val sharedPreferences: SharedPreferences) : P
 }
 
 class MainActivity : ComponentActivity() {
+  var showIntroShowcaseScope: IntroShowcaseScope? = null
+
   override fun onCreate(savedInstanceState: Bundle?) {
     Napier.base(DebugAntilog())
     Napier.w("It works Napier")
@@ -59,7 +67,21 @@ class MainActivity : ComponentActivity() {
       Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1.0f) >
         0.0f
 
-    setContent { App(null, hasAnimations) }
+    setContent {
+      var showAppIntro by remember {
+        mutableStateOf(true)
+      }
+
+      IntroShowcase(
+        showIntroShowCase = showAppIntro,
+        onShowCaseCompleted = {
+          showAppIntro = false
+        }
+      ) {
+        showIntroShowcaseScope = this
+        App(null, hasAnimations)
+      }
+    }
   }
 
   override fun onStart() {
