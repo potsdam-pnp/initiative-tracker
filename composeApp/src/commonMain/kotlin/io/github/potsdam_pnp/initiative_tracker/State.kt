@@ -163,6 +163,7 @@ class State(
     val turns: Int = 0,
     val delayed: Boolean = false,
     val alreadyPlayed: Boolean = false,
+    val nonPlayerDie: Boolean = false,
   )
 
   fun predictNextTurns(
@@ -186,7 +187,7 @@ class State(
       state.get(characterId)?.alreadyPlayed == true
     }
 
-    val current = if (withCurrent) currentTurn(repository) else null
+    val current = if (withCurrent) currentTurn(repository, conflictTree1) else null
     if (current != null) {
       state[current] = CharacterData(turns = -1, alreadyPlayed = true)
     }
@@ -221,6 +222,10 @@ class State(
         is TurnAction.FinishTurn -> {}
 
         is TurnAction.ResolveConflicts -> {}
+
+        is TurnAction.NonPlayerDie -> {
+          updatePlayedCharacters(action.characterId) { it.copy(nonPlayerDie = true) }
+        }
       }
 
       turn = turn.predecessor?.let { repository.fetchVersion(it) }?.let { it.op as Turn }
@@ -240,7 +245,7 @@ class State(
     return (currentAsList + notYetPlayed.map { it.id } + alreadyPlayedCharacters.reversed())
       .mapNotNull {
         val result = characters[it]
-        if (result?.resolvedDead() == true) null
+        if (result?.resolvedDead() == true || state[it]?.nonPlayerDie == true) null
         else {
           UiCharacter(
             key = it,
@@ -256,11 +261,15 @@ class State(
       }
   }
 
-  fun currentTurn(repository: Repository<Action, State>): CharacterId? {
+  fun currentTurn(
+    repository: Repository<Action, State>,
+    conflictTree: ConflictTree<Turn>? = null,
+  ): CharacterId? {
     val conflictTree1 =
-      turnActions.conflicts(skip = { it == TurnAction.ResolveConflicts }) {
-        repository.fetchVersion(it)!!.let { (it.op as Turn) to it.metadata }
-      }
+      conflictTree
+        ?: turnActions.conflicts(skip = { it == TurnAction.ResolveConflicts }) {
+          repository.fetchVersion(it)!!.let { (it.op as Turn) to it.metadata }
+        }
     var turn = commonLatestTurn(repository, conflictTree1)
     while (turn != null) {
       when (val action = turn.turnAction) {
@@ -285,7 +294,7 @@ class State(
       }
     return UiState(
       characters = predictNextTurns(withCurrent = true, turnConflicts, repository),
-      currentlySelectedCharacter = currentTurn(repository),
+      currentlySelectedCharacter = currentTurn(repository, turnConflicts),
       turnConflicts = turnConflicts,
       shownView = shownView,
       knownPlayerCharacters = knownPlayerCharacters,

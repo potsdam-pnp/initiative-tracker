@@ -61,6 +61,7 @@ interface Platform {
   @Composable fun connectionStateClickableEnabled(): Boolean = false
 
   @Composable fun connectionStateOnClick(): () -> Unit = {}
+
   @Composable fun Modifier.connectionStateModifier(): Modifier = this
 }
 

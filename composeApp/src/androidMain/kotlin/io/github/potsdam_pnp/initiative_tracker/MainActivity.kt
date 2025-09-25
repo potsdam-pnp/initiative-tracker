@@ -80,7 +80,10 @@ class MainActivity : ComponentActivity() {
 
       IntroShowcase(
         showIntroShowCase = showAppIntro,
-        onShowCaseCompleted = { showAppIntro = false; persistData.storeShowIntro() },
+        onShowCaseCompleted = {
+          showAppIntro = false
+          persistData.storeShowIntro()
+        },
         dismissOnClickOutside = true,
       ) {
         showIntroShowcaseScope = this

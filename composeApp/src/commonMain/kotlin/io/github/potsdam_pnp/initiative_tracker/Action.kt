@@ -23,6 +23,8 @@ sealed class TurnAction {
 
   data class Die(val characterId: CharacterId) : TurnAction()
 
+  data class NonPlayerDie(val characterId: CharacterId) : TurnAction()
+
   data class Delay(val characterId: CharacterId) : TurnAction()
 
   object ResolveConflicts : TurnAction()
@@ -272,6 +274,8 @@ object Encoders {
             encodeTurn(10, op.op.predecessor, op.op.turnAction.characterId)
           TurnAction.ResolveConflicts -> encodeTurnNoCharacter(11, op.op.predecessor)
           is TurnAction.StartTurn -> encodeTurn(12, op.op.predecessor, op.op.turnAction.characterId)
+          is TurnAction.NonPlayerDie ->
+            encodeTurn(13, op.op.predecessor, op.op.turnAction.characterId)
         }
     }
   }
@@ -364,6 +368,7 @@ object Encoders {
           10 -> insert(decodeTurn { TurnAction.FinishTurn(it) })
           11 -> insert(decodeTurnNoCharacter { TurnAction.ResolveConflicts })
           12 -> insert(decodeTurn { TurnAction.StartTurn(it) })
+          13 -> insert(decodeTurn { TurnAction.NonPlayerDie(it) })
         }
       }
     }

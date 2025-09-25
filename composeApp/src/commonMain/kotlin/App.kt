@@ -52,6 +52,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudDownload
@@ -60,6 +61,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.materialIcon
 import androidx.compose.material.icons.materialPath
 import androidx.compose.material3.AlertDialog
@@ -164,6 +166,7 @@ enum class ShownView {
   TURNS,
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShowCharacter(
   uiCharacter: UiCharacter,
@@ -171,6 +174,7 @@ fun ShowCharacter(
   isActive: Boolean,
   actions: Actions,
   shownView: ShownView,
+  knownPlayerCharacters: List<String?>,
   isGreyed: Boolean = false,
 ) {
   val focusRequester = remember { FocusRequester() }
@@ -193,6 +197,17 @@ fun ShowCharacter(
     Column(modifier = Modifier.width(30.dp)) {
       if (shownView == ShownView.TURNS && !uiCharacter.dead) {
         Text("${uiCharacter.turn + 1}")
+      } else {
+        val n = uiCharacter.name?.asString()
+        if (n != null && uiCharacter.playerCharacter == true) {
+          IconButton(onClick = { actions.toggleKnownPlayerCharacter(n) }) {
+            if (knownPlayerCharacters.contains(n)) {
+              Icon(Icons.Default.Remove, contentDescription = "Delete")
+            } else {
+              Icon(Icons.Default.Add, contentDescription = "Add")
+            }
+          }
+        }
       }
     }
     if (!uiCharacter.dead) {
@@ -294,7 +309,10 @@ fun ShowCharacter(
                 Icon(it, contentDescription = "Toggle Edit")
               }
             }
-            IconButton(onClick = { actions.deleteCharacter(uiCharacter.key) }) {
+            IconButton(
+              onClick = { actions.deleteCharacter(uiCharacter.key) },
+              enabled = uiCharacter.notPlayedYet,
+            ) {
               Icon(Icons.Default.Delete, contentDescription = "Delete")
             }
           } else {
@@ -307,10 +325,7 @@ fun ShowCharacter(
                 )
               }
             } else {
-              IconButton(
-                enabled = !isGreyed,
-                onClick = { actions.deleteCharacter(uiCharacter.key) },
-              ) {
+              IconButton(enabled = !isGreyed, onClick = { actions.nonPlayerDie(uiCharacter.key) }) {
                 Icon(Icons.Default.Delete, contentDescription = "Delete")
               }
             }
@@ -352,6 +367,7 @@ fun ListCharacters(
   actions: Actions,
   listState: LazyListState,
   currentlyEditedCharacter: CurrentlyEditedCharacter?,
+  knownPlayerCharacters: List<String?>,
 ) {
   LazyColumn(
     state = listState,
@@ -370,6 +386,7 @@ fun ListCharacters(
           isActive = false,
           actions,
           ShownView.CHARACTERS,
+          knownPlayerCharacters,
           false,
         )
       }
@@ -475,6 +492,7 @@ fun ListTurns(uiCharacters: List<UiCharacter>, active: CharacterId?, actions: Ac
                 actions,
                 ShownView.TURNS,
                 isGreyed = currentAddTurnCopy >= 1,
+                knownPlayerCharacters = emptyList(),
               )
             }
           }
@@ -520,10 +538,18 @@ fun InitOrder(
   listState: LazyListState,
   shownView: ShownView,
   turnConflicts: ConflictTree<Turn>,
+  knownPlayerCharacters: List<String?>,
   showActionList: () -> Unit,
 ) {
   if (shownView == ShownView.CHARACTERS) {
-    ListCharacters(columnScope, uiCharacters, actions, listState, currentlyEditedCharacter)
+    ListCharacters(
+      columnScope,
+      uiCharacters,
+      actions,
+      listState,
+      currentlyEditedCharacter,
+      knownPlayerCharacters,
+    )
   } else {
     ListConflictTurns(columnScope, turnConflicts, showActionList) {
       ListTurns(uiCharacters, active, actions)
@@ -1128,6 +1154,7 @@ fun MainScreen(
           listState,
           thisShownView,
           uiState.turnConflicts,
+          uiState.knownPlayerCharacters,
           showActionList,
         )
         if (thisShownView == ShownView.TURNS) {
@@ -1213,11 +1240,6 @@ fun MainScreen(
                 TextButton(
                   onClick = {
                     showDialog = false
-                    val currentPlayers =
-                      uiState.characters
-                        .filter { it.playerCharacter == true && !it.dead }
-                        .mapNotNull { it.name?.asString() }
-                    model.addPlayerCharacters(currentPlayers)
                     model.restartEncounter()
                   }
                 ) {
@@ -1264,13 +1286,13 @@ fun ListActions(
       ListItem(
         headlineContent = {
           fun name(characterId: CharacterId): String =
-            uiState.characters.find { it.key == characterId }?.name?.asString()
-              ?: characterId.hashCode().toString()
+            actions.repository.state.characters[characterId]?.name?.asString() ?: "unknown"
           val c =
             "\t".repeat(item.first.first) +
               when (val d = item.second.first.turnAction) {
                 is TurnAction.Delay -> "${name(d.characterId)} delayed"
                 is TurnAction.Die -> "${name(d.characterId)} died"
+                is TurnAction.NonPlayerDie -> "${name(d.characterId)} died and got removed"
                 is TurnAction.FinishTurn -> "${name(d.characterId)} finished turn"
                 TurnAction.ResolveConflicts -> "actions undone"
                 is TurnAction.StartTurn -> "${name(d.characterId)} started turn"
@@ -1302,7 +1324,7 @@ fun ListActions(
       Row(modifier = Modifier.clickable(onClick = { showModalDialogOfDot = item })) {
         Text(
           modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp),
-          text = descriptionOfAction(uiState, item.second.turnAction),
+          text = descriptionOfAction(actions.repository.state, item.second.turnAction),
         )
       }
     }
@@ -1321,7 +1343,8 @@ fun ListActions(
             )
             HorizontalDivider()
             Text(
-              text = descriptionOfAction(uiState, modelDialogVersion.second.turnAction),
+              text =
+                descriptionOfAction(actions.repository.state, modelDialogVersion.second.turnAction),
               modifier = Modifier.padding(16.dp),
             )
 
@@ -1347,24 +1370,29 @@ fun ListActions(
   }
 }
 
-fun descriptionOfAction(uiState: UiState, action: TurnAction): String {
+fun descriptionOfAction(state: State, action: TurnAction): String {
   return when (action) {
     is TurnAction.StartTurn -> {
-      val name = uiState.characters.find { action.characterId == it.key }?.name?.asString()
+      val name = state.characters[action.characterId]?.name?.asString()
       "$name started turn"
     }
     is TurnAction.Delay -> {
-      val name = uiState.characters.find { action.characterId == it.key }?.name?.asString()
+      val name = state.characters[action.characterId]?.name?.asString()
       "$name delayed turn"
     }
     is TurnAction.FinishTurn -> {
-      val name = uiState.characters.find { action.characterId == it.key }?.name?.asString()
+      val name = state.characters[action.characterId]?.name?.asString()
       "$name finished turn"
     }
     is TurnAction.Die -> {
-      val name = uiState.characters.find { action.characterId == it.key }?.name?.asString()
+      val name = state.characters[action.characterId]?.name?.asString()
       "$name died"
     }
+    is TurnAction.NonPlayerDie -> {
+      val name = state.characters[action.characterId]?.name?.asString()
+      "$name died and is removed"
+    }
+
     is TurnAction.ResolveConflicts -> {
       "Actions undone"
     }

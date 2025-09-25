@@ -112,7 +112,9 @@ interface Actions {
 
   fun showView(shownView: ShownView)
 
-  fun addPlayerCharacters(players: List<String>)
+  fun toggleKnownPlayerCharacter(player: String)
+
+  fun nonPlayerDie(player: CharacterId)
 }
 
 interface PersistData {
@@ -252,6 +254,10 @@ private constructor(val repository: Repository<Action, State>, val persist: Pers
     addTurn(TurnAction.Die(characterKey))
   }
 
+  override fun nonPlayerDie(player: CharacterId) {
+    addTurn(TurnAction.NonPlayerDie(player))
+  }
+
   override fun delay() {
     val current = _state.value.currentlySelectedCharacter
     if (current != null) {
@@ -341,10 +347,13 @@ private constructor(val repository: Repository<Action, State>, val persist: Pers
     _state.update { it.copy(shownView = shownView) }
   }
 
-  override fun addPlayerCharacters(players: List<String>) {
+  override fun toggleKnownPlayerCharacter(player: String) {
     _state.update { state ->
-      val toAdd = players.filter { !state.knownPlayerCharacters.contains(it) }
-      state.copy(knownPlayerCharacters = state.knownPlayerCharacters + toAdd)
+      if (state.knownPlayerCharacters.contains(player)) {
+        state.copy(knownPlayerCharacters = state.knownPlayerCharacters - player)
+      } else {
+        state.copy(knownPlayerCharacters = state.knownPlayerCharacters + player)
+      }
     }
     persist?.storeKnownPlayerCharacters(state.value.knownPlayerCharacters.filterNotNull())
   }
