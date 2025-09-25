@@ -22,7 +22,7 @@ class ActionStateTests {
   @Test
   fun emptyActions() {
     val repository = Repository(State())
-    val predicted = repository.state.predictNextTurns(withCurrent = false, repository)
+    val predicted = repository.state.predictNextTurns(withCurrent = false, repository = repository)
     assertEquals(emptyList(), predicted)
     assertNull(repository.state.currentTurn(repository))
   }
@@ -33,7 +33,7 @@ class ActionStateTests {
     val character2 = CharacterId(Dot(ClientIdentifier.new(), 2))
     val repository = Repository(State())
     repository.produce(ChangeInitiative(character1, 5), ChangeInitiative(character2, 10))
-    val predicted = repository.state.predictNextTurns(withCurrent = false, repository)
+    val predicted = repository.state.predictNextTurns(withCurrent = false, repository = repository)
     assertEquals(listOf(character2, character1), predicted.map { it.key })
     assertEquals(listOf(0, 0), predicted.map { it.turn })
 
@@ -50,8 +50,8 @@ class ActionStateTests {
       ChangeInitiative(character2, 10),
       Turn(TurnAction.StartTurn(character1), null),
     )
-    val predicted = repository.state.predictNextTurns(withCurrent = false, repository)
-    val predicted2 = repository.state.predictNextTurns(withCurrent = true, repository)
+    val predicted = repository.state.predictNextTurns(withCurrent = false, repository = repository)
+    val predicted2 = repository.state.predictNextTurns(withCurrent = true, repository = repository)
     assertEquals(listOf(character2 to 0, character1 to 1), predicted.map { it.key to it.turn })
     assertEquals(listOf(character1 to 0, character2 to 0), predicted2.map { it.key to it.turn })
     assertEquals(character1, repository.state.currentTurn(repository))
@@ -69,7 +69,7 @@ class ActionStateTests {
       )
     }
 
-    val predicted = repository.state.predictNextTurns(withCurrent = false, repository)
+    val predicted = repository.state.predictNextTurns(withCurrent = false, repository =repository)
     assertEquals(listOf(character), predicted.map { it.key })
   }
 
@@ -85,7 +85,7 @@ class ActionStateTests {
       )
     }
 
-    val predicted = repository.state.predictNextTurns(withCurrent = false, repository)
+    val predicted = repository.state.predictNextTurns(withCurrent = false, repository = repository)
     assertEquals(listOf(character), predicted.map { it.key })
   }
 
