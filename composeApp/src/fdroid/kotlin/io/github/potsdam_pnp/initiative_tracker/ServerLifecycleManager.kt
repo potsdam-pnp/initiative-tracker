@@ -4,8 +4,7 @@ import android.content.Intent
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.update
 
-class ServerLifecycleManager(val application: InitiativeTrackerApplication) :
-  ServerLifecycleManagerStub(application) {
+class ServerLifecycleManager(a: InitiativeTrackerApplication) : ServerLifecycleManagerStub(a) {
   val serverEventChannel = Channel<ServerEvent>()
 
   override fun makeSureServerIsRunning(activity: MainActivity) {
@@ -17,7 +16,7 @@ class ServerLifecycleManager(val application: InitiativeTrackerApplication) :
     }
   }
 
-  fun stopServerAfterDelay() {
+  override fun stopServerAfterDelay() {
     serverEventChannel.trySend(KillIn(serverSettings.value.minutesAfterAppClose))
   }
 
