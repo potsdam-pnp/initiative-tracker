@@ -26,7 +26,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat.startActivity
 import androidx.lifecycle.lifecycleScope
-import com.canopas.lib.showcase.IntroShowcaseScope
 import io.github.potsdam_pnp.initiative_tracker.BuildConfig
 import io.github.potsdam_pnp.initiative_tracker.InitiativeTrackerApplication
 import io.github.potsdam_pnp.initiative_tracker.MainActivity
@@ -247,21 +246,24 @@ class AndroidPlatform : Platform {
   @Composable
   override fun Modifier.connectionStateModifier(): Modifier {
     return (LocalActivity.current as MainActivity).showIntroShowcaseScope?.run {
-      then(Modifier.introShowCaseTarget(0) {
-        Column {
-          Text(
-            text = "Connection status",
-            color = Color.White,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold
-          )
-          Text(
-            text = "Click here to connect with devices in WiFi range.\nThis way, the initiative tracker application exchanges data with nearby devices.",
-            color = Color.White,
-            fontSize = 16.sp
-          )
+      then(
+        Modifier.introShowCaseTarget(0) {
+          Column {
+            Text(
+              text = "Connection status",
+              color = Color.White,
+              fontSize = 24.sp,
+              fontWeight = FontWeight.Bold,
+            )
+            Text(
+              text =
+                "Click here to connect with devices in WiFi range.\nThis way, the initiative tracker application exchanges data with nearby devices.",
+              color = Color.White,
+              fontSize = 16.sp,
+            )
+          }
         }
-      })
+      )
     } ?: this
   }
 }

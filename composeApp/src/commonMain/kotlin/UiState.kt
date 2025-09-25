@@ -14,12 +14,13 @@ import io.github.potsdam_pnp.initiative_tracker.ResetAllInitiatives
 import io.github.potsdam_pnp.initiative_tracker.State
 import io.github.potsdam_pnp.initiative_tracker.Turn
 import io.github.potsdam_pnp.initiative_tracker.TurnAction
-import io.github.potsdam_pnp.initiative_tracker.crdt.ConflictState
+import io.github.potsdam_pnp.initiative_tracker.crdt.ConflictTree
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
 import io.github.potsdam_pnp.initiative_tracker.crdt.ImmutableStringRegister
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.crdt.StringOperation
 import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
+import io.github.potsdam_pnp.initiative_tracker.crdt.conflicts
 import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -74,8 +75,7 @@ data class CurrentlyEditedCharacter(
 data class UiState(
   val characters: List<UiCharacter> = listOf(),
   val currentlySelectedCharacter: CharacterId? = null,
-  val actions: List<Triple<Dot, ConflictState, TurnAction>> = listOf(),
-  val turnConflicts: Boolean = false,
+  val turnConflicts: ConflictTree<Turn>,
   val currentlyEditedCharacter: CurrentlyEditedCharacter? = null,
   val shownView: ShownView,
   val knownPlayerCharacters: List<String?>,
@@ -129,6 +129,7 @@ private constructor(val repository: Repository<Action, State>, val persist: Pers
       UiState(
         shownView = ShownView.CHARACTERS,
         knownPlayerCharacters = listOf(null) + (persist?.fetchKnownPlayerCharacters() ?: listOf()),
+        turnConflicts = ConflictTree(listOf(), null),
       )
     )
   val state: StateFlow<UiState> = _state
@@ -179,7 +180,7 @@ private constructor(val repository: Repository<Action, State>, val persist: Pers
               result.currentlySelectedCharacter != prevState.currentlySelectedCharacter &&
                 result.currentlyEditedCharacter == null
             ) {
-              val turns = result.actions.any { it.third != TurnAction.ResolveConflicts }
+              val turns = result.turnConflicts.m != null
               val noInitiatives = result.characters.all { it.initiative == null }
               if (turns) {
                 result.copy(shownView = ShownView.TURNS)
@@ -204,10 +205,14 @@ private constructor(val repository: Repository<Action, State>, val persist: Pers
   }
 
   fun addTurn(turnAction: TurnAction) {
-    val predecessors = repository.state.turnActions.value.map { it.second }
-    if (predecessors.size > 1) return
-    val predecessor = predecessors.firstOrNull()
-    repository.produce(Turn(turnAction, predecessor?.toDot()))
+    val c =
+      repository.state.turnActions.conflicts(skip = { it == TurnAction.ResolveConflicts }) {
+        repository.fetchVersion(it)!!.let { (it.op as Turn) to it.metadata }
+      }
+    if (c.children.isNotEmpty()) {
+      return
+    }
+    repository.produce(Turn(turnAction, c.m?.second?.toDot()))
   }
 
   override fun deleteCharacter(characterKey: CharacterId) {
@@ -255,7 +260,8 @@ private constructor(val repository: Repository<Action, State>, val persist: Pers
   }
 
   override fun next() {
-    val next = repository.state.predictNextTurns(withCurrent = false, repository).firstOrNull()
+    val next =
+      repository.state.predictNextTurns(withCurrent = false, repository = repository).firstOrNull()
     if (next != null) {
       addTurn(TurnAction.StartTurn(next.key))
     }

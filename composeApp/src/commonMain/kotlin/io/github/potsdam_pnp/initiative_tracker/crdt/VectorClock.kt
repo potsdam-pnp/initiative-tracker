@@ -77,6 +77,18 @@ data class VectorClock(val clock: Map<ClientIdentifier, Int>) {
     return 0
   }
 
+  fun compTotalOrder(other: VectorClock): Int {
+    val s = clock.values.sum()
+    val o = other.clock.values.sum()
+    return if (s < o) {
+      -1
+    } else if (s > o) {
+      1
+    } else {
+      clientTotalOrder(other)
+    }
+  }
+
   fun contains(other: Dot?): Boolean {
     if (other == null) return true
     return (clock[other.clientIdentifier] ?: 0) >= other.position

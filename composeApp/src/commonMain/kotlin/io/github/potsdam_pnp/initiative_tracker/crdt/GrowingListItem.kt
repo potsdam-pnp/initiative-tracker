@@ -19,74 +19,100 @@ interface GrowingListItem<T> {
   }
 }
 
-sealed class ConflictState {
-  object InAllTimelines : ConflictState()
+data class ConflictTree<T>(
+  val children: List<ConflictTree<T>>,
+  val m: Pair<T, OperationMetadata>?,
+) {
+  fun isConflict(): Boolean {
+    return children.size >= 2
+  }
 
-  data class InTimelines(val timeline: Set<Int>) : ConflictState()
+  fun pretty(
+    indent: Int = 0,
+    withoutMe: Boolean = true,
+  ): List<Pair<Pair<Int, Int>, Pair<T, OperationMetadata>>> {
+    val h =
+      if (!withoutMe && m != null) {
+        listOf((indent to children.size) to m)
+      } else {
+        emptyList()
+      }
+    return h + children.flatMap { it.pretty(indent + 1, false) }
+  }
+
+  fun conflictActionDepth(includeThis: Boolean = false): Int {
+    return (if (includeThis) 1 else 0) +
+      (children.maxOfOrNull { it.conflictActionDepth(includeThis = true) } ?: 0)
+  }
 }
 
-fun <U : GrowingListItem<T>, T> Register<U>.show(
-  fetchVersion: (Dot) -> Pair<U, OperationMetadata>
-): List<Triple<Dot, ConflictState, T>> {
-  if (value.isEmpty()) return emptyList()
-
-  val currentTop = value.mapIndexed { index, v -> setOf(index) to v }.toMap().toMutableMap()
-  val result = mutableListOf<Triple<Dot, ConflictState, T>>()
-
-  var inAllTimelines = true
-
-  while (currentTop.size > 1) {
-    var candidate = currentTop.keys.first()
-    var candidateValue = currentTop[candidate]!!
-    var candidateClock = candidateValue.second.clock
-
-    // Find equal values
-    val allEquals = currentTop.filterValues { it.second.clock == candidateClock }
-    if (allEquals.size > 1) {
-      for (key in allEquals.keys) {
-        currentTop.remove(key)
-      }
-      currentTop[allEquals.keys.flatten().toSet()] = candidateValue
-      continue
+fun <U : GrowingListItem<T>, T> List<ConflictTree<U>>.addChild(
+  child: ConflictTree<U>
+): List<ConflictTree<U>> {
+  val i = indexOfFirst { it.m?.first?.item == child.m?.first?.item }
+  if (i == -1) {
+    return this + child
+  } else {
+    return this.toMutableList().apply {
+      var newChildren = this[i].children
+      child.children.forEach { newChildren = newChildren.addChild(it) }
+      this[i] = this[i].copy(children = newChildren)
     }
+  }
+}
 
-    for (key in currentTop.keys) {
-      if (key == candidate) continue
-      val clock = currentTop[key]!!.second.clock
+fun <U : GrowingListItem<T>, T> Register<U>.conflicts(
+  skip: (T) -> Boolean,
+  fetchVersion: (Dot) -> Pair<U, OperationMetadata>,
+): ConflictTree<U> {
 
-      if (clock.contains(candidateClock)) {
-        candidate = key
-        candidateValue = currentTop[key]!!
-        candidateClock = clock
-      }
-    }
-
-    result.add(
-      Triple(
-        candidateValue.second.toDot(),
-        ConflictState.InTimelines(candidate),
-        candidateValue.first.item,
-      )
-    )
-    val predecessor = candidateValue.first.predecessor
-    if (predecessor == null) {
-      inAllTimelines = false
-      currentTop.remove(candidate)
-    } else {
-      currentTop[candidate] = fetchVersion(predecessor)
+  fun skipUntil(p: Pair<U, OperationMetadata>): Pair<U, OperationMetadata>? {
+    return when (skip(p.first.item)) {
+      false -> p
+      true -> p.first.predecessor?.let { fetchVersion(it) }
     }
   }
 
-  val conflictState =
-    if (inAllTimelines) ConflictState.InAllTimelines
-    else ConflictState.InTimelines(currentTop.keys.first())
+  val current: MutableList<ConflictTree<U>> =
+    value
+      .mapNotNull { skipUntil(it)?.let { ConflictTree<U>(listOf(), it) } }
+      .sortedWith { l, r ->
+        when {
+          l.m == null && r.m == null -> 0
+          l.m == null -> 1
+          r.m == null -> -1
+          else -> l.m.second.clock.compTotalOrder(r.m.second.clock)
+        }
+      }
+      .toMutableList()
 
-  val rest = currentTop.values.first()
+  if (current.isEmpty()) {
+    return ConflictTree(listOf(), null)
+  }
 
-  return rest.first
-    .asList(rest.second.toDot()) {
-      val v = fetchVersion(it)
-      v.second.toDot() to v.first
+  while (current.size > 1) {
+    val c = current.first()
+    current.removeAt(0)
+    val d = c.m!!.first.predecessor?.let { fetchVersion(it) }
+    val index =
+      current.binarySearch { l ->
+        when {
+          l.m == null && d == null -> 0
+          l.m == null -> 1
+          d == null -> -1
+          else -> l.m.second.clock.compTotalOrder(d.second.clock)
+        }
+      }
+    if (index >= 0) {
+      current[index] = current[index].copy(children = current[index].children.addChild(c))
+    } else {
+      current.add(-index - 1, ConflictTree(listOf(c), d))
     }
-    .map { Triple(it.first, conflictState, it.second) } + result.reversed()
+  }
+
+  var result = current.first()
+  while (result.children.size == 1) {
+    result = result.children.first()
+  }
+  return result
 }

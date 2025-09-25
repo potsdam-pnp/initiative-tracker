@@ -136,6 +136,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -144,8 +145,9 @@ import initiative_tracker.composeapp.generated.resources.*
 import io.github.aakira.napier.Napier
 import io.github.potsdam_pnp.initiative_tracker.CharacterId
 import io.github.potsdam_pnp.initiative_tracker.State
+import io.github.potsdam_pnp.initiative_tracker.Turn
 import io.github.potsdam_pnp.initiative_tracker.TurnAction
-import io.github.potsdam_pnp.initiative_tracker.crdt.ConflictState
+import io.github.potsdam_pnp.initiative_tracker.crdt.ConflictTree
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
 import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
@@ -378,12 +380,12 @@ fun ListCharacters(
 @Composable
 fun ListConflictTurns(
   columnScope: ColumnScope,
-  hasConflict: Boolean,
+  turnConflicts: ConflictTree<Turn>,
   showActionList: () -> Unit,
   content: @Composable () -> Unit,
 ) {
   Box(modifier = with(columnScope) { Modifier.fillMaxWidth().weight(1f) }) {
-    if (hasConflict) {
+    if (turnConflicts.isConflict()) {
       ExtendedFloatingActionButton(
         modifier = Modifier.align(Alignment.BottomEnd).padding(all = 20.dp),
         onClick = { showActionList() },
@@ -392,7 +394,9 @@ fun ListConflictTurns(
       }
     }
     Box(
-      modifier = if (hasConflict) Modifier.background(Color.Transparent).blur(4.dp) else Modifier
+      modifier =
+        if (turnConflicts.isConflict()) Modifier.background(Color.Transparent).blur(4.dp)
+        else Modifier
     ) {
       content()
     }
@@ -515,13 +519,13 @@ fun InitOrder(
   actions: Actions,
   listState: LazyListState,
   shownView: ShownView,
-  hasConflict: Boolean,
+  turnConflicts: ConflictTree<Turn>,
   showActionList: () -> Unit,
 ) {
   if (shownView == ShownView.CHARACTERS) {
     ListCharacters(columnScope, uiCharacters, actions, listState, currentlyEditedCharacter)
   } else {
-    ListConflictTurns(columnScope, hasConflict, showActionList) {
+    ListConflictTurns(columnScope, turnConflicts, showActionList) {
       ListTurns(uiCharacters, active, actions)
     }
   }
@@ -573,7 +577,7 @@ fun App(data: String? = null, hasAnimations: Boolean = true) {
   val uiState by
     model.state.collectAsState(
       UiState(
-        turnConflicts = false,
+        turnConflicts = ConflictTree(listOf(), null),
         shownView = ShownView.CHARACTERS,
         knownPlayerCharacters = listOf(null),
       )
@@ -679,9 +683,6 @@ fun App(data: String? = null, hasAnimations: Boolean = true) {
               modifier =
                 Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Start))
             ) {
-              Text(
-                "${uiState.actions.filterIsInstance<TurnAction.StartTurn>().size} turns played so far in current encounter"
-              )
               Text("${uiState.characters.filter { !it.dead }.size} characters still alive")
             }
           }
@@ -817,7 +818,9 @@ fun App(data: String? = null, hasAnimations: Boolean = true) {
             }
           }
 
-          composable(route = Screens.ListActions.name) { ListActions(innerPadding, uiState, model) }
+          composable(route = Screens.ListActions.name) {
+            ListActions(innerPadding, uiState, model, navController)
+          }
 
           composable(route = Screens.ConnectionSettings.name) {
             ConnectionSettings(innerPadding, model, globalCoroutineScope)
@@ -905,9 +908,10 @@ fun ConnectionState(
           .padding(2.dp)
           .then(
             Modifier.clickable(
-              enabled = connectionStateClickableEnabled(),
-              onClick = connectionStateOnClick(),
-            ).connectionStateModifier()
+                enabled = connectionStateClickableEnabled(),
+                onClick = connectionStateOnClick(),
+              )
+              .connectionStateModifier()
           )
       },
     badge = {
@@ -1075,6 +1079,15 @@ fun ConnectionSettings(innerPadding: PaddingValues, model: Model, coroutineScope
   }
 }
 
+fun canUndo(turnConflicts: ConflictTree<Turn>): Boolean {
+  if (turnConflicts.children.isEmpty()) {
+    return turnConflicts.m != null
+  } else {
+    // Only allow undo when the length of the conflict is small
+    return turnConflicts.conflictActionDepth() < 3
+  }
+}
+
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
@@ -1127,18 +1140,24 @@ fun MainScreen(
               Box(modifier = Modifier.weight(1f)) {
                 OutlinedButton(
                   modifier = Modifier.align(Alignment.Center),
-                  enabled = uiState.actions.any { it.third != TurnAction.ResolveConflicts },
+                  enabled = canUndo(uiState.turnConflicts),
                   onClick = {
                     model.pickAction(
-                      uiState.actions.let { actions ->
-                        val index =
-                          actions.indexOfLast { it.third != TurnAction.ResolveConflicts } - 1
-                        actions.getOrNull(index)?.first
+                      if (uiState.turnConflicts.children.isEmpty()) {
+                        uiState.turnConflicts.m?.first?.predecessor
+                      } else {
+                        uiState.turnConflicts.m?.second?.toDot()
                       }
                     )
                   },
                 ) {
-                  Text("Undo")
+                  Text(
+                    when (val c = uiState.turnConflicts.conflictActionDepth()) {
+                      0 -> "Undo"
+                      1 -> "Undo"
+                      else -> "Undo ($c)"
+                    }
+                  )
                 }
               }
 
@@ -1146,7 +1165,7 @@ fun MainScreen(
                 if (ongoingTurn) {
                   Button(
                     modifier = Modifier.align(Alignment.Center),
-                    enabled = !uiState.turnConflicts,
+                    enabled = !uiState.turnConflicts.isConflict(),
                     onClick = {
                       uiState.currentlySelectedCharacter.let {
                         if (it != null) model.finishTurn(it)
@@ -1158,7 +1177,7 @@ fun MainScreen(
                 } else {
                   Button(
                     modifier = Modifier.align(Alignment.Center),
-                    enabled = !uiState.turnConflicts,
+                    enabled = !uiState.turnConflicts.isConflict(),
                     onClick = { model.next() },
                   ) {
                     Text("Start")
@@ -1169,7 +1188,7 @@ fun MainScreen(
               Box(modifier = Modifier.weight(1f)) {
                 OutlinedButton(
                   modifier = Modifier.align(Alignment.Center),
-                  enabled = !uiState.turnConflicts && ongoingTurn,
+                  enabled = !uiState.turnConflicts.isConflict() && ongoingTurn,
                   onClick = { model.delay() },
                 ) {
                   Text("Delay")
@@ -1216,8 +1235,24 @@ fun MainScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ListActions(innerPadding: PaddingValues, uiState: UiState, actions: Actions) {
-  var showModalDialogOfDot by remember { mutableStateOf<Dot?>(null) }
+fun ListActions(
+  innerPadding: PaddingValues,
+  uiState: UiState,
+  actions: Model,
+  navController: NavHostController,
+) {
+  var showModalDialogOfDot by remember { mutableStateOf<Pair<Dot, Turn>?>(null) }
+  val turns =
+    remember(uiState.turnConflicts.m?.second?.toDot()) {
+      buildList {
+        var next = uiState.turnConflicts.m?.second?.toDot()
+        while (next != null) {
+          val i = actions.repository.fetchVersion(next)!!.op as Turn
+          add(next to i)
+          next = i.predecessor
+        }
+      }
+    }
   LazyColumn(
     contentPadding = innerPadding,
     modifier =
@@ -1225,14 +1260,49 @@ fun ListActions(innerPadding: PaddingValues, uiState: UiState, actions: Actions)
         WindowInsets.safeDrawing.union(WindowInsets.ime.only(WindowInsetsSides.Bottom))
       ),
   ) {
+    items(uiState.turnConflicts.pretty().reversed()) { item ->
+      ListItem(
+        headlineContent = {
+          fun name(characterId: CharacterId): String =
+            uiState.characters.find { it.key == characterId }?.name?.asString()
+              ?: characterId.hashCode().toString()
+          val c =
+            "\t".repeat(item.first.first) +
+              when (val d = item.second.first.turnAction) {
+                is TurnAction.Delay -> "${name(d.characterId)} delayed"
+                is TurnAction.Die -> "${name(d.characterId)} died"
+                is TurnAction.FinishTurn -> "${name(d.characterId)} finished turn"
+                TurnAction.ResolveConflicts -> "actions undone"
+                is TurnAction.StartTurn -> "${name(d.characterId)} started turn"
+              }
+          Text(c)
+        },
+        trailingContent = {
+          if (item.first.second == 0) {
+            Button(
+              onClick = {
+                actions.pickAction(item.second.second.toDot())
+                navController.navigate(Screens.MainScreen.name) {
+                  popUpTo(Screens.MainScreen.name)
+                  launchSingleTop = true
+                }
+                actions.showView(ShownView.TURNS)
+              }
+            ) {
+              Text("Pick")
+            }
+          }
+        },
+      )
+    }
+    item { HorizontalDivider() }
     items(
-      uiState.actions.reversed(),
-      key = { Pair(it.first.clientIdentifier.encodeToProto(), it.first.position) },
+      turns // TODO set key
     ) { item ->
-      Row(modifier = Modifier.clickable(onClick = { showModalDialogOfDot = item.first })) {
+      Row(modifier = Modifier.clickable(onClick = { showModalDialogOfDot = item })) {
         Text(
           modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp),
-          text = descriptionOfAction(uiState, item),
+          text = descriptionOfAction(uiState, item.second.turnAction),
         )
       }
     }
@@ -1251,11 +1321,7 @@ fun ListActions(innerPadding: PaddingValues, uiState: UiState, actions: Actions)
             )
             HorizontalDivider()
             Text(
-              text =
-                descriptionOfAction(
-                  uiState,
-                  uiState.actions.find { it.first == modelDialogVersion }!!,
-                ),
+              text = descriptionOfAction(uiState, modelDialogVersion.second.turnAction),
               modifier = Modifier.padding(16.dp),
             )
 
@@ -1269,10 +1335,10 @@ fun ListActions(innerPadding: PaddingValues, uiState: UiState, actions: Actions)
               modifier = Modifier.align(Alignment.End),
               onClick = {
                 showModalDialogOfDot = null
-                actions.pickAction(modelDialogVersion)
+                actions.pickAction(modelDialogVersion.first)
               },
             ) {
-              Text("Pick as most recent action")
+              Text("Pick")
             }
           }
         }
@@ -1281,35 +1347,26 @@ fun ListActions(innerPadding: PaddingValues, uiState: UiState, actions: Actions)
   }
 }
 
-fun descriptionOfAction(uiState: UiState, action: Triple<Dot, ConflictState, TurnAction>): String {
-  val conflictStateString =
-    when (val af = action.second) {
-      ConflictState.InAllTimelines -> ""
-      is ConflictState.InTimelines -> "in timelines ${af.timeline.joinToString { it.toString()}}: "
+fun descriptionOfAction(uiState: UiState, action: TurnAction): String {
+  return when (action) {
+    is TurnAction.StartTurn -> {
+      val name = uiState.characters.find { action.characterId == it.key }?.name?.asString()
+      "$name started turn"
     }
-
-  val result =
-    when (val a = action.third) {
-      is TurnAction.StartTurn -> {
-        val name = uiState.characters.find { a.characterId == it.key }?.name?.asString()
-        "$name started turn"
-      }
-      is TurnAction.Delay -> {
-        val name = uiState.characters.find { a.characterId == it.key }?.name?.asString()
-        "$name delayed turn"
-      }
-      is TurnAction.FinishTurn -> {
-        val name = uiState.characters.find { a.characterId == it.key }?.name?.asString()
-        "$name finished turn"
-      }
-      is TurnAction.Die -> {
-        val name = uiState.characters.find { a.characterId == it.key }?.name?.asString()
-        "$name died"
-      }
-      is TurnAction.ResolveConflicts -> {
-        "Actions undone"
-      }
+    is TurnAction.Delay -> {
+      val name = uiState.characters.find { action.characterId == it.key }?.name?.asString()
+      "$name delayed turn"
     }
-
-  return conflictStateString + result
+    is TurnAction.FinishTurn -> {
+      val name = uiState.characters.find { action.characterId == it.key }?.name?.asString()
+      "$name finished turn"
+    }
+    is TurnAction.Die -> {
+      val name = uiState.characters.find { action.characterId == it.key }?.name?.asString()
+      "$name died"
+    }
+    is TurnAction.ResolveConflicts -> {
+      "Actions undone"
+    }
+  }
 }

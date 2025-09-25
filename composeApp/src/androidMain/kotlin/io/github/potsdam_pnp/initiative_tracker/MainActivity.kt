@@ -40,6 +40,14 @@ class SharedPreferencesPersistData(val sharedPreferences: SharedPreferences) : P
   override fun storeKnownPlayerCharacters(data: List<String>) {
     sharedPreferences.edit { putString("players", JSONArray(data.toTypedArray()).toString(0)) }
   }
+
+  fun fetchShowIntro(): Boolean {
+    return sharedPreferences.getBoolean("showIntro", true)
+  }
+
+  fun storeShowIntro() {
+    sharedPreferences.edit { putBoolean("showIntro", false) }
+  }
 }
 
 class MainActivity : ComponentActivity() {
@@ -68,15 +76,12 @@ class MainActivity : ComponentActivity() {
         0.0f
 
     setContent {
-      var showAppIntro by remember {
-        mutableStateOf(true)
-      }
+      var showAppIntro by remember { mutableStateOf(persistData.fetchShowIntro()) }
 
       IntroShowcase(
         showIntroShowCase = showAppIntro,
-        onShowCaseCompleted = {
-          showAppIntro = false
-        }
+        onShowCaseCompleted = { showAppIntro = false; persistData.storeShowIntro() },
+        dismissOnClickOutside = true,
       ) {
         showIntroShowcaseScope = this
         App(null, hasAnimations)

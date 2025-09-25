@@ -4,6 +4,7 @@ import ShownView
 import UiCharacter
 import UiState
 import io.github.potsdam_pnp.initiative_tracker.crdt.AbstractState
+import io.github.potsdam_pnp.initiative_tracker.crdt.ConflictTree
 import io.github.potsdam_pnp.initiative_tracker.crdt.Dot
 import io.github.potsdam_pnp.initiative_tracker.crdt.Operation
 import io.github.potsdam_pnp.initiative_tracker.crdt.Register
@@ -11,7 +12,7 @@ import io.github.potsdam_pnp.initiative_tracker.crdt.Repository
 import io.github.potsdam_pnp.initiative_tracker.crdt.StringOperation
 import io.github.potsdam_pnp.initiative_tracker.crdt.StringRegister
 import io.github.potsdam_pnp.initiative_tracker.crdt.VectorClock
-import io.github.potsdam_pnp.initiative_tracker.crdt.show
+import io.github.potsdam_pnp.initiative_tracker.crdt.conflicts
 
 data class Character(
   val id: CharacterId,
@@ -151,25 +152,11 @@ class State(
       op.predecessor?.let { listOf(it) } ?: listOf()
     } else listOf()
 
-  private fun commonLatestTurn(repository: Repository<Action, State>): Turn? {
-    return when {
-      turnActions.value.isEmpty() -> null
-      else -> {
-        var resultValue = turnActions
-        while (resultValue.value.size > 1) {
-          val firstElement = resultValue.value[0]
-          resultValue = Register(resultValue.value.drop(1))
-          val predecessor = firstElement.first.predecessor
-          if (predecessor != null) {
-            val fetched = repository.fetchVersion(predecessor)!!
-            resultValue = resultValue.insert(fetched.op as Turn, fetched.metadata)
-          } else {
-            return null
-          }
-        }
-        return resultValue.value[0].first
-      }
-    }
+  private fun commonLatestTurn(
+    repository: Repository<Action, State>,
+    conflictTree: ConflictTree<Turn>,
+  ): Turn? {
+    return conflictTree.m?.first
   }
 
   private data class CharacterData(
@@ -180,8 +167,14 @@ class State(
 
   fun predictNextTurns(
     withCurrent: Boolean,
+    conflictTree: ConflictTree<Turn>? = null,
     repository: Repository<Action, State>,
   ): List<UiCharacter> {
+    val conflictTree1 =
+      conflictTree
+        ?: turnActions.conflicts(skip = { it == TurnAction.ResolveConflicts }) {
+          repository.fetchVersion(it)!!.let { (it.op as Turn) to it.metadata }
+        }
     val state = mutableMapOf<CharacterId, CharacterData>()
     val alreadyPlayedCharacters = mutableListOf<CharacterId>()
 
@@ -200,7 +193,7 @@ class State(
 
     var dying = 0
 
-    var turn = commonLatestTurn(repository)
+    var turn = commonLatestTurn(repository, conflictTree1)
     while (turn != null) {
       when (val action = turn.turnAction) {
         is TurnAction.StartTurn -> {
@@ -264,7 +257,11 @@ class State(
   }
 
   fun currentTurn(repository: Repository<Action, State>): CharacterId? {
-    var turn = commonLatestTurn(repository)
+    val conflictTree1 =
+      turnActions.conflicts(skip = { it == TurnAction.ResolveConflicts }) {
+        repository.fetchVersion(it)!!.let { (it.op as Turn) to it.metadata }
+      }
+    var turn = commonLatestTurn(repository, conflictTree1)
     while (turn != null) {
       when (val action = turn.turnAction) {
         is TurnAction.StartTurn -> return action.characterId
@@ -281,17 +278,17 @@ class State(
     repository: Repository<Action, State>,
     shownView: ShownView,
     knownPlayerCharacters: List<String?>,
-  ): UiState =
-    UiState(
-      characters = predictNextTurns(withCurrent = true, repository),
+  ): UiState {
+    val turnConflicts =
+      turnActions.conflicts(skip = { it == TurnAction.ResolveConflicts }) {
+        repository.fetchVersion(it)!!.let { (it.op as Turn) to it.metadata }
+      }
+    return UiState(
+      characters = predictNextTurns(withCurrent = true, turnConflicts, repository),
       currentlySelectedCharacter = currentTurn(repository),
-      actions =
-        turnActions.show {
-          val result = repository.fetchVersion(it)!!
-          Pair(result.op as Turn, result.metadata)
-        },
-      turnConflicts = turnActions.value.size > 1,
+      turnConflicts = turnConflicts,
       shownView = shownView,
       knownPlayerCharacters = knownPlayerCharacters,
     )
+  }
 }
