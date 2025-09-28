@@ -111,8 +111,8 @@ android {
     applicationId = "io.github.potsdam_pnp.initiative_tracker"
     minSdk = libs.versions.android.minSdk.get().toInt()
     targetSdk = libs.versions.android.targetSdk.get().toInt()
-    versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 215
-    versionName = System.getenv("VERSION_NAME") ?: "0.5.0"
+    versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 220
+    versionName = System.getenv("VERSION_NAME") ?: "0.5.1"
     buildConfigField("String", "DistributionChannel", "unknown")
   }
   packaging {
