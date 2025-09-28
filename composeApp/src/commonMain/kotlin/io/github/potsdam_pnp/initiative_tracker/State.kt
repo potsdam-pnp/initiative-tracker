@@ -271,11 +271,20 @@ class State(
           repository.fetchVersion(it)!!.let { (it.op as Turn) to it.metadata }
         }
     var turn = commonLatestTurn(repository, conflictTree1)
+    val dying = mutableSetOf<CharacterId>()
     while (turn != null) {
       when (val action = turn.turnAction) {
-        is TurnAction.StartTurn -> return action.characterId
+        is TurnAction.StartTurn -> {
+          return if (dying.contains(action.characterId)) {
+            null
+          } else {
+            action.characterId
+          }
+        }
         is TurnAction.Delay -> return null
         is TurnAction.FinishTurn -> return null
+        is TurnAction.Die -> dying += action.characterId
+        is TurnAction.NonPlayerDie -> dying += action.characterId
         else -> {}
       }
       turn = turn.predecessor?.let { repository.fetchVersion(it) }?.let { it.op as Turn }
